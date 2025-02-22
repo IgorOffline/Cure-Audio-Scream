@@ -3,6 +3,7 @@
 #define XHL_FILES_IMPL
 #define XHL_ALLOC_IMPL
 #define XHL_TIME_IMPL
+#define XHL_COMPONENT_IMPL
 
 #ifndef NDEBUG
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
@@ -15,6 +16,7 @@
 
 #include <stdio.h>
 #include <xhl/alloc.h>
+#include <xhl/component.h>
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/time.h>

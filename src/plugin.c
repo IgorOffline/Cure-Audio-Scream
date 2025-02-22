@@ -1,4 +1,5 @@
 #include "common.h"
+
 #include "plugin.h"
 
 #include <stdio.h>
@@ -42,6 +43,8 @@ void* cplug_createPlugin(CplugHostContext* ctx)
 
     p->width  = GUI_INIT_WIDTH;
     p->height = GUI_INIT_HEIGHT;
+
+    p->params[0] = 0.5;
 
     return p;
 }
@@ -114,12 +117,39 @@ void cplug_parameterValueToString(void*, uint32_t paramId, char* buf, size_t buf
     snprintf(buf, bufsize, "%f", value);
 }
 
+void param_change_begin(Plugin* p, uint32_t param_idx)
+{
+    CplugEvent e     = {0};
+    e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_BEGIN;
+    e.parameter.id   = param_idx;
+    p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
+}
+
+void param_change_end(Plugin* p, uint32_t param_idx)
+{
+    CplugEvent e     = {0};
+    e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_END;
+    e.parameter.id   = param_idx;
+    p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
+}
+
+void param_change_update(Plugin* p, uint32_t param_idx, double value)
+{
+    CplugEvent e     = {0};
+    e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
+    e.parameter.id   = param_idx;
+    p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
+
+    p->params[param_idx] = value;
+}
+
 void cplug_setSampleRateAndBlockSize(void* _p, double sampleRate, uint32_t maxBlockSize)
 {
     Plugin* p         = _p;
     p->sample_rate    = sampleRate;
     p->max_block_size = maxBlockSize;
 }
+
 void cplug_process(void* _p, CplugProcessContext* ctx)
 {
     DISABLE_DENORMALS
@@ -168,7 +198,7 @@ typedef struct PluginStatev0_0_1
         };
         uint32_t number;
     } version;
-    float params[NUM_PARAMS];
+    double params[NUM_PARAMS];
 } PluginState;
 
 void cplug_saveState(void* _p, const void* stateCtx, cplug_writeProc writeProc)

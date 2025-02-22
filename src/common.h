@@ -53,6 +53,9 @@ enum
 
     GUI_RATIO_X = 2,
     GUI_RATIO_Y = 1,
+
+    GUI_MIN_WIDTH  = GUI_RATIO_X * 100,
+    GUI_MIN_HEIGHT = GUI_RATIO_Y * 100,
 };
 
 #endif // PLUGIN_CONFIG_H

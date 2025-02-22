@@ -2,13 +2,17 @@
 #include "common.h"
 #include "plugin.h"
 
+#include <xhl/component.h>
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/time.h>
+#include <xhl/vector.h>
 
 #include <cplug_extensions/window.h>
 #include <nanovg.h>
 #include <nanovg_sokol.h>
+
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -19,7 +23,28 @@ typedef struct GUI
     void*       sg;
     NVGcontext* nvg;
     int         font_id;
+    float       scale;
+
+    xcomp_root       root;      // root comp state
+    xcomp_component  component; // root level component
+    xcomp_component* children[3];
+    xcomp_component  sliders[3];
+
+    int    slider_drag_idx;
+    xvec2f drag_last;
+    double drag_val_normalised;
 } GUI;
+
+static const float SLIDER_POSITIONS[3] = {0.2, 0.5, 0.8};
+// Relative to GUI width
+#define SLIDER_RADIUS 0.1f
+// Angle radians
+// 120deg
+#define SLIDER_START_RAD 2.0943951023931953f
+// 120deg + 360deg * 0.8333
+#define SLIDER_END_RAD 7.330173418865945f
+// end - start
+#define SLIDER_LENGTH_RAD 5.23577831647275f
 
 static void my_sg_logger(
     const char* tag,              // always "sapp"
@@ -53,22 +78,14 @@ void pw_get_info(struct PWGetInfo* info)
     }
     else if (info->type == PW_INFO_CONSTRAIN_SIZE)
     {
-#ifndef NDEBUG
-        static char* names[] = {
-            "PW_RESIZE_UNKNOWN",
-            "PW_RESIZE_LEFT",
-            "PW_RESIZE_RIGHT",
-            "PW_RESIZE_TOP",
-            "PW_RESIZE_TOPLEFT",
-            "PW_RESIZE_TOPRIGHT",
-            "PW_RESIZE_BOTTOM",
-            "PW_RESIZE_BOTTOMLEFT",
-            "PW_RESIZE_BOTTOMRIGHT",
-        };
-        println("resize direction: %s", names[info->constrain_size.direction]);
-#endif
         uint32_t width  = info->constrain_size.width;
         uint32_t height = info->constrain_size.height;
+
+        if (width < GUI_MIN_WIDTH)
+            width = GUI_MIN_WIDTH;
+        if (height < GUI_MIN_HEIGHT)
+            height = GUI_MIN_HEIGHT;
+
         switch (info->constrain_size.direction)
         {
         case PW_RESIZE_UNKNOWN:
@@ -119,12 +136,130 @@ void pw_get_info(struct PWGetInfo* info)
     }
 }
 
+void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_data data)
+{
+    GUI* gui        = comp->data;
+    int  slider_idx = 0;
+    for (; slider_idx < ARRLEN(gui->sliders); slider_idx++)
+    {
+        if (comp == &gui->sliders[slider_idx])
+            break;
+    }
+    xassert(slider_idx != ARRLEN(gui->sliders));
+
+    // The xcomp lib only supports these drag callbacks for rectangles, and we are drawing a really large round rotary
+    // knob, and not using all vailable pixels within the square. The hit test flag helps us skip any click events that
+    // occur without the flag.
+    static const uint64_t FLAG_HIT_TEST = 1 << 16;
+
+    if (event == XCOMP_EVENT_MOUSE_MOVE)
+    {
+        // hit test
+        float cx = comp->dimensions.x + 0.5f * comp->dimensions.width;
+        float cy = comp->dimensions.y + 0.5f * comp->dimensions.height;
+
+        float diff_x      = data.x - cx;
+        float diff_y      = data.y - cy;
+        float distance_px = hypotf(fabsf(diff_x), fabsf(diff_y));
+
+        float radius = SLIDER_RADIUS * gui->component.dimensions.width;
+        // println("x: %f y: %f px: %f", diff_x, diff_y, distance_px);
+        if (distance_px <= radius)
+        {
+            if (!(comp->flags & FLAG_HIT_TEST))
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
+            comp->flags |= FLAG_HIT_TEST;
+            // do thing
+        }
+        else
+        {
+            if ((comp->flags & FLAG_HIT_TEST))
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
+            comp->flags &= ~FLAG_HIT_TEST;
+        }
+    }
+    else if (event == XCOMP_EVENT_MOUSE_EXIT)
+        pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
+    else if (event == XCOMP_EVENT_MOUSE_LEFT_DOWN)
+    {
+        if (!(comp->flags & FLAG_HIT_TEST))
+            return;
+
+        double val = cplug_getParameterValue(gui->plugin, slider_idx);
+        cplug_normaliseParameterValue(gui->plugin, slider_idx, val);
+        gui->slider_drag_idx     = slider_idx;
+        gui->drag_last.x         = data.x;
+        gui->drag_last.y         = data.y;
+        gui->drag_val_normalised = val;
+
+        param_change_begin(gui->plugin, slider_idx);
+    }
+    else if (event == XCOMP_EVENT_DRAG_MOVE)
+    {
+        if (gui->slider_drag_idx < 0)
+            return;
+
+        /*
+        void drag_value(GUI* gui, const xcomp_event_data* data, uint64_t drag_flags, float drag_range_pixels)
+        {
+            float next_val;
+            float diff;
+            if (DRAG_HORIZONTALVERTICAL(drag_flags))
+                diff = (data->x - gui->drag_last.x) + (gui->drag_last.y - data->y);
+            else if (DRAG_HORIZONTAL(drag_flags))
+                diff = data->x - gui->drag_last.x;
+            else // DRAG_VERTICAL
+                diff = gui->drag_last.y - data->y;
+
+            if (data->modifiers & (XCOMP_MOD_KEY_SHIFT | XCOMP_MOD_PLATFORM_KEY_CTRL))
+                diff *= 0.1f;
+
+            next_val = gui->v0 + diff * (1.0f / drag_range_pixels);
+            next_val = xm_clampf(next_val, 0.0f, 1.0f);
+
+            gui->drag_last.x = data->x;
+            gui->drag_last.y = data->y;
+            gui->v0          = next_val;
+        }
+        */
+        const bool fine_increment = data.modifiers & (XCOMP_MOD_PLATFORM_KEY_CTRL | XCOMP_MOD_KEY_SHIFT);
+
+        float diff = (data.x - gui->drag_last.x) + (gui->drag_last.y - data.y);
+        if (fine_increment)
+            diff *= 0.1f;
+
+        double       next_val;
+        const double drag_range_px = 400.0; // drag sensitivity
+
+        next_val = gui->drag_val_normalised + diff * (1.0f / drag_range_px);
+        if (next_val < 0)
+            next_val = 0;
+        if (next_val > 1)
+            next_val = 1;
+
+        gui->drag_last.x         = data.x;
+        gui->drag_last.y         = data.y;
+        gui->drag_val_normalised = next_val;
+
+        next_val = cplug_denormaliseParameterValue(gui->plugin, slider_idx, next_val);
+        param_change_update(gui->plugin, slider_idx, next_val);
+    }
+    else if (event == XCOMP_EVENT_DRAG_END)
+    {
+        if (gui->slider_drag_idx < 0)
+            return;
+
+        param_change_end(gui->plugin, slider_idx);
+        gui->slider_drag_idx = -1;
+    }
+}
+
 void* pw_create_gui(void* _plugin, void* _pw)
 {
     xassert(_plugin);
     xassert(_pw);
     Plugin* p   = _plugin;
-    GUI*    gui = calloc(1, sizeof(*gui));
+    GUI*    gui = xcalloc(1, sizeof(*gui));
     gui->plugin = p;
     gui->pw     = _pw;
     p->gui      = gui;
@@ -162,6 +297,22 @@ void* pw_create_gui(void* _plugin, void* _pw)
     }
 
     gui->font_id = font_id;
+    gui->scale   = 1.0f;
+
+    gui->root.main               = &gui->component;
+    gui->component.children      = gui->children;
+    gui->component.event_handler = xcomp_empty_event_cb;
+    gui->component.data          = gui;
+
+    for (int i = 0; i < ARRLEN(gui->children); i++)
+    {
+        xcomp_component* comp = &gui->sliders[i];
+        xcomp_add_child(&gui->component, comp);
+        comp->data          = gui;
+        comp->event_handler = cb_xcomp_slider;
+    }
+
+    gui->slider_drag_idx = -1;
 
     return gui;
 }
@@ -173,15 +324,15 @@ void pw_destroy_gui(void* _gui)
     sg_shutdown(gui->sg);
 
     gui->plugin->gui = NULL;
-    free(gui);
+    xfree(gui);
 }
 
 void pw_tick(void* _gui)
 {
-    println("tick");
     GUI* gui = _gui;
+    xassert(gui->plugin);
     xassert(gui->nvg);
-    if (!gui->nvg)
+    if (!gui || !gui->plugin || !gui->nvg)
         return;
 
     // Begin frame
@@ -189,8 +340,12 @@ void pw_tick(void* _gui)
         int width  = gui->plugin->width;
         int height = gui->plugin->height;
 
+        static const float r = 202.0f / 255.0f;
+        static const float g = 211.0f / 255.0f;
+        static const float b = 220.0f / 255.0f;
+
         sg_pass_action pass_action = {
-            .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}};
+            .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {r, g, b, 1.0f}}};
 
         sg_swapchain swapchain;
         memset(&swapchain, 0, sizeof(swapchain));
@@ -213,22 +368,69 @@ void pw_tick(void* _gui)
         nvgBeginFrame(gui->nvg, width, height, pw_get_dpi(gui->pw));
     }
 
-    nvgBeginPath(gui->nvg);
-    nvgRect(gui->nvg, 20, 20, 20, 20);
-    nvgFillColor(gui->nvg, nvgRGBAf(1, 0, 0, 1));
-    nvgFill(gui->nvg);
+    NVGcontext* nvg = gui->nvg;
+
+    const NVGcolor col_text = nvgRGBA(143, 150, 160, 255);
+
+    for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
+    {
+        xcomp_dimensions* d = &gui->sliders[i].dimensions;
+
+        float cx     = d->x + 0.5f * d->width;
+        float cy     = d->y + 0.5f * d->height;
+        float radius = d->width * 0.5f;
+
+        // Knob
+        nvgBeginPath(nvg);
+        nvgCircle(nvg, cx, cy, radius);
+        nvgFillColor(nvg, nvgRGBA(91, 100, 109, 255));
+        nvgFill(nvg);
+
+        // Labels
+        nvgFillColor(nvg, col_text);
+        nvgTextAlign(nvg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+        nvgFontSize(nvg, gui->scale * 16);
+
+        static const char* NAMES[] = {"CUTOFF", "SCREAM", "RESONANCE"};
+        _Static_assert(ARRLEN(NAMES) == ARRLEN(SLIDER_POSITIONS));
+        _Static_assert(ARRLEN(NAMES) == ARRLEN(gui->sliders));
+        nvgText(nvg, cx, cy + radius * 1.4, NAMES[i], NULL);
+
+        char   label[24];
+        double value = cplug_getParameterValue(gui->plugin, i);
+        snprintf(label, sizeof(label), "%.2f", value);
+        nvgText(nvg, cx, cy - radius * 1.2, label, NULL);
+
+        // Slider Tick/Notch
+        float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value);
+        float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
+
+        float angle_x = cosf(angle_value);
+        float angle_y = sinf(angle_value);
+
+        float tick_radius_start = radius * 0.8f;
+        float tick_radius_end   = radius * 0.4f;
+
+        nvgBeginPath(nvg);
+        nvgMoveTo(nvg, cx + tick_radius_start * angle_x, cy + tick_radius_start * angle_y);
+        nvgLineTo(nvg, cx + tick_radius_end * angle_x, cy + tick_radius_end * angle_y);
+        nvgStrokeWidth(nvg, gui->scale * 8);
+        nvgStrokeColor(nvg, nvgRGBA(40, 47, 83, 255));
+        nvgLineCap(nvg, NVG_ROUND);
+        nvgStroke(nvg);
+    }
 
     // Timer
     {
         uint64_t now  = xtime_now_ns();
         now          /= 1000000;
         double sec    = (double)now / 1000.0;
-        nvgFillColor(gui->nvg, (NVGcolor){1, 1, 1, 1});
-        nvgFontSize(gui->nvg, 16);
+        nvgFillColor(gui->nvg, col_text);
+        nvgFontSize(gui->nvg, gui->scale * 16);
         nvgTextAlign(gui->nvg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-        int  height = gui->plugin->height;
         char str[24];
         snprintf(str, sizeof(str), "%.3fsec", sec);
+        const float height = gui->plugin->height;
         nvgText(gui->nvg, 20, height - 20, str, NULL);
     }
 
@@ -238,18 +440,6 @@ void pw_tick(void* _gui)
     sg_commit(gui->sg);
 }
 
-void cb_choose_files(void* user, const char* const* paths, uint32_t num_paths)
-{
-    println("num_paths: %u", num_paths);
-    if (num_paths)
-    {
-        for (int i = 0; i < num_paths; i++)
-        {
-            println(paths[i]);
-        }
-    }
-}
-
 bool pw_event(const PWEvent* event)
 {
     GUI* gui = event->gui;
@@ -257,165 +447,108 @@ bool pw_event(const PWEvent* event)
     if (!gui || !gui->plugin)
         return false;
 
-    if (event->type == PW_EVENT_RESIZE)
+    switch (event->type)
     {
+    case PW_EVENT_RESIZE:
+    {
+        // Retain size info for when the GUI is destroyed / reopened
         gui->plugin->width  = event->resize.width;
         gui->plugin->height = event->resize.height;
+
+        gui->scale = (float)event->resize.width / (float)GUI_INIT_WIDTH;
+
+        xcomp_dimensions dimensions = {0, 0, event->resize.width, event->resize.height};
+        xcomp_set_dimensions(&gui->component, dimensions);
+
+        float radius = SLIDER_RADIUS * dimensions.width;
+        for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
+        {
+            float pos = SLIDER_POSITIONS[i];
+            float x   = pos * dimensions.width;
+            float y   = 0.5f * dimensions.height;
+
+            xcomp_dimensions d = {x - radius, y - radius, 2 * radius, 2 * radius};
+            xcomp_set_dimensions(&gui->sliders[i], d);
+        }
+        break;
     }
-    else if (event->type == PW_EVENT_MOUSE_LEFT_DOWN)
+    case PW_EVENT_MOUSE_EXIT:
     {
-        println("click!");
-        static int times_clicked = 0;
-        times_clicked++;
-
-        /* SET CLIPBOARD */
-        char msg[32];
-        snprintf(msg, sizeof(msg), "times_clicked: %d", times_clicked);
-        pw_set_clipboard_text(gui->pw, msg);
-
-        /* GET CLIPBOARD */
-        char*  text    = NULL;
-        size_t textlen = 0;
-        pw_get_clipboard_text(gui->pw, &text, &textlen);
-        println("Updated clipboard:\n%.*s", (int)textlen, text);
-        pw_free_clipboard_text(text);
-
-        /* BEEP */
-        pw_beep();
-
-        /* GET DPI */
-        float dpi = pw_get_dpi(gui->pw);
-        println("DPI: %f", dpi);
-
-        /* GET SCREEN_SIZE */
-        uint32_t screen_width = 0, screen_height = 0;
-        pw_get_screen_size(&screen_width, &screen_height);
-        println("Screen size: %ux%u", screen_width, screen_height);
-
-        /* FILE SAVE */
-        PWChooseFileArgs   args        = {0};
-        static const char* ext_types[] = {"txt", "doc"};
-        static const char* ext_names[] = {"Text Document (.txt)", "Word Document (.doc)"};
-        _Static_assert(ARRLEN(ext_types) == ARRLEN(ext_names), "");
-
-        char desktop_path[256];
-        xfiles_get_user_directory(desktop_path, sizeof(desktop_path), XFILES_USER_DIRECTORY_DESKTOP);
-
-        // args.pw              = gui->pw;
-        // args.callback_data   = gui;
-        // args.callback        = cb_choose_files;
-        // args.is_save         = true;
-        // args.num_extensions  = ARRLEN(ext_types);
-        // args.extension_types = ext_types;
-        // args.extension_names = ext_names;
-        // args.title           = "Save my file!";
-        // args.folder          = desktop_path;
-        // args.filename        = "test";
-        // pw_choose_file(&args);
-
-        /* FILE OPEN */
-        // memset(&args, 0, sizeof(args));
-        // args.pw              = gui->pw;
-        // args.callback_data   = gui;
-        // args.callback        = cb_choose_files;
-        // args.multiselect     = true;
-        // args.num_extensions  = ARRLEN(ext_types);
-        // args.extension_types = ext_types;
-        // args.extension_names = ext_names;
-        // args.title           = "Open my file!";
-        // args.folder          = desktop_path;
-        // pw_choose_file(&args);
-
-        /* FOLDER OPEN */
-        // memset(&args, 0, sizeof(args));
-        // args.pw            = gui->pw;
-        // args.callback_data = gui;
-        // args.callback      = cb_choose_files;
-        // args.is_folder     = true;
-        // // args.multiselect   = true;
-        // args.title  = "Open Folder!";
-        // args.folder = desktop_path;
-        // pw_choose_file(&args);
-
-        pw_get_keyboard_focus(gui->pw);
-        // pw_check_keyboard_focus
-        // pw_release_keyboard_focus
-    }
-    else if (event->type == PW_EVENT_MOUSE_ENTER)
-    {
-        static enum PWCursorType cursor_type = 0;
-        static char*             names[]     = {
-            "PW_CURSOR_ARROW", // Default cursor
-            "PW_CURSOR_BEAM",  // 'I' used for hovering over text
-            "PW_CURSOR_NO",    // Circle with diagonal strike through
-            "PW_CURSOR_CROSS", // Precision select/crosshair
-
-            "PW_CURSOR_ARROW_DRAG", // Default cursor with copy box
-            "PW_CURSOR_HAND_POINT",
-            "PW_CURSOR_HAND_DRAGGABLE",
-            "PW_CURSOR_HAND_DRAGGING",
-
-            "PW_CURSOR_RESIZE_WE",
-            "PW_CURSOR_RESIZE_NS",
-            "PW_CURSOR_RESIZE_NESW",
-            "PW_CURSOR_RESIZE_NWSE",
+        xcomp_event_data data = {
+            .x         = event->mouse.x,
+            .y         = event->mouse.y,
+            .modifiers = event->mouse.modifiers,
         };
-        println("cursor: %s", names[cursor_type]);
-        pw_set_mouse_cursor(gui->pw, cursor_type);
+        xcomp_send_mouse_position(&gui->root, data);
+        break;
+    }
+    case PW_EVENT_MOUSE_ENTER:
+    case PW_EVENT_MOUSE_MOVE:
+    {
+        xcomp_event_data data = {
+            .x         = event->mouse.x,
+            .y         = event->mouse.y,
+            .modifiers = event->mouse.modifiers,
+        };
+        xcomp_send_mouse_position(&gui->root, data);
+        break;
+    }
+    case PW_EVENT_MOUSE_SCROLL_WHEEL:
+    case PW_EVENT_MOUSE_SCROLL_TOUCHPAD:
+    {
+        if (gui->root.mouse_over)
+        {
+            xcomp_event_data data = {
+                .x         = event->mouse.x,
+                .y         = event->mouse.y,
+                .modifiers = event->mouse.modifiers,
+            };
+            bool     is_wheel = event->type == PW_EVENT_MOUSE_SCROLL_WHEEL;
+            uint32_t ev_type  = is_wheel ? XCOMP_EVENT_MOUSE_SCROLL_WHEEL : XCOMP_EVENT_MOUSE_SCROLL_TOUCHPAD;
 
-        cursor_type++;
-        if (cursor_type >= ARRLEN(names))
-            cursor_type = 0;
+            gui->root.mouse_over->event_handler(gui->root.mouse_over, ev_type, data);
+        }
+        break;
     }
-    else if (event->type == PW_EVENT_KEY_FOCUS_LOST)
+    case PW_EVENT_MOUSE_LEFT_DOWN:
+    case PW_EVENT_MOUSE_RIGHT_DOWN:
+    case PW_EVENT_MOUSE_MIDDLE_DOWN:
     {
-        println("focus lost");
-        xassert(pw_check_keyboard_focus(gui->pw) == false);
+        xcomp_event_data data = {
+            .x         = event->mouse.x,
+            .y         = event->mouse.y,
+            .modifiers = event->mouse.modifiers,
+        };
+        xcomp_send_mouse_down(&gui->root, data);
+        break;
     }
-    else if (event->type == PW_EVENT_TEXT)
+    case PW_EVENT_MOUSE_LEFT_UP:
+    case PW_EVENT_MOUSE_RIGHT_UP:
+    case PW_EVENT_MOUSE_MIDDLE_UP:
     {
-        int string[2] = {event->text.codepoint, 0};
+        xcomp_event_data data = {
+            .x         = event->mouse.x,
+            .y         = event->mouse.y,
+            .modifiers = event->mouse.modifiers,
+        };
+        xcomp_send_mouse_up(&gui->root, data, event->mouse.time_ms, event->mouse.double_click_interval_ms);
+        break;
+    }
 
-        println("text %s", (char*)&string);
+    case PW_EVENT_KEY_FOCUS_LOST:
+        xcomp_root_give_keyboard_focus(&gui->root, NULL);
+        break;
+
+    case PW_EVENT_DPI_CHANGED:
+    case PW_EVENT_KEY_DOWN:
+    case PW_EVENT_KEY_UP:
+    case PW_EVENT_TEXT:
+    case PW_EVENT_FILE_ENTER:
+    case PW_EVENT_FILE_MOVE:
+    case PW_EVENT_FILE_DROP:
+    case PW_EVENT_FILE_EXIT:
+        break;
     }
-    else if (event->type == PW_EVENT_FILE_ENTER)
-    {
-        for (int i = 0; i < event->file.num_paths; i++)
-        {
-            println("Enter %s", event->file.paths[i]);
-        }
-        return true;
-    }
-    else if (event->type == PW_EVENT_FILE_MOVE)
-    {
-        for (int i = 0; i < event->file.num_paths; i++)
-        {
-            println("Move %s", event->file.paths[i]);
-        }
-        return true;
-    }
-    else if (event->type == PW_EVENT_FILE_DROP)
-    {
-        for (int i = 0; i < event->file.num_paths; i++)
-        {
-            println("Drop %s", event->file.paths[i]);
-        }
-        return true;
-    }
+
     return false;
-}
-
-bool cplug_getResizeHints(
-    void*     userGUI,
-    bool*     resizableX,
-    bool*     resizableY,
-    bool*     preserveAspectRatio,
-    uint32_t* aspectRatioX,
-    uint32_t* aspectRatioY)
-{
-    *resizableX          = true;
-    *resizableY          = true;
-    *preserveAspectRatio = false;
-
-    return true;
 }

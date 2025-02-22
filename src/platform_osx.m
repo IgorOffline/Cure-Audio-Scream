@@ -3,6 +3,7 @@
 #define XHL_FILES_IMPL
 #define XHL_TIME_IMPL
 #define XHL_ALLOC_IMPL
+#define XHL_COMPONENT_IMPL
 
 #ifndef NDEBUG
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __builtin_debugtrap()
@@ -11,11 +12,12 @@
 #include "libs/sokol_gfx.h"
 #include <cplug_extensions/window_osx.m>
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <xhl/alloc.h>
+#include <xhl/component.h>
 #include <xhl/files.h>
 #include <xhl/time.h>
-#include <stdarg.h>  
-#include <stdio.h>  
 
 #ifndef NDEBUG
 void println(const char* const fmt, ...)

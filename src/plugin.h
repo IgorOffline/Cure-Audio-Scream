@@ -1,6 +1,5 @@
 #pragma once
 #include <cplug.h>
-#include <nanovg_sokol.h>
 
 enum Parameter
 {
@@ -23,5 +22,9 @@ typedef struct Plugin
     double   sample_rate;
     uint32_t max_block_size;
 
-    float params[NUM_PARAMS];
+    double params[NUM_PARAMS];
 } Plugin;
+
+void param_change_begin(Plugin* p, uint32_t param_idx);
+void param_change_end(Plugin* p, uint32_t param_idx);
+void param_change_update(Plugin* p, uint32_t param_idx, double value);
