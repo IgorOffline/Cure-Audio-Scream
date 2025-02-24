@@ -87,13 +87,13 @@ uint32_t cplug_getNumParameters(void*) { return NUM_PARAMS; }
 // NOTE: AUv2 supports a max length of 52 bytes, VST3 128, CLAP 256
 void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
 {
-    const char* str = "";
-    if (paramId == kCutoff)
-        str = "Cutoff";
-    else if (paramId == kScream)
-        str = "Scream";
-    else if (paramId == kResonance)
-        str = "Resonance";
+    const char*        str     = "";
+    static const char* NAMES[] = {"LP Freq", "LP Res", "HP Freq", "HP Res", "Feedback Gain"};
+    _Static_assert(ARRLEN(NAMES) == NUM_PARAMS);
+    if (paramId < NUM_PARAMS)
+    {
+        str = NAMES[paramId];
+    }
     snprintf(buf, buflen, "%s", str);
 }
 
@@ -102,15 +102,39 @@ double cplug_getParameterValue(void* _p, uint32_t paramId)
     Plugin* p = _p;
     return p->params[paramId];
 }
-double cplug_getDefaultParameterValue(void*, uint32_t paramId)
+double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
 {
-    double v = 0.5;
-    if (paramId == kResonance)
-        v = xm_normd(-2.0, -18.0, 6);
+    double v = 0.0;
+    switch ((enum Parameter)paramId)
+    {
+    case PARAM_LP_CUTOFF:
+        v = 0.5;
+        break;
+    case PARAM_HP_CUTOFF:
+        v = 0.05;
+        break;
+    case PARAM_LP_RESONANCE:
+    case PARAM_HP_RESONANCE:
+        v = xm_normd(XM_SQRT1_2f, 0.1, 20);
+        break;
+    case PARAM_FEEDBACK_GAIN:
+        v = xm_normd(2.0, -18.0, 24);
+        break;
+    default:
+        break;
+    }
     return v;
 }
 // [hopefully audio thread] VST3 & AU only
-void cplug_setParameterValue(void* _p, uint32_t paramId, double value) { Plugin* p = _p; }
+void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
+{
+    Plugin* p = _p;
+    if (value < 0)
+        value = 0;
+    if (value > 1)
+        value = 1;
+    p->params[paramId] = value;
+}
 // VST3 only
 double cplug_denormaliseParameterValue(void*, uint32_t paramId, double value) { return value; }
 double cplug_normaliseParameterValue(void*, uint32_t paramId, double value) { return value; }
@@ -118,7 +142,33 @@ double cplug_normaliseParameterValue(void*, uint32_t paramId, double value) { re
 double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
 {
     double val = 0;
-    scanf(str, "%f", &val);
+    // scanf(str, "%f", &val);
+    switch (paramId)
+    {
+    case PARAM_LP_CUTOFF:
+    case PARAM_HP_CUTOFF:
+    {
+        scanf(str, "%fHz", &val);
+        val = xm_fast_normalise_Hz1(val);
+        break;
+    }
+    case PARAM_LP_RESONANCE:
+    case PARAM_HP_RESONANCE:
+    {
+        scanf(str, "%f", &val);
+        val = xm_normd(val, 0.1, 20);
+        break;
+    }
+    case PARAM_FEEDBACK_GAIN:
+    {
+        scanf(str, "%fdB", &val);
+        val = xm_normd(val, -18, 24);
+        break;
+    }
+    default:
+        scanf(str, "%f", &val);
+        break;
+    }
     return val;
 }
 
@@ -126,16 +176,23 @@ void cplug_parameterValueToString(void*, uint32_t paramId, char* buf, size_t buf
 {
     switch (paramId)
     {
-    case kCutoff:
-    case kScream:
+    case PARAM_LP_CUTOFF:
+    case PARAM_HP_CUTOFF:
     {
         float Hz = xm_fast_denomalise_Hz(value);
         snprintf(buf, bufsize, "%.2fHz", Hz);
         break;
     }
-    case kResonance:
+    case PARAM_LP_RESONANCE:
+    case PARAM_HP_RESONANCE:
     {
-        float dB = xm_lerpf(value, -18, 6);
+        float Q = xm_lerpf(value, 0.1, 20);
+        snprintf(buf, bufsize, "%.3f", Q);
+        break;
+    }
+    case PARAM_FEEDBACK_GAIN:
+    {
+        float dB = xm_lerpf(value, -18, 24);
         snprintf(buf, bufsize, "%.2fdB", dB);
         break;
     }
@@ -195,10 +252,10 @@ static inline float calcG(float fc, float fs_inv /*sampleRateInv*/)
 {
     return xm_fasttan_normalised(XM_HALF_PIf * 1.27f * fc * fs_inv);
 }
-Coeffs filter_LP(float fc, float fs_inv)
+Coeffs filter_LP(float fc, float Q, float fs_inv)
 {
     float g = calcG(fc, fs_inv);
-    float k = 1.0f / 0.707f;
+    float k = 1.0f / Q;
     // float k = XM_SQRT2f; // Butterworth
 
     float a1 = 1.0f / (1.0f + g * (g + k));
@@ -211,10 +268,10 @@ Coeffs filter_LP(float fc, float fs_inv)
     return (Coeffs){a1, a2, a3, m0, m1, m2};
 }
 
-Coeffs filter_HP(float fc, float fs_inv)
+Coeffs filter_HP(float fc, float Q, float fs_inv)
 {
     float g = calcG(fc, fs_inv);
-    float k = 1.0f / 0.707f;
+    float k = 1.0f / Q;
     // float k  = XM_SQRT2f; // Butterworth
     float a1 = 1 / (1 + g * (g + k));
     float a2 = g * a1;
@@ -240,7 +297,9 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     DISABLE_DENORMALS
     Plugin* p = _p;
 
-    const float fs_inv = 1.0f / p->sample_rate;
+    const float fs_inv      = 1.0f / p->sample_rate;
+    bool        is_clipping = false;
+    float       peak_gain   = 0;
 
     CplugEvent event;
     uint32_t   frame = 0;
@@ -277,18 +336,23 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             memcpy(output[1] + frame, output[0] + frame, sizeof(float) * num_frames);
 #endif
             // Setup params
-            float lowpass       = p->params[kCutoff];
-            float highpass      = p->params[kScream];
-            float feedback_gain = p->params[kResonance];
+            float lp_cutoff     = p->params[PARAM_LP_CUTOFF];
+            float lp_Q          = p->params[PARAM_LP_RESONANCE];
+            float hp_cutoff     = p->params[PARAM_HP_CUTOFF];
+            float hp_Q          = p->params[PARAM_HP_RESONANCE];
+            float feedback_gain = p->params[PARAM_FEEDBACK_GAIN];
 
-            lowpass       = xm_fast_denomalise_Hz(lowpass);
-            highpass      = xm_fast_denomalise_Hz(highpass);
-            feedback_gain = xm_lerpf(feedback_gain, -18, 6);
+            lp_cutoff     = xm_fast_denomalise_Hz(lp_cutoff);
+            hp_cutoff     = xm_fast_denomalise_Hz(hp_cutoff);
+            lp_Q          = xm_lerpf(lp_Q, 0.1, 20);
+            hp_Q          = xm_lerpf(hp_Q, 0.1, 20);
+            feedback_gain = xm_lerpf(feedback_gain, -18, 24);
             feedback_gain = xm_fast_dB_to_gain(feedback_gain);
 
             // Process
-            Coeffs lp_c = filter_LP(lowpass, fs_inv);
-            Coeffs hp_c = filter_HP(highpass, fs_inv);
+            Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
+            Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
+
             for (int ch = 0; ch < 2; ch++)
             {
                 float*             it  = output[ch] + frame;
@@ -303,7 +367,23 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     y       = filter_process(y, &lp_c, s.lp);
 
                     xassert(y == y);
-                    xassert(y >= -1 && y <= 1);
+                    if (y != y) // NaN protection. TODO: remove when filter algo is solid
+                        y = 0;
+                    // Hard clip protection. Remove later
+                    if (y < -1)
+                    {
+                        is_clipping = true;
+                        if (fabsf(y) > peak_gain)
+                            peak_gain = fabsf(y);
+                        y = -1;
+                    }
+                    if (y > 1)
+                    {
+                        y = 1;
+                        if (y > peak_gain)
+                            peak_gain = y;
+                        is_clipping = true;
+                    }
                     *it = y;
 
                     // Feedback
@@ -321,6 +401,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             break;
         }
     }
+    p->is_clipping = is_clipping;
+    p->peak_gain   = peak_gain;
     RESTORE_DENORMALS
 }
 

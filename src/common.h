@@ -46,16 +46,4 @@ void println(const char* const fmt, ...);
 #define PW_MALLOC xmalloc
 #define PW_FREE   xfree
 
-enum
-{
-    GUI_INIT_WIDTH  = 800,
-    GUI_INIT_HEIGHT = GUI_INIT_WIDTH / 2,
-
-    GUI_RATIO_X = 2,
-    GUI_RATIO_Y = 1,
-
-    GUI_MIN_WIDTH  = GUI_RATIO_X * 100,
-    GUI_MIN_HEIGHT = GUI_RATIO_Y * 100,
-};
-
 #endif // PLUGIN_CONFIG_H

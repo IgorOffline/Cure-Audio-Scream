@@ -3,13 +3,24 @@
 
 enum Parameter
 {
-    kCutoff,
-    kScream,
-    kResonance,
+    PARAM_LP_CUTOFF,
+    PARAM_LP_RESONANCE,
+    PARAM_HP_CUTOFF,
+    PARAM_HP_RESONANCE,
+    PARAM_FEEDBACK_GAIN,
 };
 enum
 {
-    NUM_PARAMS = kResonance + 1
+    NUM_PARAMS = PARAM_FEEDBACK_GAIN + 1,
+
+    GUI_INIT_WIDTH  = 800,
+    GUI_INIT_HEIGHT = GUI_INIT_WIDTH / 2,
+
+    GUI_RATIO_X = 2,
+    GUI_RATIO_Y = 1,
+
+    GUI_MIN_WIDTH  = GUI_RATIO_X * 100,
+    GUI_MIN_HEIGHT = GUI_RATIO_Y * 100,
 };
 
 typedef struct Plugin
@@ -32,8 +43,19 @@ typedef struct Plugin
         float prev_sample;
     } state[2];
 
+    // Data for GUI
+    bool  is_clipping;
+    float peak_gain;
+
 } Plugin;
 
 void param_change_begin(Plugin* p, uint32_t param_idx);
 void param_change_end(Plugin* p, uint32_t param_idx);
 void param_change_update(Plugin* p, uint32_t param_idx, double value);
+
+static void param_set(Plugin* p, uint32_t param_idx, double value)
+{
+    param_change_begin(p, param_idx);
+    param_change_update(p, param_idx, value);
+    param_change_end(p, param_idx);
+}

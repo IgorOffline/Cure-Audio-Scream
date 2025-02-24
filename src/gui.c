@@ -5,6 +5,7 @@
 #include <xhl/component.h>
 #include <xhl/debug.h>
 #include <xhl/files.h>
+#include <xhl/maths.h>
 #include <xhl/time.h>
 #include <xhl/vector.h>
 
@@ -27,17 +28,18 @@ typedef struct GUI
 
     xcomp_root       root;      // root comp state
     xcomp_component  component; // root level component
-    xcomp_component* children[3];
-    xcomp_component  sliders[3];
+    xcomp_component* children[NUM_PARAMS];
+    xcomp_component  sliders[NUM_PARAMS];
 
     int    slider_drag_idx;
     xvec2f drag_last;
     double drag_val_normalised;
 } GUI;
 
-static const float SLIDER_POSITIONS[3] = {0.2, 0.5, 0.8};
+static const float SLIDER_POSITIONS[] = {0.1666, 0.3333, 0.5, 0.6666, 0.8333};
+_Static_assert(ARRLEN(SLIDER_POSITIONS) == NUM_PARAMS);
 // Relative to GUI width
-#define SLIDER_RADIUS 0.1f
+#define SLIDER_RADIUS 0.075f
 // Angle radians
 // 120deg
 #define SLIDER_START_RAD 2.0943951023931953f
@@ -199,29 +201,6 @@ void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_d
         if (gui->slider_drag_idx < 0)
             return;
 
-        /*
-        void drag_value(GUI* gui, const xcomp_event_data* data, uint64_t drag_flags, float drag_range_pixels)
-        {
-            float next_val;
-            float diff;
-            if (DRAG_HORIZONTALVERTICAL(drag_flags))
-                diff = (data->x - gui->drag_last.x) + (gui->drag_last.y - data->y);
-            else if (DRAG_HORIZONTAL(drag_flags))
-                diff = data->x - gui->drag_last.x;
-            else // DRAG_VERTICAL
-                diff = gui->drag_last.y - data->y;
-
-            if (data->modifiers & (XCOMP_MOD_KEY_SHIFT | XCOMP_MOD_PLATFORM_KEY_CTRL))
-                diff *= 0.1f;
-
-            next_val = gui->v0 + diff * (1.0f / drag_range_pixels);
-            next_val = xm_clampf(next_val, 0.0f, 1.0f);
-
-            gui->drag_last.x = data->x;
-            gui->drag_last.y = data->y;
-            gui->v0          = next_val;
-        }
-        */
         const bool fine_increment = data.modifiers & (XCOMP_MOD_PLATFORM_KEY_CTRL | XCOMP_MOD_KEY_SHIFT);
 
         float diff = (data.x - gui->drag_last.x) + (gui->drag_last.y - data.y);
@@ -251,6 +230,30 @@ void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_d
 
         param_change_end(gui->plugin, slider_idx);
         gui->slider_drag_idx = -1;
+    }
+    else if (event == XCOMP_EVENT_MOUSE_LEFT_DOUBLE_CLICK)
+    {
+        gui->root.left_click_counter = 0;
+
+        double v = cplug_getDefaultParameterValue(gui->plugin, slider_idx);
+        param_set(gui->plugin, slider_idx, v);
+    }
+    else if (event == XCOMP_EVENT_MOUSE_SCROLL_WHEEL)
+    {
+        double delta  = data.y / 120.0;
+        delta        *= 0.01;
+
+        const bool fine_increment = data.modifiers & (XCOMP_MOD_PLATFORM_KEY_CTRL | XCOMP_MOD_KEY_SHIFT);
+        if (fine_increment)
+            delta *= 0.01;
+
+        double v  = cplug_getParameterValue(gui->plugin, slider_idx);
+        v        += delta;
+        if (v < 0)
+            v = 0;
+        if (v > 1)
+            v = 1;
+        param_set(gui->plugin, slider_idx, v);
     }
 }
 
@@ -304,6 +307,8 @@ void* pw_create_gui(void* _plugin, void* _pw)
     gui->component.event_handler = xcomp_empty_event_cb;
     gui->component.data          = gui;
 
+    _Static_assert(ARRLEN(gui->sliders) == NUM_PARAMS);
+    _Static_assert(ARRLEN(gui->children) == NUM_PARAMS);
     for (int i = 0; i < ARRLEN(gui->children); i++)
     {
         xcomp_component* comp = &gui->sliders[i];
@@ -391,12 +396,10 @@ void pw_tick(void* _gui)
         nvgTextAlign(nvg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
         nvgFontSize(nvg, gui->scale * 16);
 
-        static const char* NAMES[] = {"CUTOFF", "SCREAM", "RESONANCE"};
-        _Static_assert(ARRLEN(NAMES) == ARRLEN(SLIDER_POSITIONS));
-        _Static_assert(ARRLEN(NAMES) == ARRLEN(gui->sliders));
-        nvgText(nvg, cx, cy + radius * 1.4, NAMES[i], NULL);
+        char label[24];
+        cplug_getParameterName(gui->plugin, i, label, sizeof(label));
+        nvgText(nvg, cx, cy + radius * 1.4, label, NULL);
 
-        char   label[24];
         double value = cplug_getParameterValue(gui->plugin, i);
         cplug_parameterValueToString(gui->plugin, i, label, sizeof(label), value);
         nvgText(nvg, cx, cy - radius * 1.2, label, NULL);
@@ -418,6 +421,18 @@ void pw_tick(void* _gui)
         nvgStrokeColor(nvg, nvgRGBA(40, 47, 83, 255));
         nvgLineCap(nvg, NVG_ROUND);
         nvgStroke(nvg);
+    }
+
+    if (gui->plugin->is_clipping)
+    {
+        float width  = gui->plugin->width;
+        float height = gui->plugin->height;
+        nvgTextAlign(nvg, NVG_ALIGN_BOTTOM | NVG_ALIGN_RIGHT);
+        nvgFillColor(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
+        float dB = xm_fast_gain_to_dB(gui->plugin->peak_gain);
+        char  label[48];
+        snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
+        nvgText(nvg, width - 20, height - 20, label, NULL);
     }
 
     // Timer

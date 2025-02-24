@@ -222,6 +222,8 @@ if (APPLE)
         CPLUG_AUV2_VERSION_INT=${MACOSX_BUNDLE_VERSION_INT}
         CPLUG_AUV2_BUNDLE_ID="${PLUGIN_BUNDLE_ID}"
         CPLUG_BUILD_AUV2=1
+        CPLUG_BUILD_VST3=1
+        CPLUG_BUILD_CLAP=1
     )
 
     add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
@@ -246,18 +248,20 @@ elseif(WIN32)
         modules/CPLUG/src/cplug_clap.c
         modules/CPLUG/src/cplug_vst3.c)
     set_target_properties(${PROJECT_NAME}_plugin PROPERTIES
-        OUTPUT_NAME "${PROJECT_NAME}"
-        SUFFIX .clap
-        PDB_NAME "${PROJECT_NAME}"
+        OUTPUT_NAME ${PROJECT_NAME}_plugin
+        SUFFIX .vst3
+        PDB_NAME ${PROJECT_NAME}_plugin
         )
-    # According to the docs you're meant to bundle your Windows VST3 using a bundle like folder structure:
-    # https://steinbergmedia.github.io/vst3_dev_portal/pages/Technical+Documentation/Locations+Format/Plugin+Format.html#for-the-windows-platform
-    # However, placing the unbundled binary directly into your ...\Common Files\VST3 folder will work fine in every host.
-    # I'm not sure anyone in the real world actually bundles Windows VST3s like this, but maybe I'm just ignorant.
+    target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE
+        CPLUG_BUILD_VST3=1
+        CPLUG_BUILD_CLAP=1
+    )
     add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.vst3"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.vst3/Contents/x86_64-win"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.clap" "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.vst3/Contents/x86_64-win/${PROJECT_NAME}.vst3"
+        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3 to %LOCALAPPDATA%\\Programs\\Common\\VST3"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3" "%LOCALAPPDATA%\\Programs\\Common\\VST3\\${PROJECT_NAME}.vst3"
+
+        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3 to %LOCALAPPDATA%\\Programs\\Common\\CLAP"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3" "%LOCALAPPDATA%\\Programs\\Common\\CLAP\\${PROJECT_NAME}.clap"
         )
 endif()
 
