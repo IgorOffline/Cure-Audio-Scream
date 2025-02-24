@@ -206,7 +206,11 @@ endfunction()
 
 # All Plugin formats in one
 if (APPLE)
-    add_library(${PROJECT_NAME}_plugin MODULE ${PLUGIN_SOURCES} src/platform_osx.m)
+    add_library(${PROJECT_NAME}_plugin MODULE
+        ${PLUGIN_SOURCES}
+        modules/CPLUG/src/cplug_clap.c
+        modules/CPLUG/src/cplug_vst3.c
+        modules/CPLUG/src/cplug_auv2.c)
     target_link_libraries(${PROJECT_NAME}_plugin PRIVATE "-framework AudioToolbox -framework Cocoa") # -framework AudioToolbox not actually required...
 
     configure_info_plist(${PROJECT_NAME}_plugin ${PLUGIN_BUNDLE_ID} "BNDL" "clap")
@@ -237,7 +241,10 @@ if (APPLE)
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.component" "~/Library/Audio/Plug-Ins/Components/${PROJECT_NAME}.component"
     )
 elseif(WIN32)
-    add_library(${PROJECT_NAME}_plugin MODULE example/example.c src/cplug_clap.c src/cplug_vst3.c)
+    add_library(${PROJECT_NAME}_plugin MODULE
+        ${PLUGIN_SOURCES}
+        modules/CPLUG/src/cplug_clap.c
+        modules/CPLUG/src/cplug_vst3.c)
     set_target_properties(${PROJECT_NAME}_plugin PROPERTIES
         OUTPUT_NAME "${PROJECT_NAME}"
         SUFFIX .clap
