@@ -1,14 +1,15 @@
 #pragma once
 #include <cplug.h>
+#include <xhl/thread.h>
 
-enum Parameter
+typedef enum ParamID
 {
     PARAM_LP_CUTOFF,
     PARAM_LP_RESONANCE,
     PARAM_HP_CUTOFF,
     PARAM_HP_RESONANCE,
     PARAM_FEEDBACK_GAIN,
-};
+} ParamID;
 enum
 {
     NUM_PARAMS = PARAM_FEEDBACK_GAIN + 1,
@@ -21,19 +22,34 @@ enum
 
     GUI_MIN_WIDTH  = GUI_RATIO_X * 100,
     GUI_MIN_HEIGHT = GUI_RATIO_Y * 100,
+
+    EVENT_QUEUE_SIZE = 256,
+    EVENT_QUEUE_MASK = 255,
 };
+
+typedef enum EventType
+{
+    EVENT_SET_PARAMETER = 16,
+    EVENT_SET_PARAMETER_NOTIFYING_HOST,
+} EventType;
 
 typedef struct Plugin
 {
     CplugHostContext* cplug_ctx;
 
+    // Retained data for GUI
     void* gui;
     int   width, height;
+    bool  is_clipping;
+    float peak_gain;
 
+    double main_params[NUM_PARAMS];
+
+    // Plugin data
     double   sample_rate;
     uint32_t max_block_size;
 
-    double params[NUM_PARAMS];
+    double audio_params[NUM_PARAMS];
 
     struct FilterState
     {
@@ -41,21 +57,58 @@ typedef struct Plugin
         float hp[2];
 
         float prev_sample;
+        float _padding;
     } state[2];
 
-    // Data for GUI
-    bool  is_clipping;
-    float peak_gain;
+    // Event stuff
 
+    // SPSC queue
+    cplug_atomic_i32 queue_audio_head;
+    cplug_atomic_i32 queue_audio_tail;
+    union CplugEvent queue_audio_events[EVENT_QUEUE_SIZE];
+
+    // MPSC queue
+    union
+    {
+        void*         _queue_main_spinlock_aligner;
+        xt_spinlock_t queue_main_spinlock;
+    };
+    xt_atomic_uint32_t queue_main_head;
+    uint32_t           queue_main_tail;
+    union CplugEvent   queue_main_events[EVENT_QUEUE_SIZE];
 } Plugin;
 
-void param_change_begin(Plugin* p, uint32_t param_idx);
-void param_change_end(Plugin* p, uint32_t param_idx);
-void param_change_update(Plugin* p, uint32_t param_idx, double value);
-
-static void param_set(Plugin* p, uint32_t param_idx, double value)
+enum GlobalEvent
 {
-    param_change_begin(p, param_idx);
-    param_change_update(p, param_idx, value);
-    param_change_end(p, param_idx);
-}
+    GLOBAL_EVENT_DEQUEUE_MAIN,
+};
+// [Any thread] Post enum to MPSC queue.
+void send_to_global_event_queue(enum GlobalEvent, Plugin*);
+// [Main thread]
+void dequeue_global_events();
+void main_dequeue_events(Plugin* p);
+
+bool is_main_thread();
+
+// [Main thread]
+void send_to_audio_event_queue(Plugin* p, const CplugEvent event);
+// [Any thread]
+void send_to_main_event_queue(Plugin* p, const CplugEvent event);
+
+// [Main thread]
+void param_change_begin(Plugin* p, ParamID id);
+void param_change_end(Plugin* p, ParamID id);
+void param_change_update(Plugin* p, ParamID id, double value);
+// [Main thread] Calls begin > update > end
+void param_set(Plugin* p, ParamID id, double value);
+
+#ifndef NDEBUG
+static const char* PARAM_STR[] = {
+    "PARAM_LP_CUTOFF",
+    "PARAM_LP_RESONANCE",
+    "PARAM_HP_CUTOFF",
+    "PARAM_HP_RESONANCE",
+    "PARAM_FEEDBACK_GAIN",
+};
+_Static_assert(ARRLEN(PARAM_STR) == NUM_PARAMS, "");
+#endif

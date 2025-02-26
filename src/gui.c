@@ -63,8 +63,8 @@ static void my_sg_logger(
         "WARNING",
         "INFO",
     };
-    xassert(log_level > 1);
-    xassert(log_level < ARRLEN(LOG_LEVEL));
+    CPLUG_LOG_ASSERT(log_level > 1);
+    CPLUG_LOG_ASSERT(log_level < ARRLEN(LOG_LEVEL));
     if (!message_or_null)
         message_or_null = "";
     println("[%s] %s %u:%s", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);
@@ -138,6 +138,32 @@ void pw_get_info(struct PWGetInfo* info)
     }
 }
 
+void cb_xcomp_gui(struct xcomp_component* comp, uint32_t event, xcomp_event_data data)
+{
+    if (event == XCOMP_EVENT_DIMENSION_CHANGED)
+    {
+        GUI*  gui    = comp->data;
+        float width  = comp->dimensions.width;
+        float height = comp->dimensions.height;
+        // Retain size info for when the GUI is destroyed / reopened
+        gui->plugin->width  = width;
+        gui->plugin->height = height;
+
+        gui->scale = (float)width / (float)GUI_INIT_WIDTH;
+
+        float radius = SLIDER_RADIUS * width;
+        for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
+        {
+            float pos = SLIDER_POSITIONS[i];
+            float x   = pos * width;
+            float y   = 0.5f * height;
+
+            xcomp_dimensions d = {x - radius, y - radius, 2 * radius, 2 * radius};
+            xcomp_set_dimensions(&gui->sliders[i], d);
+        }
+    }
+}
+
 void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_data data)
 {
     GUI* gui        = comp->data;
@@ -147,7 +173,7 @@ void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_d
         if (comp == &gui->sliders[slider_idx])
             break;
     }
-    xassert(slider_idx != ARRLEN(gui->sliders));
+    CPLUG_LOG_ASSERT(slider_idx != ARRLEN(gui->sliders));
 
     // The xcomp lib only supports these drag callbacks for rectangles, and we are drawing a really large round rotary
     // knob, and not using all vailable pixels within the square. The hit test flag helps us skip any click events that
@@ -165,13 +191,11 @@ void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_d
         float distance_px = hypotf(fabsf(diff_x), fabsf(diff_y));
 
         float radius = SLIDER_RADIUS * gui->component.dimensions.width;
-        // println("x: %f y: %f px: %f", diff_x, diff_y, distance_px);
         if (distance_px <= radius)
         {
             if (!(comp->flags & FLAG_HIT_TEST))
                 pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
             comp->flags |= FLAG_HIT_TEST;
-            // do thing
         }
         else
         {
@@ -187,7 +211,7 @@ void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_d
         if (!(comp->flags & FLAG_HIT_TEST))
             return;
 
-        double val = cplug_getParameterValue(gui->plugin, slider_idx);
+        double val = gui->plugin->main_params[slider_idx];
         cplug_normaliseParameterValue(gui->plugin, slider_idx, val);
         gui->slider_drag_idx     = slider_idx;
         gui->drag_last.x         = data.x;
@@ -247,20 +271,17 @@ void cb_xcomp_slider(struct xcomp_component* comp, uint32_t event, xcomp_event_d
         if (fine_increment)
             delta *= 0.01;
 
-        double v  = cplug_getParameterValue(gui->plugin, slider_idx);
+        double v  = gui->plugin->main_params[slider_idx];
         v        += delta;
-        if (v < 0)
-            v = 0;
-        if (v > 1)
-            v = 1;
+
         param_set(gui->plugin, slider_idx, v);
     }
 }
 
 void* pw_create_gui(void* _plugin, void* _pw)
 {
-    xassert(_plugin);
-    xassert(_pw);
+    CPLUG_LOG_ASSERT(_plugin);
+    CPLUG_LOG_ASSERT(_pw);
     Plugin* p   = _plugin;
     GUI*    gui = xcalloc(1, sizeof(*gui));
     gui->plugin = p;
@@ -285,7 +306,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
     });
 
     gui->nvg = nvgCreateSokol(gui->sg, NVG_ANTIALIAS | NVG_STENCIL_STROKES);
-    xassert(gui->nvg);
+    CPLUG_LOG_ASSERT(gui->nvg);
 
 #ifdef _WIN32
     static const char* font_path = "C:\\Windows\\Fonts\\arial.ttf";
@@ -293,7 +314,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
     static const char* font_path = "/Library/Fonts/Arial Unicode.ttf";
 #endif
     int font_id = nvgCreateFont(gui->nvg, "Arial", font_path);
-    xassert(font_id != -1);
+    CPLUG_LOG_ASSERT(font_id != -1);
     if (font_id == -1)
     {
         println("[CRITICAL] Failed to open font at path %s", font_path);
@@ -304,7 +325,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     gui->root.main               = &gui->component;
     gui->component.children      = gui->children;
-    gui->component.event_handler = xcomp_empty_event_cb;
+    gui->component.event_handler = cb_xcomp_gui;
     gui->component.data          = gui;
 
     _Static_assert(ARRLEN(gui->sliders) == NUM_PARAMS);
@@ -318,6 +339,9 @@ void* pw_create_gui(void* _plugin, void* _pw)
     }
 
     gui->slider_drag_idx = -1;
+
+    xcomp_dimensions d = {0, 0, p->width, p->height};
+    xcomp_set_dimensions(&gui->component, d);
 
     return gui;
 }
@@ -335,10 +359,12 @@ void pw_destroy_gui(void* _gui)
 void pw_tick(void* _gui)
 {
     GUI* gui = _gui;
-    xassert(gui->plugin);
-    xassert(gui->nvg);
+    CPLUG_LOG_ASSERT(gui->plugin);
+    CPLUG_LOG_ASSERT(gui->nvg);
     if (!gui || !gui->plugin || !gui->nvg)
         return;
+
+    main_dequeue_events(gui->plugin);
 
     // Begin frame
     {
@@ -400,7 +426,7 @@ void pw_tick(void* _gui)
         cplug_getParameterName(gui->plugin, i, label, sizeof(label));
         nvgText(nvg, cx, cy + radius * 1.4, label, NULL);
 
-        double value = cplug_getParameterValue(gui->plugin, i);
+        double value = gui->plugin->main_params[i];
         cplug_parameterValueToString(gui->plugin, i, label, sizeof(label), value);
         nvgText(nvg, cx, cy - radius * 1.2, label, NULL);
 
@@ -466,25 +492,8 @@ bool pw_event(const PWEvent* event)
     {
     case PW_EVENT_RESIZE:
     {
-        // Retain size info for when the GUI is destroyed / reopened
-        gui->plugin->width  = event->resize.width;
-        gui->plugin->height = event->resize.height;
-
-        gui->scale = (float)event->resize.width / (float)GUI_INIT_WIDTH;
-
         xcomp_dimensions dimensions = {0, 0, event->resize.width, event->resize.height};
         xcomp_set_dimensions(&gui->component, dimensions);
-
-        float radius = SLIDER_RADIUS * dimensions.width;
-        for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
-        {
-            float pos = SLIDER_POSITIONS[i];
-            float x   = pos * dimensions.width;
-            float y   = 0.5f * dimensions.height;
-
-            xcomp_dimensions d = {x - radius, y - radius, 2 * radius, 2 * radius};
-            xcomp_set_dimensions(&gui->sliders[i], d);
-        }
         break;
     }
     case PW_EVENT_MOUSE_EXIT:

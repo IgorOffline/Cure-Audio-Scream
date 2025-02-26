@@ -1,10 +1,11 @@
 #define SOKOL_D3D11
 #define SOKOL_GFX_IMPL
-#define XHL_FILES_IMPL
 #define XHL_ALLOC_IMPL
-#define XHL_TIME_IMPL
 #define XHL_COMPONENT_IMPL
+#define XHL_FILES_IMPL
 #define XHL_MATHS_IMPL
+#define XHL_THREAD_IMPL
+#define XHL_TIME_IMPL
 
 #ifndef NDEBUG
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
@@ -21,7 +22,13 @@
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/maths.h>
+#include <xhl/thread.h>
 #include <xhl/time.h>
+
+static const UINT_PTR UNIQUE_INT_ID = (UINT_PTR)'CURE' | ((UINT_PTR)'SCRM' << 32);
+
+static UINT_PTR g_timer;
+int             g_platform_init_counter = 0;
 
 #ifndef NDEBUG
 void println(const char* const fmt, ...)
@@ -48,9 +55,37 @@ void println(const char* const fmt, ...)
         bool ok = xfiles_get_user_directory(path, sizeof(path), XFILES_USER_DIRECTORY_DESKTOP);
         xassert(ok);
         strcat(path, "\\log.txt");
-        ok = xfiles_append(path, buf, n);
+        ok = ok && xfiles_append(path, buf, n);
         xassert(ok);
 #endif
     }
 }
 #endif // NDEBUG
+
+extern void dequeue_global_events();
+void        TimerFunc(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD time_ms)
+{
+    dequeue_global_events();
+}
+
+void library_load_platform()
+{
+    g_platform_init_counter++;
+    if (g_platform_init_counter == 1)
+    {
+        g_timer = SetTimer(NULL, UNIQUE_INT_ID, 200, TimerFunc);
+    }
+}
+
+void library_unload_platform()
+{
+    dequeue_global_events();
+
+    g_platform_init_counter--;
+    if (g_platform_init_counter == 0)
+    {
+        if (g_timer != 0)
+            KillTimer(NULL, UNIQUE_INT_ID);
+        g_timer = 0;
+    }
+}

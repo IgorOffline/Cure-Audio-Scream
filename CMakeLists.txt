@@ -7,10 +7,10 @@ project(skibidiscream
     DESCRIPTION ""
     HOMEPAGE_URL "https://github.com/Tremus/skibidiscream"
     LANGUAGES C)
-set(COMPANY_NAME CUREAUDIO)
+set(COMPANY_NAME "Cure Audio")
 
 set(PRODUCT_NAME "skibidiscream")
-set(PRODUCT_COPYRIGHT CUREAUDIO)
+set(PRODUCT_COPYRIGHT ${COMPANY_NAME})
 set(PLUGIN_BUNDLE_ID "com.cureaudio.skibidiscream.plugin")
 set(APP_BUNDLE_ID "com.cureaudio.skibidiscream.app")
 # Full list of AU types & tags here:

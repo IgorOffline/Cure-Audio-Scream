@@ -41,7 +41,12 @@ void println(const char* const fmt, ...);
     {}
 #endif
 
-#define XFILES_ASSERT xassert
+#ifdef CPLUG_BUILD_STANDALONE
+#define XFILES_ASSERT          xassert
+#define CPLUG_LOG_ASSERT(cond) xassert((cond))
+#else // !CPLUG_BUILD_STANDALONE
+#define XFILES_ASSERT(cond) CPLUG_LOG_ASSERT((cond))
+#endif // CPLUG_BUILD_STANDALONE
 
 #define PW_MALLOC xmalloc
 #define PW_FREE   xfree
