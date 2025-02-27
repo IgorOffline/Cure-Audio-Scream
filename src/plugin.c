@@ -629,6 +629,10 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
     CplugEvent event;
     uint32_t   frame = 0;
+
+#ifdef CPLUG_BUILD_STANDALONE
+    static char note_down_midi = -1;
+#endif
     while (ctx->dequeueEvent(ctx, &event, frame))
     {
         switch (event.type)
@@ -640,27 +644,52 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             audio_set_param(p, event.parameter.id, event.parameter.value);
             should_post_to_global = true;
             break;
+
+#ifdef CPLUG_BUILD_STANDALONE
+
+        case CPLUG_EVENT_MIDI:
+        {
+            if (event.midi.status == 144)
+                note_down_midi = event.midi.data1;
+            else if (event.midi.status == 128 && event.midi.data1 == note_down_midi)
+                note_down_midi = -1;
+            break;
+        }
+
+#endif
+
         case CPLUG_EVENT_PROCESS_AUDIO:
         {
 
             int num_frames = event.processAudio.endFrame - frame;
+
 #ifdef CPLUG_BUILD_STANDALONE
             // Saw wave oscillator for testing
-            static float phase = 0;
-            const float  inc   = 55.0f * fs_inv; // ~A1
-            for (int i = frame; i < event.processAudio.endFrame; i++)
+            if (note_down_midi != -1)
             {
-                float saw_wave  = -1 + phase * 2;
-                saw_wave       *= 0.25; // volume
+                static float phase = 0;
+                float        freq  = xm_midi_to_Hz((float)note_down_midi);
+                const float  inc   = freq * fs_inv; // ~A1
+                for (int i = frame; i < event.processAudio.endFrame; i++)
+                {
+                    float saw_wave  = -1 + phase * 2;
+                    saw_wave       *= 0.25; // volume
 
-                output[0][i] = saw_wave;
+                    output[0][i] = saw_wave;
 
-                phase += inc;
-                if (phase >= 1)
-                    phase -= 1;
+                    phase += inc;
+                    if (phase >= 1)
+                        phase -= 1;
+                }
+                memcpy(output[1] + frame, output[0] + frame, sizeof(float) * num_frames);
             }
-            memcpy(output[1] + frame, output[0] + frame, sizeof(float) * num_frames);
+            else
+            {
+                memset(output[0] + frame, 0, sizeof(float) * num_frames);
+                memset(output[1] + frame, 0, sizeof(float) * num_frames);
+            }
 #endif
+
             // Setup params
             float lp_cutoff     = p->audio_params[PARAM_LP_CUTOFF];
             float lp_Q          = p->audio_params[PARAM_LP_RESONANCE];
