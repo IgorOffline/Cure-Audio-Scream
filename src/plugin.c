@@ -708,6 +708,13 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
             Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
 
+            // Auto gate for feedback
+            const float target_dB         = -1000;
+            const float num_decay_samples = (float)p->sample_rate * 0.01;
+
+            const float dB_inc            = target_dB / num_decay_samples;
+            const float fb_decay_autogate = xm_fast_dB_to_gain(dB_inc);
+
             for (int ch = 0; ch < 2; ch++)
             {
                 float*             it  = output[ch] + frame;
@@ -742,8 +749,12 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     *it = y;
 
                     // Feedback
-                    float feed    = filter_process(y, &hp_c, s.hp);
-                    feed          = tanhf(feed * feedback_gain);
+                    float feed = filter_process(y, &hp_c, s.hp);
+                    feed       = tanhf(feed * feedback_gain);
+
+                    float x_dB = xm_fast_gain_to_dB(fabsf(x));
+                    if (x_dB < 160.0f)
+                        feed *= fb_decay_autogate;
                     s.prev_sample = feed;
                 }
 #define ROUND_STATE_TO_ZERO(n)                                                                                         \
