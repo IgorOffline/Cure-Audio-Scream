@@ -1,5 +1,7 @@
 
 #include "common.h"
+#include "dsp.h"
+#include "plot_dsp.h"
 #include "plugin.h"
 
 #include <xhl/component.h>
@@ -435,6 +437,9 @@ void pw_tick(void* _gui)
     }
 
     NVGcontext* nvg = gui->nvg;
+
+    // plot_expander(nvg, gui->plugin->width, gui->plugin->height);
+    // plot_peak_detection(nvg, gui->plugin->width, gui->plugin->height);
 
     const NVGcolor col_text = nvgRGBA(143, 150, 160, 255);
 

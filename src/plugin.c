@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include "dsp.h"
 #include "plugin.h"
 
 #include <math.h>
@@ -479,61 +480,6 @@ void cplug_setSampleRateAndBlockSize(void* _p, double sampleRate, uint32_t maxBl
     memset(&p->state, 0, sizeof(p->state));
 }
 
-// SvfLinearTrapOptimised2
-// https://cytomic.com/files/dsp/SvfLinearTrapOptimised2.pdf
-typedef union Coeffs
-{
-    struct
-    {
-        float a1, a2, a3, m0, m1, m2;
-    };
-    void* _align;
-} Coeffs;
-
-static inline float calcG(float fc, float fs_inv /*sampleRateInv*/)
-{
-    return xm_fasttan_normalised(XM_HALF_PIf * 1.27f * fc * fs_inv);
-}
-Coeffs filter_LP(float fc, float Q, float fs_inv)
-{
-    float g = calcG(fc, fs_inv);
-    float k = 1.0f / Q;
-    // float k = XM_SQRT2f; // Butterworth
-
-    float a1 = 1.0f / (1.0f + g * (g + k));
-    float a2 = g * a1;
-    float a3 = g * a2;
-
-    float m0 = 0.0f;
-    float m1 = 0.0f;
-    float m2 = 1.0f;
-    return (Coeffs){a1, a2, a3, m0, m1, m2};
-}
-
-Coeffs filter_HP(float fc, float Q, float fs_inv)
-{
-    float g = calcG(fc, fs_inv);
-    float k = 1.0f / Q;
-    // float k  = XM_SQRT2f; // Butterworth
-    float a1 = 1 / (1 + g * (g + k));
-    float a2 = g * a1;
-    float a3 = g * a2;
-    float m0 = 1;
-    float m1 = -k;
-    float m2 = -1;
-    return (Coeffs){a1, a2, a3, m0, m1, m2};
-}
-
-static inline float filter_process(float v0 /*xn*/, Coeffs* c, float* s)
-{
-    float v3 = v0 - s[1];
-    float v1 = c->a1 * s[0] + c->a2 * v3;
-    float v2 = s[1] + c->a2 * s[0] + c->a3 * v3;
-    s[0]     = 2 * v1 - s[0];
-    s[1]     = 2 * v2 - s[1];
-    return c->m0 * v0 + c->m1 * v1 + c->m2 * v2;
-}
-
 void cplug_process(void* _p, CplugProcessContext* ctx)
 {
     DISABLE_DENORMALS
@@ -708,12 +654,12 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
             Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
 
-            // Auto gate for feedback
-            const float target_dB         = -1000;
-            const float num_decay_samples = (float)p->sample_rate * 0.01;
+            float release         = 0.005; // 5 ms
+            float attack_samples  = 1;
+            float release_samples = p->sample_rate * release;
 
-            const float dB_inc            = target_dB / num_decay_samples;
-            const float fb_decay_autogate = xm_fast_dB_to_gain(dB_inc);
+            float atk = convert_compressor_time(attack_samples);
+            float rel = convert_compressor_time(release_samples);
 
             for (int ch = 0; ch < 2; ch++)
             {
@@ -725,7 +671,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     const float x = *it;
 
                     // Feedforward
-                    float y = tanhf(x + s.prev_sample);
+                    float y = tanhf(x + s.fb_yn_1);
                     y       = filter_process(y, &lp_c, s.lp);
 
                     CPLUG_LOG_ASSERT(y == y);
@@ -752,10 +698,20 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     float feed = filter_process(y, &hp_c, s.hp);
                     feed       = tanhf(feed * feedback_gain);
 
-                    float x_dB = xm_fast_gain_to_dB(fabsf(x));
-                    if (x_dB < 160.0f)
-                        feed *= fb_decay_autogate;
-                    s.prev_sample = feed;
+                    // Feedback gate, triggered by input
+                    s.peak_xn_1        = detect_peak(fabsf(x), s.peak_xn_1, atk, rel);
+                    float peak_dB      = xm_fast_gain_to_dB(s.peak_xn_1);
+                    float reduction_dB = hard_knee_expander(peak_dB, -60.0f, 10);
+                    xassert(reduction_dB == reduction_dB);
+                    reduction_dB         -= peak_dB;
+                    float reduction_gain  = xm_fast_dB_to_gain(reduction_dB);
+                    if (reduction_dB < -140) // The above xm_fast_dB_to_gain function uses approximations that become
+                                             // unstable is dB is too low. This protects against INF
+                        reduction_gain = 0;
+                    feed *= reduction_gain;
+                    xassert(feed == feed);
+
+                    s.fb_yn_1 = feed;
                 }
 #define ROUND_STATE_TO_ZERO(n)                                                                                         \
     if (fabsf(n) < 1.0e-8f)                                                                                            \
@@ -765,7 +721,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 ROUND_STATE_TO_ZERO(s.lp[1])
                 ROUND_STATE_TO_ZERO(s.hp[0])
                 ROUND_STATE_TO_ZERO(s.hp[1])
-                ROUND_STATE_TO_ZERO(s.prev_sample)
+                ROUND_STATE_TO_ZERO(s.fb_yn_1)
 
                 p->state[ch] = s;
             }

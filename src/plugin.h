@@ -59,8 +59,8 @@ typedef struct Plugin
         float lp[2];
         float hp[2];
 
-        float prev_sample;
-        float _padding;
+        float peak_xn_1;
+        float fb_yn_1;
     } state[2];
 
     // Event stuff
