@@ -62,7 +62,7 @@ static inline float filter_process(float v0 /*xn*/, Coeffs* c, float* s)
 static double convert_compressor_time(double num_samples)
 {
     static const double TLD_AUDIO_ENVELOPE_ANALOG_TC = -0.99967234081320612357829304641019;
-    return expf(TLD_AUDIO_ENVELOPE_ANALOG_TC / num_samples);
+    return exp(TLD_AUDIO_ENVELOPE_ANALOG_TC / num_samples);
 }
 
 // Giannoulis, Massberg, Reiss compressor
