@@ -1,6 +1,7 @@
 
 #include "common.h"
 #include "dsp.h"
+#include "imgui.h"
 #include "plot_dsp.h"
 #include "plugin.h"
 
@@ -39,6 +40,8 @@ typedef struct GUI
     NVGcontext* nvg;
     int         font_id;
     float       scale;
+
+    struct imgui_context imgui;
 
     xcomp_root       root;      // root comp state
     xcomp_component  component; // root level component
@@ -535,10 +538,30 @@ void pw_tick(void* _gui)
         nvgText(gui->nvg, 20, height - 20, str, NULL);
     }
 
+    // imgui button
+    {
+        int w = gui->plugin->width;
+        int h = gui->plugin->height;
+
+        struct imgui_widget btn = {w - 80, h - 80, w - 20, h - 20};
+        if (imgui_button(&gui->imgui, &btn))
+        {
+            println("Pressed!");
+            btn.y += 1;
+            btn.b += 1;
+        }
+        nvgBeginPath(nvg);
+        nvgRect(nvg, btn.x, btn.y, btn.r - btn.x, btn.b - btn.y);
+        nvgFillColor(nvg, nvgRGBA(127, 255, 255, 255));
+        nvgFill(nvg);
+    }
+
     // End frame
     nvgEndFrame(gui->nvg);
     sg_end_pass(gui->sg);
     sg_commit(gui->sg);
+
+    imgui_end_frame(&gui->imgui);
 }
 
 bool pw_event(const PWEvent* event)
@@ -633,6 +656,8 @@ bool pw_event(const PWEvent* event)
     case PW_EVENT_FILE_EXIT:
         break;
     }
+
+    imgui_send_event(&gui->imgui, event);
 
     return false;
 }
