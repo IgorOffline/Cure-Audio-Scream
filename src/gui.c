@@ -424,32 +424,48 @@ void pw_tick(void* _gui)
         double value_d = gui->plugin->main_params[i];
         float  value_f = value_d;
 
-        bool dragging = im->mouse_left_down && imgui_hittest_circle(im->mouse_down, pt, slider_radius);
-        if (dragging != gui->drag_params[i])
+        bool hover = imgui_hittest_circle(im->mouse_move, pt, slider_radius);
+        if (hover != gui->hover_params[i]) // mouse enter/exit
         {
-            gui->drag_params[i] = dragging;
-            if (dragging)
+            gui->hover_params[i]     = hover;
+            enum PWCursorType cursor = hover ? PW_CURSOR_RESIZE_NS : PW_CURSOR_ARROW;
+            pw_set_mouse_cursor(gui->pw, cursor);
+            if (hover) // mouse enter
+                im->left_click_counter = 0;
+        }
+
+        // Press/drag, same thing
+        bool press = im->mouse_left_down && imgui_hittest_circle(im->mouse_down, pt, slider_radius);
+        if (im->mouse_left_down_frame && press)
+        {
+            if (im->left_click_counter == 2) // mouse double click
+            {
+                im->left_click_counter = 0; // single and triple click not supported
+
+                value_d = value_f = cplug_getDefaultParameterValue(gui->plugin, i);
+                param_set(gui->plugin, i, value_d);
+            }
+        }
+        if (press != gui->drag_params[i])
+        {
+            gui->drag_params[i] = press;
+            if (press)
                 param_change_begin(gui->plugin, i);
             else
                 param_change_end(gui->plugin, i);
         }
-        if (dragging)
+        if (press)
         {
             float next_value = value_f;
             imgui_drag_value(im, &next_value, 0, 1, IMGUI_DRAG_VERTICAL);
             bool changed = value_f != next_value;
             if (changed)
             {
+                im->left_click_counter = 0; // okay now this is jank. come up with better double clicks
+
                 value_d = value_f = next_value;
                 param_change_update(gui->plugin, i, value_d);
             }
-        }
-        bool hover = imgui_hittest_circle(im->mouse_move, pt, slider_radius);
-        if (hover != gui->hover_params[i])
-        {
-            gui->hover_params[i]     = hover;
-            enum PWCursorType cursor = hover ? PW_CURSOR_RESIZE_NS : PW_CURSOR_ARROW;
-            pw_set_mouse_cursor(gui->pw, cursor);
         }
 
         // Knob

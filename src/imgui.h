@@ -27,7 +27,11 @@ typedef struct imgui_context
     bool mouse_left_down_frame;
     bool mouse_left_up_frame;
 
-    xvec2f mouse_down;
+    // mouse down left
+    uint32_t last_left_click_time;
+    uint32_t left_click_counter;
+    xvec2f   mouse_down;
+
     xvec2f mouse_up;
     xvec2f mouse_move;
     xvec2f mouse_last_drag;
@@ -154,6 +158,15 @@ void imgui_send_event(imgui_context* ctx, const PWEvent* e)
         ctx->mouse_move.y          = e->mouse.y;
         ctx->mouse_down.x          = e->mouse.x;
         ctx->mouse_down.y          = e->mouse.y;
+
+        uint32_t diff = e->mouse.time_ms - ctx->last_left_click_time;
+        if (diff > e->mouse.double_click_interval_ms)
+            ctx->left_click_counter = 0;
+        if (ctx->left_click_counter >= 3)
+            ctx->left_click_counter = 0;
+
+        ctx->left_click_counter++;
+        ctx->last_left_click_time = e->mouse.time_ms;
     }
     else if (e->type == PW_EVENT_MOUSE_LEFT_UP)
     {
