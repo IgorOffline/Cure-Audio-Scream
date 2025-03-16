@@ -45,10 +45,8 @@ typedef struct GUI
 
     xcomp_root       root;      // root comp state
     xcomp_component  component; // root level component
-    xcomp_component* children[NUM_PARAMS + 1];
+    xcomp_component* children[NUM_PARAMS];
     xcomp_component  sliders[NUM_PARAMS];
-
-    xcomp_component panic_btn;
 
     int    slider_drag_idx;
     xvec2f drag_last;
@@ -218,8 +216,6 @@ void cb_xcomp_gui(xcomp_component* comp, uint32_t event, xcomp_event_data data)
             xcomp_dimensions d = {x - radius, y - radius, 2 * radius, 2 * radius};
             xcomp_set_dimensions(&gui->sliders[i], d);
         }
-
-        xcomp_set_dimensions(&gui->panic_btn, (xcomp_dimensions){width - 100, 0, 100, 40});
     }
 }
 
@@ -337,21 +333,6 @@ void cb_xcomp_slider(xcomp_component* comp, uint32_t event, xcomp_event_data dat
     }
 }
 
-void cb_xcomp_panic_btn(xcomp_component* comp, uint32_t event, xcomp_event_data data)
-{
-    GUI* gui = comp->data;
-    if (event == XCOMP_EVENT_MOUSE_LEFT_DOWN)
-    {
-        CplugEvent e;
-        e.type = EVENT_PANIC_BUTTON_PRESSED;
-        send_to_audio_event_queue(gui->plugin, e);
-    }
-    else if (event == XCOMP_EVENT_MOUSE_ENTER)
-        pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-    else if (event == XCOMP_EVENT_MOUSE_EXIT)
-        pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
-}
-
 void* pw_create_gui(void* _plugin, void* _pw)
 {
     CPLUG_LOG_ASSERT(_plugin);
@@ -410,10 +391,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
         comp->data          = gui;
         comp->event_handler = cb_xcomp_slider;
     }
-    xcomp_add_child(&gui->component, &gui->panic_btn);
-
-    gui->panic_btn.data          = gui;
-    gui->panic_btn.event_handler = cb_xcomp_panic_btn;
 
     gui->slider_drag_idx = -1;
 
@@ -448,11 +425,11 @@ void pw_tick(void* _gui)
     if (gui->imgui.has_redrawn)
         return;
 
+    int width  = gui->plugin->width;
+    int height = gui->plugin->height;
+
     // Begin frame
     {
-        int width  = gui->plugin->width;
-        int height = gui->plugin->height;
-
         static const float r = 202.0f / 255.0f;
         static const float g = 211.0f / 255.0f;
         static const float b = 220.0f / 255.0f;
@@ -533,8 +510,6 @@ void pw_tick(void* _gui)
 
     if (gui->plugin->is_clipping)
     {
-        float width  = gui->plugin->width;
-        float height = gui->plugin->height;
         nvgTextAlign(nvg, NVG_ALIGN_BR);
         nvgFillColor(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
         float dB = xm_fast_gain_to_dB(gui->plugin->peak_gain);
@@ -545,22 +520,31 @@ void pw_tick(void* _gui)
 
     // Panic button
     {
-        xcomp_dimensions d = gui->panic_btn.dimensions;
+        imgui_widget d     = {width - 100, 0, width, 40};
+        bool         press = imgui_check_press(&gui->imgui, &d);
+        if (gui->imgui.mouse_left_down_frame && press)
+        {
+            CplugEvent e = {0};
+            e.type       = EVENT_PANIC_BUTTON_PRESSED;
+            send_to_audio_event_queue(gui->plugin, e);
+            println("PANIC!");
+        }
+
         nvgBeginPath(nvg);
-        nvgRect(nvg, d.x, d.y, d.width, d.height);
+        nvgRect(nvg, d.x, d.y, d.r - d.x, d.b - d.y);
         nvgFillColor(nvg, (NVGcolor){0.8f, 0.1f, 0.2f, 1.0f});
         nvgFill(nvg);
 
         nvgFillColor(nvg, (NVGcolor){0.9f, 0.9f, 0.2f, 1.0f});
         nvgTextAlign(nvg, NVG_ALIGN_CC);
-        if (gui->panic_btn.flags & XCOMP_FLAG_IS_MOUSE_LEFT_DOWN)
+        if (press)
             d.y += 1.0f;
-        nvgText(nvg, d.x + d.width * 0.5f, d.y + d.height * 0.5f, "PANIC!", NULL);
+        float cx = (d.x + d.r) * 0.5f;
+        float cy = (d.y + d.b) * 0.5f;
+        nvgText(nvg, cx, cy, "PANIC!", NULL);
     }
 
     {
-        float width  = gui->plugin->width;
-        float height = gui->plugin->height;
         // plot_expander(nvg, width, height);
         // plot_peak_detection(nvg, width, height);
         plot_peak_distortion(nvg, 0, 2, height - 4, height - 4, gui->plugin->main_params[PARAM_FEEDBACK_GAIN]);
@@ -568,10 +552,7 @@ void pw_tick(void* _gui)
 
     // imgui button
     {
-        int w = gui->plugin->width;
-        int h = gui->plugin->height;
-
-        struct imgui_widget btn   = {w - 80, h - 80, w - 20, h - 20};
+        struct imgui_widget btn   = {width - 80, height - 80, width - 20, height - 20};
         bool                press = imgui_check_press(&gui->imgui, &btn);
         if (press && gui->imgui.mouse_left_down_frame)
         {
@@ -590,10 +571,7 @@ void pw_tick(void* _gui)
 
     // imgui slider
     {
-        int w = gui->plugin->width;
-        int h = gui->plugin->height;
-
-        struct imgui_widget slider = {w - 180, h - 80, w - 120, h - 20};
+        struct imgui_widget slider = {width - 180, height - 80, width - 120, height - 20};
         static float        v      = 0.5;
         imgui_slider(&gui->imgui, &slider, &v, 0, 1);
 

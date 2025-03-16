@@ -25,22 +25,30 @@ typedef struct imgui_context
     xvec2f mouse_last_drag;
 } imgui_context;
 
-bool imgui_hittest(xvec2f pos, imgui_widget* widget)
+bool imgui_hittest_rect(xvec2f pos, imgui_widget* widget)
 {
     return pos.x >= widget->x && pos.y >= widget->y && pos.x <= widget->r && pos.y <= widget->b;
 }
 
+bool imgui_hittest_circle(xvec2f pos, xvec2f centre, float radius)
+{
+    float diff_x   = pos.x - centre.x;
+    float diff_y   = pos.y - centre.y;
+    float distance = hypotf(fabsf(diff_x), fabsf(diff_y));
+    return distance < radius;
+}
+
 bool imgui_check_press(imgui_context* ctx, imgui_widget* widget)
 {
-    return ctx->mouse_left_down && imgui_hittest(ctx->mouse_down, widget);
+    return ctx->mouse_left_down && imgui_hittest_rect(ctx->mouse_down, widget);
 }
 
 bool imgui_check_release(imgui_context* ctx, imgui_widget* widget)
 {
-    return ctx->mouse_left_up_frame && imgui_hittest(ctx->mouse_up, widget);
+    return ctx->mouse_left_up_frame && imgui_hittest_rect(ctx->mouse_up, widget);
 }
 
-bool imgui_check_hover(imgui_context* ctx, imgui_widget* widget) { return imgui_hittest(ctx->mouse_move, widget); }
+bool imgui_check_hover(imgui_context* ctx, imgui_widget* widget) { return imgui_hittest_rect(ctx->mouse_move, widget); }
 
 enum ImguiDragType
 {
