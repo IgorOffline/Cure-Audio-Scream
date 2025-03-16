@@ -132,11 +132,14 @@ void imgui_slider(imgui_context* ctx, imgui_widget* widget, float* value, float 
 // Call at the end of every frame after all events have been processed
 void imgui_end_frame(imgui_context* ctx)
 {
+    ctx->has_redrawn           = true;
     ctx->mouse_left_down_frame = false;
     if (ctx->mouse_left_up_frame)
+    {
+        ctx->has_redrawn     = false;
         ctx->mouse_left_down = false;
+    }
     ctx->mouse_left_up_frame = false;
-    ctx->has_redrawn         = true;
 }
 
 void imgui_send_event(imgui_context* ctx, const PWEvent* e)
