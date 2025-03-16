@@ -9,6 +9,14 @@ typedef struct imgui_widget
     float x, y, r, b;
 } imgui_widget;
 
+xvec2f imgui_centre(const imgui_widget* widget)
+{
+    xvec2f pt;
+    pt.x = (widget->x + widget->r) * 0.5f;
+    pt.y = (widget->y + widget->b) * 0.5f;
+    return pt;
+}
+
 typedef struct imgui_context
 {
     // Set to false whenever there are new events
@@ -48,7 +56,14 @@ bool imgui_check_release(imgui_context* ctx, imgui_widget* widget)
     return ctx->mouse_left_up_frame && imgui_hittest_rect(ctx->mouse_up, widget);
 }
 
-bool imgui_check_hover(imgui_context* ctx, imgui_widget* widget) { return imgui_hittest_rect(ctx->mouse_move, widget); }
+// Returns true if hover state toggled
+bool imgui_check_hover(imgui_context* ctx, imgui_widget* widget, bool* last_hover)
+{
+    bool hover  = imgui_hittest_rect(ctx->mouse_move, widget);
+    bool toggle = *last_hover != hover;
+    *last_hover = hover;
+    return toggle;
+}
 
 enum ImguiDragType
 {

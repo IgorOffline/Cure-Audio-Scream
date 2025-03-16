@@ -43,6 +43,8 @@ typedef struct GUI
 
     struct imgui_context imgui;
 
+    bool hover_panic_btn;
+
     xcomp_root       root;      // root comp state
     xcomp_component  component; // root level component
     xcomp_component* children[NUM_PARAMS];
@@ -530,6 +532,12 @@ void pw_tick(void* _gui)
             println("PANIC!");
         }
 
+        if (imgui_check_hover(&gui->imgui, &d, &gui->hover_panic_btn))
+        {
+            enum PWCursorType cursor = gui->hover_panic_btn ? PW_CURSOR_HAND_POINT : PW_CURSOR_ARROW;
+            pw_set_mouse_cursor(gui->pw, cursor);
+        }
+
         nvgBeginPath(nvg);
         nvgRect(nvg, d.x, d.y, d.r - d.x, d.b - d.y);
         nvgFillColor(nvg, (NVGcolor){0.8f, 0.1f, 0.2f, 1.0f});
@@ -538,7 +546,10 @@ void pw_tick(void* _gui)
         nvgFillColor(nvg, (NVGcolor){0.9f, 0.9f, 0.2f, 1.0f});
         nvgTextAlign(nvg, NVG_ALIGN_CC);
         if (press)
+        {
             d.y += 1.0f;
+            d.b += 1.0f;
+        }
         float cx = (d.x + d.r) * 0.5f;
         float cy = (d.y + d.b) * 0.5f;
         nvgText(nvg, cx, cy, "PANIC!", NULL);
@@ -547,26 +558,7 @@ void pw_tick(void* _gui)
     {
         // plot_expander(nvg, width, height);
         // plot_peak_detection(nvg, width, height);
-        plot_peak_distortion(nvg, 0, 2, height - 4, height - 4, gui->plugin->main_params[PARAM_FEEDBACK_GAIN]);
-    }
-
-    // imgui button
-    {
-        struct imgui_widget btn   = {width - 80, height - 80, width - 20, height - 20};
-        bool                press = imgui_check_press(&gui->imgui, &btn);
-        if (press && gui->imgui.mouse_left_down_frame)
-        {
-            println("press");
-        }
-        if (press)
-        {
-            btn.y += 1;
-            btn.b += 1;
-        }
-        nvgBeginPath(nvg);
-        nvgRect(nvg, btn.x, btn.y, btn.r - btn.x, btn.b - btn.y);
-        nvgFillColor(nvg, nvgRGBA(127, 255, 255, 255));
-        nvgFill(nvg);
+        // plot_peak_distortion(nvg, 0, 2, height - 4, height - 4, gui->plugin->main_params[PARAM_FEEDBACK_GAIN]);
     }
 
     // imgui slider
@@ -584,9 +576,8 @@ void pw_tick(void* _gui)
         snprintf(label, sizeof(label), "%.2f", v);
         nvgFillColor(nvg, (NVGcolor){0, 0, 0, 1});
         nvgTextAlign(nvg, NVG_ALIGN_CC);
-        float cx = (slider.x + slider.r) * 0.5f;
-        float cy = (slider.y + slider.b) * 0.5f;
-        nvgText(nvg, cx, cy, label, NULL);
+        xvec2f pt = imgui_centre(&slider);
+        nvgText(nvg, pt.x, pt.y, label, NULL);
     }
 
     // End frame
