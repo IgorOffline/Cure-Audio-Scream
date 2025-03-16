@@ -65,7 +65,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleC
         -Wno-c++20-extensions
         -Wno-microsoft-enum-forward-reference
         
-        "-I${PROJECT_SOURCE_DIR}/src/common.h"
+        "-include${PROJECT_SOURCE_DIR}/src/common.h"
         )
 
 endif()
@@ -221,9 +221,6 @@ if (APPLE)
     target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE
         CPLUG_AUV2_VERSION_INT=${MACOSX_BUNDLE_VERSION_INT}
         CPLUG_AUV2_BUNDLE_ID="${PLUGIN_BUNDLE_ID}"
-        CPLUG_BUILD_AUV2=1
-        CPLUG_BUILD_VST3=1
-        CPLUG_BUILD_CLAP=1
     )
 
     add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
@@ -252,10 +249,6 @@ elseif(WIN32)
         SUFFIX .vst3
         PDB_NAME ${PROJECT_NAME}_plugin
         )
-    target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE
-        CPLUG_BUILD_VST3=1
-        CPLUG_BUILD_CLAP=1
-    )
     add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3 to %LOCALAPPDATA%\\Programs\\Common\\VST3"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3" "%LOCALAPPDATA%\\Programs\\Common\\VST3\\${PROJECT_NAME}.vst3"
