@@ -424,7 +424,7 @@ void pw_tick(void* _gui)
     const float slider_radius = SLIDER_RADIUS * width;
     for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
     {
-        xvec2f pt;
+        imgui_pt pt;
         pt.x = SLIDER_POSITIONS[i] * width;
         pt.y = height * 0.5f;
 
@@ -513,7 +513,7 @@ void pw_tick(void* _gui)
 
     // Panic button
     {
-        imgui_widget d = {width - 100, 0, width, 40};
+        imgui_rect d = {width - 100, 0, width, 40};
 
         uint32_t events = imgui_get_events_rect(im, &d);
         if (events & IMGUI_EVENT_MOUSE_ENTER)

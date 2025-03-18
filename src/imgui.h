@@ -1,25 +1,38 @@
 #pragma once
-#include "common.h"
-#include <cplug_extensions/window.h>
 #include <math.h>
-#include <xhl/vector.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-typedef struct imgui_widget
+typedef struct imgui_rect
 {
     float x, y, r, b;
-} imgui_widget;
+} imgui_rect;
 
-xvec2f imgui_centre(const imgui_widget* widget)
+typedef struct imgui_pt
 {
-    xvec2f pt;
-    pt.x = (widget->x + widget->r) * 0.5f;
-    pt.y = (widget->y + widget->b) * 0.5f;
+    float x, y;
+} imgui_pt;
+
+imgui_pt imgui_centre(const imgui_rect* rect)
+{
+    imgui_pt pt;
+    pt.x = (rect->x + rect->r) * 0.5f;
+    pt.y = (rect->y + rect->b) * 0.5f;
     return pt;
 }
 
 typedef struct imgui_context
 {
     // For tracking widgets ownership over events
+    // NOTE: Responding to mouse enter/exit events is tricky in IMGUIs
+    // For example, two widgets, A & B change the mouse cursor on enter & exit. If Widget A receives a mouse enter event
+    // and changes the cursor before Widget B responds to its mouse exit event, where it also updates the cursor, then
+    // the cursor will be incorrectly set to Widget Bs cursor. In this case, extra care will need to be taken responsing
+    // to mouse exit events.
+    // Although everything else in this library appears to be working, requiring this kind of caution from users should
+    // be considered a design flaw and future improvements to the design should be made. Great design makes mistakes
+    // difficult. Similar problems may exist when responding to drag drop + end events.
+    // For now, you will need to be prepared to program like a ninja handling out of order events!
     uint32_t id;
     uint32_t mouse_over_id;
     uint32_t mouse_over_last_frame_id;
@@ -44,18 +57,18 @@ typedef struct imgui_context
     bool mouse_left_up_frame;
     bool mouse_inside_window;
 
-    xvec2f mouse_down;
-    xvec2f mouse_up;
-    xvec2f mouse_move;
-    xvec2f mouse_last_drag;
+    imgui_pt mouse_down;
+    imgui_pt mouse_up;
+    imgui_pt mouse_move;
+    imgui_pt mouse_last_drag;
 } imgui_context;
 
-bool imgui_hittest_rect(xvec2f pos, const imgui_widget* widget)
+bool imgui_hittest_rect(imgui_pt pos, const imgui_rect* rect)
 {
-    return pos.x >= widget->x && pos.y >= widget->y && pos.x <= widget->r && pos.y <= widget->b;
+    return pos.x >= rect->x && pos.y >= rect->y && pos.x <= rect->r && pos.y <= rect->b;
 }
 
-bool imgui_hittest_circle(xvec2f pos, xvec2f centre, float radius)
+bool imgui_hittest_circle(imgui_pt pos, imgui_pt centre, float radius)
 {
     float diff_x   = pos.x - centre.x;
     float diff_y   = pos.y - centre.y;
@@ -128,14 +141,6 @@ uint32_t _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool rele
         events |= IMGUI_EVENT_DRAG_MOVE | IMGUI_EVENT_MOUSE_HOVER;
 
     // Hover
-    // NOTE: Responding to mouse enter/exit events is tricky in IMGUIs
-    // For example, Two widgets, A & B change the mouse cursor on enter & exit. If widget A receives a mouse enter event
-    // and changes the cursor before widget B responds to its mouse exit event, where it will want to update the cursor.
-    // In this case, extra care will need to be taken responsing to mouse exit events.
-    // Although everything else in this library appears to be working, this should be considered a design flaw and
-    // future improvements to the design should be made. Great design makes mistakes difficult.
-    // Similar problems may exist when responding to drag drop + end events
-    // For now, you will need to be prepared to program like a ninja handling out of order events
     if (hover && (ctx->mouse_over_id == 0 || ctx->mouse_left_up_frame))
     {
         events             |= IMGUI_EVENT_MOUSE_ENTER;
@@ -159,15 +164,15 @@ uint32_t _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool rele
     return events;
 }
 
-uint32_t imgui_get_events_rect(imgui_context* ctx, const imgui_widget* widget)
+uint32_t imgui_get_events_rect(imgui_context* ctx, const imgui_rect* rect)
 {
-    bool hover   = ctx->mouse_inside_window && imgui_hittest_rect(ctx->mouse_move, widget);
-    bool press   = ctx->mouse_left_down && imgui_hittest_rect(ctx->mouse_down, widget);
-    bool release = ctx->mouse_left_up_frame && imgui_hittest_rect(ctx->mouse_up, widget);
+    bool hover   = ctx->mouse_inside_window && imgui_hittest_rect(ctx->mouse_move, rect);
+    bool press   = ctx->mouse_left_down && imgui_hittest_rect(ctx->mouse_down, rect);
+    bool release = ctx->mouse_left_up_frame && imgui_hittest_rect(ctx->mouse_up, rect);
     return _imgui_get_events(ctx, hover, press, release);
 }
 
-uint32_t imgui_get_events_circle(imgui_context* ctx, xvec2f pt, float radius)
+uint32_t imgui_get_events_circle(imgui_context* ctx, imgui_pt pt, float radius)
 {
     bool hover   = ctx->mouse_inside_window && imgui_hittest_circle(ctx->mouse_move, pt, radius);
     bool press   = ctx->mouse_left_down && imgui_hittest_circle(ctx->mouse_down, pt, radius);
@@ -234,6 +239,8 @@ void imgui_end_frame(imgui_context* ctx)
     ctx->id = 0;
 }
 
+// NOTE: in order to port this library to work with other window libraries, simply rewrite this one function!
+#include <cplug_extensions/window.h>
 void imgui_send_event(imgui_context* ctx, const PWEvent* e)
 {
     ctx->num_duplicate_backbuffers = 0;
