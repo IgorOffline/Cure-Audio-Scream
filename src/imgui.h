@@ -106,7 +106,7 @@ enum
 
     IMGUI_EVENT_MOUSE_WHEEL = 1 << 9,
 
-    IMGUI_EVENT_TOUCHPAD_BEGIN = 1 << 10,
+    IMGUI_EVENT_TOUCHPAD_BEGIN = 1 << 10, // For MacBooks
     IMGUI_EVENT_TOUCHPAD_MOVE  = 1 << 11,
     IMGUI_EVENT_TOUCHPAD_END   = 1 << 12,
 
@@ -220,7 +220,13 @@ enum ImguiDragType
     IMGUI_DRAG_VERTICAL,
 };
 
-void imgui_drag_value(imgui_context* ctx, float* value, float vmin, float vmax, enum ImguiDragType drag_type)
+void imgui_drag_value(
+    imgui_context*     ctx,
+    float*             value,
+    float              vmin,
+    float              vmax,
+    float              range_px,
+    enum ImguiDragType drag_type)
 {
     xassert(ctx->mouse_left_down); // Are you really dragging right now? Or has your drag ended?
     float delta_x = ctx->mouse_move.x - ctx->mouse_last_drag.x;
@@ -247,9 +253,9 @@ void imgui_drag_value(imgui_context* ctx, float* value, float vmin, float vmax, 
     if (ctx->mouse_move_mods & PW_MOD_KEY_SHIFT)
         delta_px *= 0.1f;
 
-    float delta_norm = delta_px / 300;
+    float delta_norm = delta_px / range_px;
 
-    float delta_value  = vmin + delta_norm * (vmax - vmin); // lerp
+    float delta_value  = delta_norm * (vmax - vmin);
     float next_value   = *value;
     next_value        += delta_value;
     if (next_value > vmax)
@@ -281,6 +287,10 @@ void imgui_end_frame(imgui_context* ctx)
     ctx->mouse_wheel_mods    = 0;
     ctx->mouse_wheel         = 0;
     ctx->frame_events        = 0;
+
+    ctx->mouse_wheel      = 0;
+    ctx->mouse_touchpad.x = 0;
+    ctx->mouse_touchpad.y = 0;
 
     ctx->id = 0;
 }
@@ -329,15 +339,15 @@ void imgui_send_event(imgui_context* ctx, const PWEvent* e)
     }
     else if (e->type == PW_EVENT_MOUSE_SCROLL_WHEEL)
     {
-        ctx->mouse_wheel       = (int)(e->mouse.y / 120.0f);
+        ctx->mouse_wheel      += (int)(e->mouse.y / 120.0f);
         ctx->mouse_wheel_mods |= e->mouse.modifiers;
     }
     else if (
         e->type == PW_EVENT_MOUSE_TOUCHPAD_MOVE || e->type == PW_EVENT_MOUSE_TOUCHPAD_BEGIN ||
         e->type == PW_EVENT_MOUSE_TOUCHPAD_END)
     {
-        ctx->mouse_touchpad.x     = e->mouse.x;
-        ctx->mouse_touchpad.y     = e->mouse.y;
+        ctx->mouse_touchpad.x    += e->mouse.x;
+        ctx->mouse_touchpad.y    += e->mouse.y;
         ctx->mouse_touchpad_mods |= e->mouse.modifiers;
     }
     else if (e->type == PW_EVENT_MOUSE_ENTER)
