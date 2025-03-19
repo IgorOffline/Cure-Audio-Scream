@@ -308,6 +308,7 @@ void pw_tick(void* _gui)
     const float slider_radius = SLIDER_RADIUS * width;
     for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
     {
+        continue;
         imgui_pt pt;
         pt.x = SLIDER_POSITIONS[i] * width;
         pt.y = height * 0.5f;
@@ -337,7 +338,7 @@ void pw_tick(void* _gui)
         if (events & IMGUI_EVENT_DRAG_MOVE)
         {
             float next_value = value_f;
-            imgui_drag_value(im, &next_value, 0, 1, IMGUI_DRAG_VERTICAL);
+            imgui_drag_value(im, &next_value, 0, 1, 300, IMGUI_DRAG_VERTICAL);
             bool changed = value_f != next_value;
             if (changed)
             {
@@ -466,7 +467,7 @@ void pw_tick(void* _gui)
     {
         // plot_expander(nvg, width, height);
         // plot_peak_detection(nvg, width, height);
-        // plot_peak_distortion(nvg, 0, 2, height - 4, height - 4, gui->plugin->main_params[PARAM_FEEDBACK_GAIN]);
+        plot_peak_distortion(nvg, im, width, height);
     }
 
     // End frame

@@ -1,7 +1,55 @@
 #pragma once
 #include "dsp.h"
+#include "imgui.h"
 #include <math.h>
 #include <nanovg.h>
+#include <stdio.h>
+
+void im_slider(
+    NVGcontext*    nvg,
+    imgui_context* im,
+    imgui_rect     rect,
+    float*         pValue,
+    float          vmin,
+    float          vmax,
+    const char*    fmt_value,
+    const char*    name)
+{
+    uint32_t events        = imgui_get_events_rect(im, &rect);
+    float    slider_width  = rect.r - rect.x;
+    float    slider_height = rect.b - rect.y;
+    float    knob_radius   = slider_height * 0.5f;
+
+    float slider_bg_width = slider_width - knob_radius * 2;
+
+    if (events & IMGUI_EVENT_DRAG_MOVE)
+    {
+        imgui_drag_value(im, pValue, vmin, vmax, slider_bg_width, IMGUI_DRAG_HORIZONTAL);
+    }
+
+    nvgBeginPath(nvg);
+    nvgRect(nvg, rect.x, rect.y, slider_width, slider_height);
+    nvgFillColor(nvg, nvgRGBAf(0.2, 0.2, 0.25, 0.5));
+    nvgFill(nvg);
+
+    float val_x = xm_mapf(*pValue, vmin, vmax, rect.x, rect.r - slider_height);
+    nvgBeginPath(nvg);
+    nvgRect(nvg, val_x, rect.y, slider_height, slider_height);
+    nvgFillColor(nvg, nvgRGBAf(0.2, 0.2, 0.8, 1.0));
+    nvgFill(nvg);
+
+    imgui_pt c = imgui_centre(&rect);
+    char     label[16];
+    snprintf(label, sizeof(label), fmt_value, *pValue);
+    nvgFillColor(nvg, (NVGcolor){1, 1, 1, 1});
+    nvgFontSize(nvg, slider_height * 0.75);
+    nvgTextAlign(nvg, NVG_ALIGN_MIDDLE | NVG_ALIGN_CENTER);
+    nvgText(nvg, c.x, c.y, label, NULL);
+
+    nvgTextAlign(nvg, NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT);
+    nvgFillColor(nvg, (NVGcolor){0, 0, 0, 1});
+    nvgText(nvg, rect.r + 10, c.y, name, NULL);
+}
 
 void plot_expander(NVGcontext* nvg, float width, float height)
 {
@@ -138,17 +186,54 @@ float distort(float x, float drive)
     return y;
 }
 
-void plot_peak_distortion(NVGcontext* nvg, float x, float y, float width, float height, float drive)
+void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, float gui_height)
 {
+    // Compressor params
+    static float       threshold     = -12;
+    static const float threshold_min = -60;
+    static const float threshold_max = 0;
+
+    static float       ratio     = 10;
+    static const float ratio_min = 1;
+    static const float ratio_max = 100;
+
+    static float       knee     = 6;
+    static const float knee_min = 1;
+    static const float knee_max = 60;
+
+    static float       drive     = 0;
+    static const float drive_min = 0;
+    static const float drive_max = 1;
+
+    imgui_rect rect = {20, 20, 180, 40};
+    im_slider(nvg, im, rect, &threshold, threshold_min, threshold_max, "%.2f dB", "Threshold");
+    rect.y += 40;
+    rect.b += 40;
+    im_slider(nvg, im, rect, &ratio, ratio_min, ratio_max, "1:%.2f", "Ratio");
+    rect.y += 40;
+    rect.b += 40;
+    im_slider(nvg, im, rect, &knee, knee_min, knee_max, "%.2f dB", "Knee");
+    rect.y += 40;
+    rect.b += 40;
+    im_slider(nvg, im, rect, &drive, drive_min, drive_max, "%.2f", "Drive");
+
+    float x, y, width, height;
+
+    y     = 2;
+    width = height = gui_height - 4;
+
     const float half_height = height * 0.5f;
-    const float cy          = y + half_height;
+
+    x = gui_width * 0.5f - half_height;
+
+    const float cy = y + half_height;
 
     nvgBeginPath(nvg);
 
     nvgMoveTo(nvg, x + width * 0.5f, y);
-    nvgLineTo(nvg, x + width * 0.5f, y + height);
-    nvgMoveTo(nvg, x, y + height * 0.5f);
-    nvgLineTo(nvg, x + width, y + height * 0.5f);
+    nvgLineTo(nvg, x + width * 0.5f, y + gui_height);
+    nvgMoveTo(nvg, x, y + gui_height * 0.5f);
+    nvgLineTo(nvg, x + width, y + gui_height * 0.5f);
     nvgStrokeWidth(nvg, 1.2);
     nvgStrokeColor(nvg, nvgRGBAf(0.2, 0.2, 0.3, 1.0f));
     nvgStroke(nvg);
