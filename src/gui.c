@@ -251,6 +251,10 @@ void pw_tick(void* _gui)
     if (!gui || !gui->plugin || !gui->nvg)
         return;
 
+    // #ifndef NDEBUG
+    uint64_t frame_time_start = xtime_now_ns();
+    // #endif
+
     main_dequeue_events(gui->plugin);
 
 #if defined(_WIN32)
@@ -469,6 +473,28 @@ void pw_tick(void* _gui)
         // plot_peak_detection(nvg, width, height);
         plot_peak_distortion(nvg, im, width, height);
     }
+
+    // #ifndef NDEBUG
+    {
+        uint64_t frame_time_end         = xtime_now_ns();
+        uint64_t frame_time_duration_ns = frame_time_end - frame_time_start;
+
+        uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
+
+        // limit accuracy from nanoseconds to approximately microseconds
+        uint64_t numerator   = frame_time_duration_ns >> 10; // fast integer divide by 1024
+        uint64_t denominator = max_frame_time_ns >> 10;      // fast integer divide by 1024
+
+        double cpu_amt = (double)numerator / (double)denominator;
+
+        nvgTextAlign(nvg, NVG_ALIGN_BL);
+        nvgFontSize(nvg, gui->scale * 12);
+        nvgFillColor(nvg, nvgRGBAf(0, 0, 0, 1));
+        char text[32] = {0};
+        snprintf(text, sizeof(text), "CPU: %.2lf%%", (cpu_amt * 100));
+        nvgText(nvg, 5, height - 5, text, NULL);
+    }
+    // #endif
 
     // End frame
     nvgEndFrame(gui->nvg);
