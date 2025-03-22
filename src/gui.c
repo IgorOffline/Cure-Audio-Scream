@@ -432,6 +432,7 @@ void pw_tick(void* _gui)
     }
 
     // Panic button
+    /*
     {
         imgui_rect d = {width - 100, 0, width, 40};
 
@@ -467,6 +468,7 @@ void pw_tick(void* _gui)
         float cy = (d.y + d.b) * 0.5f;
         nvgText(nvg, cx, cy, "PANIC!", NULL);
     }
+    */
 
     {
         // plot_expander(nvg, width, height);
@@ -482,16 +484,26 @@ void pw_tick(void* _gui)
         uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
 
         // limit accuracy from nanoseconds to approximately microseconds
-        uint64_t numerator   = frame_time_duration_ns >> 10; // fast integer divide by 1024
-        uint64_t denominator = max_frame_time_ns >> 10;      // fast integer divide by 1024
+        uint64_t cpu_numerator   = frame_time_duration_ns >> 10; // fast integer divide by 1024
+        uint64_t cpu_denominator = max_frame_time_ns >> 10;      // fast integer divide by 1024
 
-        double cpu_amt = (double)numerator / (double)denominator;
+        double cpu_amt = (double)cpu_numerator / (double)cpu_denominator;
+
+        const double ms_denom      = 1.0 / 1.024 * 1000;
+        double       frame_time_ms = (double)cpu_numerator / ms_denom;
+        double       approx_fps    = 1000 / frame_time_ms;
 
         nvgTextAlign(nvg, NVG_ALIGN_BL);
         nvgFontSize(nvg, gui->scale * 12);
         nvgFillColor(nvg, nvgRGBAf(0, 0, 0, 1));
-        char text[32] = {0};
-        snprintf(text, sizeof(text), "CPU: %.2lf%%", (cpu_amt * 100));
+        char text[48] = {0};
+        int  len      = snprintf(
+            text,
+            sizeof(text),
+            "CPU: %.2lf%% Time: %.2lfms. Max FPS: %.lf",
+            (cpu_amt * 100),
+            frame_time_ms,
+            approx_fps);
         nvgText(nvg, 5, height - 5, text, NULL);
     }
     // #endif

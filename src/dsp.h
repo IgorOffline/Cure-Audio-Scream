@@ -78,6 +78,18 @@ static inline float hard_knee_expander(float x_dB, float threshold_dB, float rat
     return y_dB;
 }
 
+static inline float hard_knee_compress(float x_dB, float threshold_dB, float ratio_inv)
+{
+    float y_dB, hard_knee;
+    hard_knee = threshold_dB + (x_dB - threshold_dB) * ratio_inv;
+
+    y_dB = x_dB > threshold_dB ? hard_knee : x_dB;
+    // protect against inf, which may occur in the division above if 'knee_dB' is 0
+    xassert(y_dB == y_dB);
+
+    return y_dB;
+}
+
 static inline float soft_knee_compress(float x_dB, float threshold_dB, float ratio_inv, float knee_dB)
 {
     float y_dB, hard_knee, soft_knee, v, cond;

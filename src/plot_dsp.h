@@ -205,7 +205,7 @@ static size_t buffer_saw_len   = 0;
 // E1 = 28 midi = 41.2Hz
 void make_saw(float Hz, float sample_rate)
 {
-    const int NUM_SAWS = 2;
+    const int NUM_SAWS = 3;
 
     const int samples_per_cycle = (int)(sample_rate / Hz);
 
@@ -265,50 +265,14 @@ void plot_line(
 
 void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, float gui_height)
 {
-    enum
-    {
-        MA_LENGTH = 500
-    };
-
-    imgui_rect rect = {20, 20, 180, 40};
-    // Pos params
-    static float pos_input_gain = 12;
-    static float pos_ma_range   = 10;
-    im_slider(nvg, im, rect, &pos_input_gain, 0, 60, "%.2f dB", "+ Input gain");
-    rect.y += 40;
-    rect.b += 40;
-    im_slider(nvg, im, rect, &pos_ma_range, 1, MA_LENGTH, "%.f", "+ MA range samples");
-    rect.y += 40;
-    rect.b += 40;
-
-    // Neg params
-    static float threshold  = -20;
-    static float ratio      = 3.5;
-    static float knee       = 12;
-    static float input_gain = 12;
-    static float drive      = 0;
-    im_slider(nvg, im, rect, &threshold, -60, 0, "%.2f dB", "- Threshold");
-    rect.y += 40;
-    rect.b += 40;
-    im_slider(nvg, im, rect, &ratio, 1, 10, "1:%.2f", "- Ratio");
-    rect.y += 40;
-    rect.b += 40;
-    im_slider(nvg, im, rect, &knee, 1, 60, "%.2f dB", "- Knee");
-    rect.y += 40;
-    rect.b += 40;
-    im_slider(nvg, im, rect, &input_gain, 0, 60, "%.2f dB", "- Input gain");
-    rect.y += 40;
-    rect.b += 40;
-    im_slider(nvg, im, rect, &drive, 0, 1, "%.2f", "Drive");
-
     float x, y, width, height;
 
-    y     = 2;
-    width = height = gui_height - 4;
+    x      = gui_width * 0.3;
+    y      = 2;
+    width  = gui_width * 0.7;
+    height = gui_height - 4;
 
     const float half_height = height * 0.5f;
-
-    x = gui_width * 0.5f - half_height;
 
     const float cy = y + half_height;
 
@@ -321,6 +285,118 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
     nvgStrokeWidth(nvg, 1.2);
     nvgStrokeColor(nvg, nvgRGBAf(0.2, 0.2, 0.3, 1.0f));
     nvgStroke(nvg);
+
+    {
+        enum
+        {
+            SAMPLE_RATE = 48000,
+        };
+
+        imgui_rect rect = {20, 20, 180, 40};
+
+        // Params
+        static float pos_input_gain_dB = 12;
+        static float pos_threshold_dB  = -9;
+        static float pos_ratio         = 100;
+        static float neg_input_gain_dB = 12;
+        static float neg_threshold_dB  = -14;
+        static float neg_ratio         = 5;
+        static float attack_ms         = 0.0;
+        static float release_ms        = 0.86;
+        static float output_gain_dB    = 8;
+        im_slider(nvg, im, rect, &pos_input_gain_dB, 0, 60, "%.2f dB", "+ Input gain");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &pos_threshold_dB, -60, 0, "%.2f dB", "+ Threshold");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &pos_ratio, 1, 100, "1:%.2f", "+ Ratio");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &neg_input_gain_dB, 0, 60, "%.2f dB", "- Input Gain");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &neg_threshold_dB, -60, 0, "%.2f dB", "- Threshold");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &neg_ratio, 1, 100, "1:%.2f", "- Ratio");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &attack_ms, 0, 10, "%.3f ms", "Attack");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &release_ms, 0, 100, "%.3f ms", "Release");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &output_gain_dB, 0, 60, "%.2f dB", "Output gain");
+        rect.y += 40;
+        rect.b += 40;
+
+        make_saw(41.2f, SAMPLE_RATE);
+        plot_line(nvg, x, y, width, height, buffer_saw, buffer_saw_len, nvgRGBA(0, 127, 127, 255));
+
+        float atk_samples = SAMPLE_RATE * attack_ms * 0.001;
+        float rel_samples = SAMPLE_RATE * release_ms * 0.001;
+        atk_samples       = floorf(atk_samples);
+        rel_samples       = floorf(rel_samples);
+        if (atk_samples < 1)
+            atk_samples = 1;
+        if (rel_samples < 1)
+            rel_samples = 1;
+
+        // const float atk = convert_compressor_time(atk_samples);
+        // const float rel = convert_compressor_time(rel_samples);
+        const float atk = atk_samples > 0 ? xm_fast_dB_to_gain(-1 / atk_samples) : 1;
+        const float rel = xm_fast_dB_to_gain(-1 / rel_samples);
+
+        const float pos_ratio_inv    = 1 / pos_ratio;
+        const float neg_ratio_inv    = 1 / neg_ratio;
+        const float pos_input_gain_G = xm_fast_dB_to_gain(pos_input_gain_dB);
+        const float neg_input_gain_G = xm_fast_dB_to_gain(neg_input_gain_dB);
+        const float output_gain_G    = xm_fast_dB_to_gain(output_gain_dB);
+
+        float xn_1 = 0;
+        for (int i = 0; i < buffer_saw_len; i++)
+        {
+            float input = buffer_saw[i];
+
+            float input_gain_G = input > 0 ? pos_input_gain_G : neg_input_gain_G;
+            float threshold_dB = input > 0 ? pos_threshold_dB : neg_threshold_dB;
+            float ratio_inv    = input > 0 ? pos_ratio_inv : neg_ratio_inv;
+
+            input *= input_gain_G;
+
+            xn_1          = detect_peak(fabsf(input), xn_1, atk, rel);
+            float peak_dB = xm_fast_gain_to_dB(xn_1);
+            // float reduction_dB  = soft_knee_compress(peak_dB, threshold, ratio_inv, knee);
+            float reduction_dB  = hard_knee_compress(peak_dB, threshold_dB, ratio_inv);
+            reduction_dB       -= peak_dB;
+            float reduction_G   = xm_fast_dB_to_gain(reduction_dB);
+
+            float output = input * reduction_G * output_gain_G;
+
+            buffer_processed[i] = output;
+        }
+        plot_line(nvg, x, y, width, height, buffer_processed, buffer_saw_len, nvgRGBA(255, 0, 127, 255));
+
+        nvgFillColor(nvg, nvgRGBAf(0, 0, 0, 1));
+        nvgTextAlign(nvg, NVG_ALIGN_BOTTOM | NVG_ALIGN_RIGHT);
+        char  label[64];
+        float label_y = height - 60;
+        snprintf(label, sizeof(label), "Attack samples: %.lf", atk_samples);
+        nvgText(nvg, x + width - 5, label_y, label, NULL);
+
+        label_y += 15;
+        snprintf(label, sizeof(label), "Release samples: %.lf", rel_samples);
+        nvgText(nvg, x + width - 5, label_y, label, NULL);
+
+        label_y += 15;
+        snprintf(label, sizeof(label), "Attack: %.10lf", atk);
+        nvgText(nvg, x + width - 5, label_y, label, NULL);
+        label_y += 15;
+        snprintf(label, sizeof(label), "Release: %.10lf", rel);
+        nvgText(nvg, x + width - 5, label_y, label, NULL);
+    }
 
     // {
     //     float       sample_inc = 2 / width;
@@ -348,7 +424,44 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
     //         pt_x      += 1;
     //     }
     // }
+    /*
     {
+        enum
+        {
+            MA_LENGTH = 500
+        };
+
+        imgui_rect rect = {20, 20, 180, 40};
+        // Pos params
+        static float pos_input_gain = 12;
+        static float pos_ma_range   = 10;
+        im_slider(nvg, im, rect, &pos_input_gain, 0, 60, "%.2f dB", "+ Input gain");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &pos_ma_range, 1, MA_LENGTH, "%.f", "+ MA range samples");
+        rect.y += 40;
+        rect.b += 40;
+
+        // Neg params
+        static float threshold  = -20;
+        static float ratio      = 3.5;
+        static float knee       = 12;
+        static float input_gain = 12;
+        static float drive      = 0;
+        im_slider(nvg, im, rect, &threshold, -60, 0, "%.2f dB", "- Threshold");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &ratio, 1, 10, "1:%.2f", "- Ratio");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &knee, 1, 60, "%.2f dB", "- Knee");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &input_gain, 0, 60, "%.2f dB", "- Input gain");
+        rect.y += 40;
+        rect.b += 40;
+        im_slider(nvg, im, rect, &drive, 0, 1, "%.2f", "Drive");
+
         make_saw(41.2f, 48000.0f);
 
         plot_line(nvg, x, y, width, height, buffer_saw, buffer_saw_len, nvgRGBA(0, 127, 127, 255));
@@ -361,8 +474,6 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
 
         int ma_read_idx = MA_LENGTH - ma_idx_offset;
 
-        xassert(ma_write_idx != ma_read_idx);
-
         memset(ma_buf, 0, sizeof(ma_buf));
 
         float pos_input_gain_G = xm_fast_dB_to_gain(pos_input_gain);
@@ -372,7 +483,8 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
 
             saw = xm_clampf(saw * pos_input_gain_G, -1, 1);
 
-            // https://signalsmith-audio.co.uk/writing/2021/box-sum-cumulative/#avoiding-floating-point-errors-variable-length-box-sum-example-code
+            //
+    https://signalsmith-audio.co.uk/writing/2021/box-sum-cumulative/#avoiding-floating-point-errors-variable-length-box-sum-example-code
             // MA stuff
 
             // Pop()
@@ -404,4 +516,5 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
         }
         plot_line(nvg, x, y, width, height, buffer_processed, buffer_saw_len, nvgRGBA(255, 0, 127, 255));
     }
+    */
 }
