@@ -265,10 +265,19 @@ void plot_line(
 
 void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, float gui_height)
 {
+    enum
+    {
+        MA_LENGTH = 500
+    };
+
     imgui_rect rect = {20, 20, 180, 40};
     // Pos params
     static float pos_input_gain = 12;
+    static float pos_ma_range   = 10;
     im_slider(nvg, im, rect, &pos_input_gain, 0, 60, "%.2f dB", "+ Input gain");
+    rect.y += 40;
+    rect.b += 40;
+    im_slider(nvg, im, rect, &pos_ma_range, 1, MA_LENGTH, "%.f", "+ MA range samples");
     rect.y += 40;
     rect.b += 40;
 
@@ -344,14 +353,15 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
 
         plot_line(nvg, x, y, width, height, buffer_saw, buffer_saw_len, nvgRGBA(0, 127, 127, 255));
 
-        enum
-        {
-            MA_LENGTH = 50
-        };
         float ma_buf[MA_LENGTH];
-        int   ma_idx         = 0;
+        int   ma_write_idx   = 0;
         float ma_range_sum   = 0;
         float ma_running_sum = 0;
+        int   ma_idx_offset  = (int)pos_ma_range;
+
+        int ma_read_idx = MA_LENGTH - ma_idx_offset;
+
+        xassert(ma_write_idx != ma_read_idx);
 
         memset(ma_buf, 0, sizeof(ma_buf));
 
@@ -362,21 +372,34 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
 
             saw = xm_clampf(saw * pos_input_gain_G, -1, 1);
 
+            // https://signalsmith-audio.co.uk/writing/2021/box-sum-cumulative/#avoiding-floating-point-errors-variable-length-box-sum-example-code
             // MA stuff
-            float ma_prev  = ma_buf[ma_idx];
-            ma_buf[ma_idx] = saw;
 
-            ma_idx++;
-            if (ma_idx == MA_LENGTH)
+            // Pop()
+            xassert(ma_read_idx >= 0 && ma_read_idx < MA_LENGTH);
+            float ma_prev   = ma_buf[ma_read_idx];
+            ma_running_sum -= ma_prev;
+
+            ma_read_idx++;
+            if (ma_read_idx == MA_LENGTH)
             {
+                ma_read_idx    = 0;
                 ma_running_sum = ma_range_sum;
-                ma_idx         = 0;
-                ma_range_sum   = 0;
             }
-            ma_running_sum += saw - ma_prev;
-            ma_range_sum   += saw;
 
-            float ma_sample     = ma_running_sum / MA_LENGTH;
+            // Push()
+            ma_running_sum       += saw;
+            ma_range_sum         += saw;
+            ma_buf[ma_write_idx]  = saw;
+
+            ma_write_idx++;
+            if (ma_write_idx == MA_LENGTH)
+            {
+                ma_write_idx = 0;
+                ma_range_sum = 0;
+            }
+
+            float ma_sample     = ma_running_sum / ma_idx_offset;
             buffer_processed[i] = ma_sample;
         }
         plot_line(nvg, x, y, width, height, buffer_processed, buffer_saw_len, nvgRGBA(255, 0, 127, 255));
