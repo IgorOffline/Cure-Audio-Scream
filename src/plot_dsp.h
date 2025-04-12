@@ -222,7 +222,7 @@ void make_saw(float Hz, float sample_rate)
         float       saw = -1;
         for (int i = 0; i < samples_per_cycle; i++)
         {
-            buffer_audio[i]  = tanhf(saw);
+            buffer_audio[i]  = tanhf(saw * 2);
             saw             += inc;
         }
         for (int i = 1; i < NUM_SAWS; i++)
@@ -587,19 +587,23 @@ void plot_peak_upwards_compression(NVGcontext* nvg, imgui_context* im, float gui
         static float knee_dB      = 6;
         static float attack_ms    = 5.0;
         static float release_ms   = 5.0;
-        im_slider(nvg, im, rect, &threshold_dB, -60, 0, "%.2f dB", "Threshold");
-        rect.y += 40;
-        rect.b += 40;
-        im_slider(nvg, im, rect, &ratio, 1, 100, "1:%.2f", "Ratio");
-        rect.y += 40;
-        rect.b += 40;
-        im_slider(nvg, im, rect, &knee_dB, 1, 100, "%.2f dB", "Knee");
-        rect.y += 40;
-        rect.b += 40;
-        im_slider(nvg, im, rect, &attack_ms, 0, 500, "%.3f ms", "Attack");
-        rect.y += 40;
-        rect.b += 40;
-        im_slider(nvg, im, rect, &release_ms, 0, 500, "%.3f ms", "Release");
+        static float drive        = 1.0;
+        // im_slider(nvg, im, rect, &threshold_dB, -60, 0, "%.2f dB", "Threshold");
+        // rect.y += 40;
+        // rect.b += 40;
+        // im_slider(nvg, im, rect, &ratio, 1, 100, "1:%.2f", "Ratio");
+        // rect.y += 40;
+        // rect.b += 40;
+        // im_slider(nvg, im, rect, &knee_dB, 1, 100, "%.2f dB", "Knee");
+        // rect.y += 40;
+        // rect.b += 40;
+        // im_slider(nvg, im, rect, &attack_ms, 0, 50, "%.3f ms", "Attack");
+        // rect.y += 40;
+        // rect.b += 40;
+        // im_slider(nvg, im, rect, &release_ms, 0, 50, "%.3f ms", "Release");
+        // rect.y += 40;
+        // rect.b += 40;
+        im_slider(nvg, im, rect, &drive, 0, 1, "%.3f", "Drive");
         rect.y += 40;
         rect.b += 40;
 
@@ -616,9 +620,13 @@ void plot_peak_upwards_compression(NVGcontext* nvg, imgui_context* im, float gui
         if (rel_samples < 1)
             rel_samples = 1;
 
-        const float atk       = convert_compressor_time(atk_samples);
-        const float rel       = convert_compressor_time(rel_samples);
-        const float ratio_inv = 1 / ratio;
+        const float atk = convert_compressor_time(atk_samples);
+        const float rel = convert_compressor_time(rel_samples);
+        // const float ratio_inv = 1 / ratio;
+
+        // denormalise drive (0-1) to ratio (1-100), exponential curve
+        float       skewed_ratio = powf(100, drive);
+        const float ratio_inv    = 1 / skewed_ratio;
 
         // Test upwards compression
         /*
@@ -678,60 +686,69 @@ void plot_peak_upwards_compression(NVGcontext* nvg, imgui_context* im, float gui
         nvgText(nvg, x + width - 5, label_y, label, NULL);
 
         label_y += 15;
-        snprintf(label, sizeof(label), "Attack: %.10lf", atk);
+        snprintf(label, sizeof(label), "Attack: %.10f", atk);
         nvgText(nvg, x + width - 5, label_y, label, NULL);
         label_y += 15;
-        snprintf(label, sizeof(label), "Release: %.10lf", rel);
+        snprintf(label, sizeof(label), "Release: %.10f", rel);
         nvgText(nvg, x + width - 5, label_y, label, NULL);
 
-        float chart_x      = 20;
-        float chart_r      = gui_width * 0.3;
-        float chart_width  = chart_r - chart_x;
-        float chart_y      = cy;
-        float chart_b      = gui_height - 20;
-        float chart_cy     = (chart_y + chart_b) * 0.5f;
-        float chart_height = (chart_b - chart_y);
+        nvgTextAlign(nvg, NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT);
+        snprintf(label, sizeof(label), "Ratio: 1:%.1f", skewed_ratio);
+        nvgText(nvg, rect.x, rect.y, label, NULL);
 
-        for (int i = 0; i <= 5; i++)
+        // Upwards compression plot
+        /*
         {
-            float dB    = -60 + i * 12;
-            float x_pos = xm_mapf(dB, -60, 0, chart_x, chart_r);
-            float y_pos = xm_mapf(dB, -60, 0, chart_b, chart_y);
+            float chart_x      = 20;
+            float chart_r      = gui_width * 0.3;
+            float chart_width  = chart_r - chart_x;
+            float chart_y      = cy;
+            float chart_b      = gui_height - 20;
+            float chart_cy     = (chart_y + chart_b) * 0.5f;
+            float chart_height = (chart_b - chart_y);
 
+            for (int i = 0; i <= 5; i++)
+            {
+                float dB    = -60 + i * 12;
+                float x_pos = xm_mapf(dB, -60, 0, chart_x, chart_r);
+                float y_pos = xm_mapf(dB, -60, 0, chart_b, chart_y);
+
+                nvgBeginPath(nvg);
+                nvgMoveTo(nvg, chart_x, y_pos);
+                nvgLineTo(nvg, chart_r, y_pos);
+                nvgMoveTo(nvg, x_pos, chart_y);
+                nvgLineTo(nvg, x_pos, chart_b);
+                nvgStrokeWidth(nvg, 1.2);
+                nvgStrokeColor(nvg, (NVGcolor){0, 0, 0, 0.1});
+                nvgStroke(nvg);
+
+                // nvgTextAlign(nvg, NVG)
+            }
+
+            float chart_x_pos = chart_x;
+            bool  first       = true;
             nvgBeginPath(nvg);
-            nvgMoveTo(nvg, chart_x, y_pos);
-            nvgLineTo(nvg, chart_r, y_pos);
-            nvgMoveTo(nvg, x_pos, chart_y);
-            nvgLineTo(nvg, x_pos, chart_b);
+            float threshold_G = xm_fast_dB_to_gain(threshold_dB);
+            while (chart_x_pos < chart_r)
+            {
+                float x_dB        = xm_mapf(chart_x_pos, chart_x, chart_r, -60, 0);
+                float y_dB        = soft_knee_upwards_compress(x_dB, threshold_dB, ratio_inv, knee_dB);
+                float chart_y_pos = xm_mapf(y_dB, -60, 0, chart_b, chart_y);
+                if (first)
+                {
+                    nvgMoveTo(nvg, chart_x_pos, chart_y_pos);
+                    first = false;
+                }
+                else
+                {
+                    nvgLineTo(nvg, chart_x_pos, chart_y_pos);
+                }
+                chart_x_pos += 1.0f;
+            }
             nvgStrokeWidth(nvg, 1.2);
-            nvgStrokeColor(nvg, (NVGcolor){0, 0, 0, 0.1});
+            nvgStrokeColor(nvg, (NVGcolor){0, 0, 0, 1});
             nvgStroke(nvg);
-
-            // nvgTextAlign(nvg, NVG)
         }
-
-        float chart_x_pos = chart_x;
-        bool  first       = true;
-        nvgBeginPath(nvg);
-        float threshold_G = xm_fast_dB_to_gain(threshold_dB);
-        while (chart_x_pos < chart_r)
-        {
-            float x_dB        = xm_mapf(chart_x_pos, chart_x, chart_r, -60, 0);
-            float y_dB        = soft_knee_upwards_compress(x_dB, threshold_dB, ratio_inv, knee_dB);
-            float chart_y_pos = xm_mapf(y_dB, -60, 0, chart_b, chart_y);
-            if (first)
-            {
-                nvgMoveTo(nvg, chart_x_pos, chart_y_pos);
-                first = false;
-            }
-            else
-            {
-                nvgLineTo(nvg, chart_x_pos, chart_y_pos);
-            }
-            chart_x_pos += 1.0f;
-        }
-        nvgStrokeWidth(nvg, 1.2);
-        nvgStrokeColor(nvg, (NVGcolor){0, 0, 0, 1});
-        nvgStroke(nvg);
+        */
     }
 }

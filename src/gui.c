@@ -2,8 +2,11 @@
 #include "common.h"
 #include "dsp.h"
 #include "imgui.h"
-#include "plot_dsp.h"
 #include "plugin.h"
+
+#ifndef NDEBUG
+#include "plot_dsp.h"
+#endif
 
 #include <xhl/debug.h>
 #include <xhl/files.h>
@@ -316,6 +319,7 @@ void pw_tick(void* _gui)
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
 
+    /*
     const NVGcolor col_text = nvgRGBA(143, 150, 160, 255);
 
     // Main parameters
@@ -324,7 +328,6 @@ void pw_tick(void* _gui)
     const float slider_radius = SLIDER_RADIUS * width;
     for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
     {
-        continue;
         imgui_pt pt;
         pt.x = SLIDER_POSITIONS[i] * width;
         pt.y = height * 0.5f;
@@ -442,6 +445,7 @@ void pw_tick(void* _gui)
         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
         nvgText(nvg, width - 20, height - 20, label, NULL);
     }
+    */
 
     // Panic button
     /*
@@ -482,13 +486,14 @@ void pw_tick(void* _gui)
     }
     */
 
+#ifndef NDEBUG
     {
         // plot_expander(nvg, width, height);
         // plot_peak_detection(nvg, width, height);
         // plot_peak_distortion(nvg, im, width, height);
         plot_peak_upwards_compression(nvg, im, width, height);
     }
-
+#endif
     // #ifndef NDEBUG
     {
         uint64_t frame_time_end         = xtime_now_ns();
