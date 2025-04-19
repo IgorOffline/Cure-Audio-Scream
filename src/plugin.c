@@ -204,7 +204,7 @@ uint32_t cplug_getParameterFlags(void* p, uint32_t paramId) { return CPLUG_FLAG_
 void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
 {
     const char*        str     = "";
-    static const char* NAMES[] = {"LP Freq", "LP Res", "HP Freq", "HP Res", "Feedback Gain"};
+    static const char* NAMES[] = {"Cutoff", "Scream", "Resonance"};
     _Static_assert(ARRLEN(NAMES) == NUM_PARAMS);
     if (paramId < NUM_PARAMS)
     {
@@ -224,18 +224,14 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
     double v = 0.0;
     switch ((ParamID)paramId)
     {
-    case PARAM_LP_CUTOFF:
+    case PARAM_CUTOFF:
         v = 1;
         break;
-    case PARAM_LP_RESONANCE:
-        v = xm_normd(XM_SQRT1_2f, 0.1, 20);
+    case PARAM_SCREAM:
+        v = 0.25;
         break;
-    case PARAM_HP_RESONANCE:
-        v = xm_normd(XM_SQRT2f, 0.1, 20);
-        break;
-    case PARAM_FEEDBACK_GAIN:
-    case PARAM_HP_CUTOFF:
-    default:
+    case PARAM_RESONANCE:
+        v = 0.5;
         break;
     }
     return v;
@@ -291,30 +287,16 @@ double cplug_normaliseParameterValue(void*, uint32_t paramId, double value) { re
 double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
 {
     double val = 0;
-    switch (paramId)
+    switch ((ParamID)paramId)
     {
-    case PARAM_LP_CUTOFF:
-    case PARAM_HP_CUTOFF:
-    {
-        scanf(str, "%fHz", &val);
-        val = xm_fast_normalise_Hz1(val);
+    case PARAM_CUTOFF:
+        if (1 == scanf(str, "%fHz", &val))
+            val = xm_fast_normalise_Hz1(val);
         break;
-    }
-    case PARAM_LP_RESONANCE:
-    case PARAM_HP_RESONANCE:
-    {
-        scanf(str, "%f", &val);
-        val = xm_normd(val, 0.1, 20);
-        break;
-    }
-    case PARAM_FEEDBACK_GAIN:
-    {
-        scanf(str, "%lf%%", &val);
-        val *= 0.01;
-        break;
-    }
-    default:
-        scanf(str, "%f", &val);
+    case PARAM_SCREAM:
+    case PARAM_RESONANCE:
+        if (1 == scanf(str, "%f%%", &val))
+            val *= 0.01;
         break;
     }
     return val;
@@ -322,27 +304,18 @@ double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
 
 void cplug_parameterValueToString(void*, uint32_t paramId, char* buf, size_t bufsize, double value)
 {
-    switch (paramId)
+    switch ((ParamID)paramId)
     {
-    case PARAM_LP_CUTOFF:
-    case PARAM_HP_CUTOFF:
+    case PARAM_CUTOFF:
     {
         float Hz = xm_fast_denomalise_Hz(value);
+        Hz       = xm_minf(Hz, 20000);
         snprintf(buf, bufsize, "%.2fHz", Hz);
         break;
     }
-    case PARAM_LP_RESONANCE:
-    case PARAM_HP_RESONANCE:
-    {
-        float Q = xm_lerpf(value, 0.1, 20);
-        snprintf(buf, bufsize, "%.3f", Q);
-        break;
-    }
-    case PARAM_FEEDBACK_GAIN:
+    case PARAM_SCREAM:
+    case PARAM_RESONANCE:
         snprintf(buf, bufsize, "%.2f%%", value * 100);
-        break;
-    default:
-        snprintf(buf, bufsize, "%f", value);
         break;
     }
 }
@@ -444,8 +417,8 @@ void cplug_setSampleRateAndBlockSize(void* _p, double sampleRate, uint32_t maxBl
 }
 
 #ifdef CPLUG_BUILD_STANDALONE
-// static char note_down_midi = -1;
-char  osc_midi  = 28; // E1
+char osc_midi = -1;
+// char  osc_midi  = 28; // E1
 float osc_phase = 0;
 #endif
 
@@ -606,20 +579,27 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 #endif
 
             // Setup params
-            float lp_cutoff = p->audio_params[PARAM_LP_CUTOFF];
-            float lp_Q      = p->audio_params[PARAM_LP_RESONANCE];
-            float hp_cutoff = p->audio_params[PARAM_HP_CUTOFF];
-            float hp_Q      = p->audio_params[PARAM_HP_RESONANCE];
-            float drive     = p->audio_params[PARAM_FEEDBACK_GAIN];
+            float lp_cutoff = p->audio_params[PARAM_CUTOFF];
+            float hp_cutoff = p->audio_params[PARAM_SCREAM];
+            float resonance = p->audio_params[PARAM_RESONANCE];
+            float lp_Q      = XM_SQRT1_2f;
+            float hp_Q      = XM_SQRT1_2f;
 
-            lp_cutoff = xm_fast_denomalise_Hz(lp_cutoff);
-            hp_cutoff = xm_fast_denomalise_Hz(hp_cutoff);
-            lp_Q      = xm_lerpf(lp_Q, 0.1, 20);
-            hp_Q      = xm_lerpf(hp_Q, 0.1, 20);
+            lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, MIDI_NOTE_NUM_20kHz);
+            hp_cutoff  = xm_lerpf(hp_cutoff, MIDI_NOTE_NUM_20Hz, MIDI_NOTE_NUM_20kHz);
+            hp_cutoff -= MIDI_NOTE_NUM_20kHz - lp_cutoff;
 
-            const float ratio         = powf(100, drive);
+            lp_cutoff = xm_midi_to_Hz(lp_cutoff);
+            hp_cutoff = xm_midi_to_Hz(hp_cutoff);
+            lp_cutoff = xm_clampf(lp_cutoff, 20, 20000);
+            hp_cutoff = xm_clampf(hp_cutoff, 20, 20000);
+
+            // lp_Q      = xm_lerpf(lp_Q, 0.1, 20);
+            hp_Q = xm_lerpf(resonance, 0.1, 20);
+
+            const float ratio         = powf(100, resonance);
             const float inv_ratio     = 1 / ratio;
-            float       feedback_gain = xm_lerpf(drive, -18, 24);
+            float       feedback_gain = xm_lerpf(resonance, -18, 24);
             feedback_gain             = xm_fast_dB_to_gain(feedback_gain);
 
             // Process
@@ -639,12 +619,13 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     const float x = *it;
 
                     // Feedforward
+                    // float y = tanhf(x + s.fb_yn_1);
                     // float y = tanhf(x + s.fb_yn_1 * feedback_gain);
-                    // float y = x + s.fb_yn_1 * drive;
-                    float y = (x + s.fb_yn_1) * 0.5;
+                    float y = x + s.fb_yn_1 * resonance;
+                    // float y = (x + s.fb_yn_1) * 0.5;
                     // y       = y * (1 + drive);
-                    // y = tanhf(y);
-                    y = distort_upwards_compress(y, &s.comp_yn_1, inv_ratio, time_slow * 2, time_slow * 2);
+                    y = tanhf(y);
+                    // y = distort_upwards_compress(y, &s.comp_yn_1, inv_ratio, time_slow * 2, time_slow * 2);
                     // y       = tanh(y);
                     y = filter_process(y, &lp_c, s.lp);
 

@@ -61,9 +61,9 @@ void println(const char* const fmt, ...);
 #define PW_MALLOC(sz) MY_MALLOC(sz)
 #define PW_FREE(ptr)  MY_FREE(ptr)
 
-#define SGNVG_MALLOC(sz)       LOG_MALLOC(sz)
-#define SGNVG_REALLOC(ptr, sz) LOG_REALLOC(ptr, sz)
-#define SGNVG_FREE(ptr)        LOG_FREE(ptr)
+#define SGNVG_MALLOC(sz)       MY_MALLOC(sz)
+#define SGNVG_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)
+#define SGNVG_FREE(ptr)        MY_FREE(ptr)
 #define SGNVG_ASSERT           xassert
 
 #endif // PLUGIN_CONFIG_H

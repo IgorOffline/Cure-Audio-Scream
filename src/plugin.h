@@ -5,15 +5,13 @@
 
 typedef enum ParamID
 {
-    PARAM_LP_CUTOFF,
-    PARAM_LP_RESONANCE,
-    PARAM_HP_CUTOFF,
-    PARAM_HP_RESONANCE,
-    PARAM_FEEDBACK_GAIN,
+    PARAM_CUTOFF,
+    PARAM_SCREAM,
+    PARAM_RESONANCE,
 } ParamID;
 enum
 {
-    NUM_PARAMS = PARAM_FEEDBACK_GAIN + 1,
+    NUM_PARAMS = PARAM_RESONANCE + 1,
 
     GUI_INIT_WIDTH  = 800,
     GUI_INIT_HEIGHT = GUI_INIT_WIDTH / 2,
@@ -50,12 +48,11 @@ typedef struct Plugin
     xt_atomic_float gui_osc_midi;
 
     double main_params[NUM_PARAMS];
+    double audio_params[NUM_PARAMS];
 
     // Plugin data
     double   sample_rate;
     uint32_t max_block_size;
-
-    double audio_params[NUM_PARAMS];
 
     struct FilterState
     {
@@ -116,11 +113,9 @@ void main_notify_host_param_change(Plugin* p, ParamID id, double value);
 
 #ifndef NDEBUG
 static const char* PARAM_STR[] = {
-    "PARAM_LP_CUTOFF",
-    "PARAM_LP_RESONANCE",
-    "PARAM_HP_CUTOFF",
-    "PARAM_HP_RESONANCE",
-    "PARAM_FEEDBACK_GAIN",
+    "PARAM_CUTOFF",
+    "PARAM_SCREAM",
+    "PARAM_RESONANCE",
 };
 _Static_assert(ARRLEN(PARAM_STR) == NUM_PARAMS, "");
 #endif

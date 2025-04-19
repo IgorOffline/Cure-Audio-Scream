@@ -334,7 +334,8 @@ void pw_tick(void* _gui)
     const NVGcolor col_text = nvgRGBA(143, 150, 160, 255);
 
     // Main parameters
-    static const float SLIDER_POSITIONS[] = {0.1666, 0.3333, 0.5, 0.6666, 0.8333};
+    // static const float SLIDER_POSITIONS[] = {0.1666, 0.3333, 0.5, 0.6666, 0.8333};
+    static const float SLIDER_POSITIONS[] = {0.25, 0.5, 0.75};
     _Static_assert(ARRLEN(SLIDER_POSITIONS) == NUM_PARAMS);
     const float slider_radius = SLIDER_RADIUS * width;
     for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
@@ -498,14 +499,14 @@ void pw_tick(void* _gui)
 
 #ifndef NDEBUG
     {
-        Plugin* p = gui->plugin;
+        // Plugin* p = gui->plugin;
         // plot_expander(nvg, width, height);
         // plot_peak_detection(nvg, width, height);
         // plot_peak_distortion(nvg, im, width, height);
         // plot_peak_upwards_compression(nvg, im, width, height);
-        float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
-        float phase = xt_atomic_load_f32(&p->gui_osc_phase);
-        plot_oscilloscope(nvg, width - 130, height - 90, 120, 80, p->sample_rate, midi, phase);
+        // float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
+        // float phase = xt_atomic_load_f32(&p->gui_osc_phase);
+        // plot_oscilloscope(nvg, width - 130, 10, 120, 80, p->sample_rate, midi, phase);
     }
 #endif
     // #ifndef NDEBUG
