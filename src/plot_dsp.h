@@ -11,6 +11,12 @@
 #include <stdio.h>
 #include <string.h>
 
+extern float output_gain_dB;
+extern float attack_ms;
+extern float release_ms;
+extern float lp_Q;
+extern float hp_Q;
+
 void im_slider(
     NVGcontext*    nvg,
     imgui_context* im,
@@ -309,9 +315,9 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
         static float neg_input_gain_dB = 12;
         static float neg_threshold_dB  = -14;
         static float neg_ratio         = 5;
-        static float attack_ms         = 0.0;
-        static float release_ms        = 0.86;
-        static float output_gain_dB    = 8;
+        // static float attack_ms         = 0.0;
+        // static float release_ms        = 0.86;
+        // static float output_gain_dB    = 8;
         im_slider(nvg, im, rect, &pos_input_gain_dB, 0, 60, "%.2f dB", "+ Input gain");
         rect.y += 40;
         rect.b += 40;
@@ -562,9 +568,9 @@ void plot_peak_upwards_compression(NVGcontext* nvg, imgui_context* im, float gui
         static float threshold_dB = 0;
         static float ratio        = 50;
         static float knee_dB      = 6;
-        static float attack_ms    = 5.0;
-        static float release_ms   = 5.0;
-        static float drive        = 1.0;
+        // static float attack_ms    = 5.0;
+        // static float release_ms   = 5.0;
+        static float drive = 1.0;
         // im_slider(nvg, im, rect, &threshold_dB, -60, 0, "%.2f dB", "Threshold");
         // rect.y += 40;
         // rect.b += 40;

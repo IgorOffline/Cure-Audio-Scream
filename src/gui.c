@@ -499,14 +499,30 @@ void pw_tick(void* _gui)
 
 #ifndef NDEBUG
     {
-        // Plugin* p = gui->plugin;
+        Plugin* p = gui->plugin;
         // plot_expander(nvg, width, height);
         // plot_peak_detection(nvg, width, height);
         // plot_peak_distortion(nvg, im, width, height);
         // plot_peak_upwards_compression(nvg, im, width, height);
-        // float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
-        // float phase = xt_atomic_load_f32(&p->gui_osc_phase);
-        // plot_oscilloscope(nvg, width - 130, 10, 120, 80, p->sample_rate, midi, phase);
+        float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
+        float phase = xt_atomic_load_f32(&p->gui_osc_phase);
+        plot_oscilloscope(nvg, width - 230, 10, 220, 180, p->sample_rate, midi, phase);
+
+        imgui_rect  rect   = {10, 10, 180, 25};
+        const float offset = 10 + (rect.b - rect.y);
+        im_slider(nvg, im, rect, &output_gain_dB, -24, 0, "%.2fdB", "Output");
+        // rect.y += offset;
+        // rect.b += offset;
+        // im_slider(nvg, im, rect, &attack_ms, 0, 50, "%.2fms", "Attack");
+        // rect.y += offset;
+        // rect.b += offset;
+        // im_slider(nvg, im, rect, &release_ms, 0, 50, "%.2fms", "Release");
+        rect.y += offset;
+        rect.b += offset;
+        im_slider(nvg, im, rect, &lp_Q, 0.01, 10, "%.3f", "LP Q");
+        rect.y += offset;
+        rect.b += offset;
+        im_slider(nvg, im, rect, &hp_Q, 0.05, 2, "%.3f", "HP Q");
     }
 #endif
     // #ifndef NDEBUG
@@ -520,11 +536,9 @@ void pw_tick(void* _gui)
         uint64_t cpu_numerator   = frame_time_duration_ns >> 10; // fast integer divide by 1024
         uint64_t cpu_denominator = max_frame_time_ns >> 10;      // fast integer divide by 1024
 
-        double cpu_amt = (double)cpu_numerator / (double)cpu_denominator;
-
-        const double ms_denom      = 1.0 / 1.024 * 1000;
-        double       frame_time_ms = (double)cpu_numerator / ms_denom;
-        double       approx_fps    = 1000 / frame_time_ms;
+        double cpu_amt       = (double)cpu_numerator / (double)cpu_denominator;
+        double frame_time_ms = (double)cpu_numerator * 1.024; // correct for 1024 int 'division'
+        double approx_fps    = 1000 / frame_time_ms;
 
         nvgTextAlign(nvg, NVG_ALIGN_BL);
         nvgFontSize(nvg, gui->scale * 12);
