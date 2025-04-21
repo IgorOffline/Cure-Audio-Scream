@@ -126,7 +126,7 @@ unsigned _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool rele
     unsigned id     = ++ctx->id;
 
     // Left mouse button
-    if (press && ctx->mouse_left_down_frame)
+    if (press && ctx->mouse_left_down_frame && ctx->mouse_over_id == id)
     {
         events                  |= IMGUI_EVENT_MOUSE_LEFT_DOWN;
         ctx->mouse_left_down_id  = id;
@@ -160,9 +160,12 @@ unsigned _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool rele
         events |= IMGUI_EVENT_DRAG_MOVE | IMGUI_EVENT_MOUSE_HOVER;
 
     // Hover
+    const bool no_active_hover                       = ctx->mouse_over_id == 0;
+    const bool should_steal_hover                    = id < ctx->mouse_over_id;
     const bool not_dragging_anything                 = ctx->mouse_drag_id == 0;
     const bool will_release_another_widget_from_drag = ctx->mouse_left_up_frame && ctx->mouse_drag_id != id;
-    if (hover && ctx->mouse_over_id != id && (not_dragging_anything || will_release_another_widget_from_drag))
+    if (hover && (no_active_hover || should_steal_hover) &&
+        (not_dragging_anything || will_release_another_widget_from_drag))
     {
         events             |= IMGUI_EVENT_MOUSE_ENTER;
         ctx->mouse_over_id  = id;
