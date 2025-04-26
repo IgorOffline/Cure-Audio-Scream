@@ -157,7 +157,8 @@ void cplug_libraryUnload() { xalloc_shutdown(); }
 
 extern void library_load_platform();
 extern void library_unload_platform();
-void*       cplug_createPlugin(CplugHostContext* ctx)
+
+void* cplug_createPlugin(CplugHostContext* ctx)
 {
     g_is_main_thread = true;
     library_load_platform();
@@ -225,7 +226,8 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
     switch ((ParamID)paramId)
     {
     case PARAM_CUTOFF:
-        v = 1;
+        // v = 1;
+        v = xm_fast_normalise_Hz2(5000);
         break;
     case PARAM_SCREAM:
         // v = 0.25;
@@ -421,14 +423,15 @@ char osc_midi = -1;
 // char  osc_midi  = 28; // E1
 float osc_phase = 0;
 
+#endif
 float output_gain_dB = -6;
 float attack_ms      = 5;
-float release_ms     = 0.5;
-// float lp_Q           = XM_SQRT1_2f;
+float release_ms     = 5.0;
+
+// float lp_Q = XM_SQRT1_2f;
 float lp_Q = XM_SQRT2f;
-// float hp_Q = XM_SQRT1_2f;
-float hp_Q = XM_SQRT2f;
-#endif
+float hp_Q = XM_SQRT1_2f;
+// float hp_Q = XM_SQRT2f;
 
 void cplug_process(void* _p, CplugProcessContext* ctx)
 {
@@ -519,9 +522,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
         }
     }
 
-    const float fs_inv      = 1.0f / p->sample_rate;
-    bool        is_clipping = false;
-    float       peak_gain   = 0;
+    const float fs_inv    = 1.0f / p->sample_rate;
+    float       peak_gain = 0;
 
     CplugEvent event;
     uint32_t   frame = 0;
@@ -557,7 +559,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
         case CPLUG_EVENT_PROCESS_AUDIO:
         {
-
             int num_frames = event.processAudio.endFrame - frame;
 
 #ifdef CPLUG_BUILD_STANDALONE
@@ -568,7 +569,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 const float inc  = freq * fs_inv; // ~A1
                 for (int i = frame; i < event.processAudio.endFrame; i++)
                 {
-                    float v = 1 - powf(1 - phase, 2);
+                    // float v = 1 - powf(1 - phase, 2);
+                    float v = 1 - (1 - phase) * (1 - phase);
                     v       = xm_lerpf(0.85, phase, v);
                     // float saw_wave = -1 + phase * 2;
                     float saw_wave = -1 + v * 2;
@@ -593,9 +595,10 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             float lp_cutoff = p->audio_params[PARAM_CUTOFF];
             float hp_cutoff = p->audio_params[PARAM_SCREAM];
             float resonance = p->audio_params[PARAM_RESONANCE];
-            // float lp_Q      = XM_SQRT1_2f;
-            // float hp_Q      = XM_SQRT1_2f;
-            // float hp_Q = 0.1;
+            // float lp_Q      = XM_SQRT2f;
+            // float hp_Q      = XM_SQRT2f;
+            lp_Q = xm_lerpf(resonance, XM_SQRT1_2f, XM_SQRT2f);
+            hp_Q = xm_lerpf(resonance, XM_SQRT1_2f, 3 * XM_SQRT1_2f);
 
             lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, MIDI_NOTE_NUM_20kHz);
             hp_cutoff  = xm_lerpf(hp_cutoff, 0, MIDI_NOTE_NUM_20kHz);
@@ -606,23 +609,22 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             lp_cutoff = xm_clampf(lp_cutoff, 20, 20000);
             hp_cutoff = xm_clampf(hp_cutoff, 20, 20000);
 
-            // lp_Q      = xm_lerpf(lp_Q, 0.1, 20);
-            // hp_Q = xm_lerpf(resonance, 0.1, 20);
-
-            const float ratio     = powf(100, resonance);
-            const float inv_ratio = 1 / ratio;
-            // float       feedback_gain = xm_lerpf(resonance, -6, 6);
-            float feedback_gain = xm_lerpf(resonance, -6, 3);
+            // float feedback_gain = xm_lerpf(resonance, -6, 36);
+            // float feedback_gain = xm_lerpf(resonance, -6, 6);
+            float feedback_gain = xm_lerpf(resonance, -12, 12);
+            // float feedback_gain = xm_lerpf(resonance, -6, 24);
             // float feedback_gain = xm_lerpf(resonance, -12, 12);
             feedback_gain = xm_fast_dB_to_gain(feedback_gain);
+
+            const float ratio     = 2.0f + feedback_gain;
+            const float inv_ratio = 1.0f / ratio;
 
             // Process
             Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
             Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
 
-            float time_fast = convert_compressor_time(1);
-            // float time_slow = convert_compressor_time(p->sample_rate * 0.001 * release_ms); // 5 ms
-            float time_slow = xm_fast_dB_to_gain(-12 / (p->sample_rate * 0.001 * release_ms)); // 5 ms
+            float expander_attack  = convert_compressor_time(1);
+            float expander_release = convert_compressor_time(p->sample_rate * 0.001 * 0.5); // 5 ms
 
             for (int ch = 0; ch < 2; ch++)
             {
@@ -634,49 +636,48 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     const float x = *it;
 
                     // Feedforward
-                    float y = x + s.fb_yn_1 * feedback_gain;
-                    y       = tanhf(y);
-                    y       = filter_process(y, &lp_c, s.lp);
-                    // y = distort_upwards_compress(y, &s.comp_yn_1, inv_ratio, time_slow * 2, time_slow);
-                    // y = compress(y, &s.comp_yn_1, inv_ratio, time_slow * 2, time_slow * 2);
+                    // float y = x + s.fb_yn_1 * feedback_gain;
+                    float y = x + s.fb_yn_1;
+
+                    // y = tanhf(y);
+                    y = softsine(y);
+                    // y = sinarctan(y);
+                    // y = xm_clampf(y, -1, 1);
+                    y = filter_process(y, &lp_c, s.lp);
 
                     CPLUG_LOG_ASSERT(y == y);
                     if (y != y) // NaN protection. TODO: remove when filter algo is solid
                         y = 0;
                     // Hard clip protection. Remove later
-                    if (y < -1)
-                    {
-                        is_clipping = true;
-                        if (fabsf(y) > peak_gain)
-                            peak_gain = fabsf(y);
-                        // y = -1;
-                    }
-                    if (y > 1)
-                    {
-                        if (y > peak_gain)
-                            peak_gain = y;
-                        is_clipping = true;
-                        // y = 1;
-                    }
-                    *it = y;
+                    if (fabsf(y) > peak_gain)
+                        peak_gain = fabsf(y);
+
+                    *it = xm_clampf(y, -1, 1);
 
 #ifdef CPLUG_BUILD_STANDALONE
                     *it *= xm_fast_dB_to_gain(output_gain_dB);
 #endif
 
                     // Feedback
-                    float feed = filter_process(y, &hp_c, s.hp);
-                    // feed       = tanhf(feed * feedback_gain);
+                    // float feed = y;
+                    float feed = y * feedback_gain;
+
+                    feed = xm_clampf(feed, -1, 1);
+                    // feed = sinarctan(feed);
+                    // feed = tanhf(feed);
+                    // feed = softsine(feed);
+                    feed = filter_process(feed, &hp_c, s.hp);
+                    // feed = softsine(feed * feedback_gain);
 
                     // Feedback gate, triggered by input
-                    s.peak_xn_1        = detect_peak(fabsf(x), s.peak_xn_1, time_fast, time_slow);
+                    s.peak_xn_1        = detect_peak(fabsf(x), s.peak_xn_1, expander_attack, expander_release);
                     float peak_dB      = xm_fast_gain_to_dB(s.peak_xn_1);
-                    float reduction_dB = hard_knee_expander(peak_dB, -60.0f, 10);
+                    float reduction_dB = hard_knee_expander(peak_dB, -60.0f, 100);
                     xassert(reduction_dB == reduction_dB);
                     reduction_dB         -= peak_dB;
                     float reduction_gain  = xm_fast_dB_to_gain(reduction_dB);
-                    if (reduction_dB < -140) // The above xm_fast_dB_to_gain function uses approximations that become
-                                             // unstable is dB is too low. This protects against INF
+                    // Clamp to 0
+                    if (reduction_dB < -140)
                         reduction_gain = 0;
                     feed *= reduction_gain;
                     xassert(feed == feed);
@@ -741,8 +742,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
         }
     }
 
-    p->gui_is_clipping = is_clipping;
-    p->gui_peak_gain   = peak_gain;
+    p->gui_peak_gain = peak_gain;
     RESTORE_DENORMALS
 
     if (should_post_to_global && p->cplug_ctx->type != CPLUG_PLUGIN_IS_STANDALONE)

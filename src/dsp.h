@@ -3,6 +3,9 @@
 #include <xhl/debug.h>
 #include <xhl/maths.h>
 
+static float sinarctan(float x) { return x / sqrtf(x * x + 1); }
+static float softsine(float x) { return x / (fabsf(x) + 1); }
+
 // SvfLinearTrapOptimised2
 // https://cytomic.com/files/dsp/SvfLinearTrapOptimised2.pdf
 typedef union Coeffs

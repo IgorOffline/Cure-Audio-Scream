@@ -448,11 +448,12 @@ void pw_tick(void* _gui)
         nvgStroke(nvg);
     }
 
-    if (gui->plugin->gui_is_clipping)
+    const float peak_gain = gui->plugin->gui_peak_gain;
+    if (peak_gain > 1)
     {
         nvgTextAlign(nvg, NVG_ALIGN_BR);
         nvgFillColor(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
-        float dB = xm_fast_gain_to_dB(gui->plugin->gui_peak_gain);
+        float dB = xm_fast_gain_to_dB(peak_gain);
         char  label[48];
         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
         nvgText(nvg, width - 20, height - 20, label, NULL);
