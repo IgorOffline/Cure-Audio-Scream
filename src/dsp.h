@@ -4,7 +4,9 @@
 #include <xhl/maths.h>
 
 static float sinarctan(float x) { return x / sqrtf(x * x + 1); }
+static float sinarctan2(float x) { return xm_clampf(x, -1, 1) / sqrtf(x * x + 1); }
 static float softsine(float x) { return x / (fabsf(x) + 1); }
+static float softsine2(float x) { return xm_clampf(x, -1, 1) / (fabsf(x) + 1); }
 
 // SvfLinearTrapOptimised2
 // https://cytomic.com/files/dsp/SvfLinearTrapOptimised2.pdf

@@ -115,8 +115,7 @@ static void my_sg_logger(
         "WARNING",
         "INFO",
     };
-    CPLUG_LOG_ASSERT(log_level > 1);
-    CPLUG_LOG_ASSERT(log_level < ARRLEN(LOG_LEVEL));
+    CPLUG_LOG_ASSERT(log_level > 1 && log_level < ARRLEN(LOG_LEVEL));
     if (!message_or_null)
         message_or_null = "";
     println("[%s] %s %u:%s", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);

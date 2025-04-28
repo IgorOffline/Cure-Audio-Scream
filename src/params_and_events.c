@@ -221,8 +221,8 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
     switch ((ParamID)paramId)
     {
     case PARAM_CUTOFF:
-        // v = 1;
-        v = xm_fast_normalise_Hz2(5000);
+        v = 1;
+        // v = xm_fast_normalise_Hz2(5000);
         break;
     case PARAM_SCREAM:
         // v = 0.25;

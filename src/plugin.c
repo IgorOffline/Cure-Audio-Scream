@@ -311,19 +311,32 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 float lp_cutoff = s.values[PARAM_CUTOFF].current;
                 float hp_cutoff = s.values[PARAM_SCREAM].current;
                 float resonance = s.values[PARAM_RESONANCE].current;
-                lp_Q            = xm_lerpf(resonance, XM_SQRT1_2f, XM_SQRT2f);
-                hp_Q            = xm_lerpf(resonance, XM_SQRT1_2f, 3 * XM_SQRT1_2f);
 
-                lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, MIDI_NOTE_NUM_20kHz);
-                hp_cutoff  = xm_lerpf(hp_cutoff, 0, MIDI_NOTE_NUM_20kHz);
-                hp_cutoff -= MIDI_NOTE_NUM_20kHz - lp_cutoff;
+// #define CUTOFF_MAX    MIDI_NOTE_NUM_20kHz
+#define CUTOFF_MAX (MIDI_NOTE_NUM_20kHz - 24)
+// #define HP_CUTOFF_MIN 0
+#define HP_CUTOFF_MIN (MIDI_NOTE_NUM_20Hz - 12)
+#define LP_Q_MIN      XM_SQRT1_2f
+#define LP_Q_MAX      XM_SQRT2f
+#define HP_Q_MIN      XM_SQRT1_2f
+// #define HP_Q_MAX    (3 * XM_SQRT1_2f)
+#define HP_Q_MAX    (XM_SQRT2f)
+#define FB_GAIN_MIN -12.0f
+#define FB_GAIN_MAX 12.0f
+
+                lp_Q = xm_lerpf(resonance, LP_Q_MIN, LP_Q_MAX);
+                hp_Q = xm_lerpf(resonance, HP_Q_MIN, HP_Q_MAX);
+
+                lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, CUTOFF_MAX);
+                hp_cutoff  = xm_lerpf(hp_cutoff, HP_CUTOFF_MIN, CUTOFF_MAX);
+                hp_cutoff -= CUTOFF_MAX - lp_cutoff;
 
                 lp_cutoff = xm_midi_to_Hz(lp_cutoff);
                 hp_cutoff = xm_midi_to_Hz(hp_cutoff);
-                lp_cutoff = xm_clampf(lp_cutoff, 20, 20000);
-                hp_cutoff = xm_clampf(hp_cutoff, 20, 20000);
+                lp_cutoff = xm_clampf(lp_cutoff, 5, 20000);
+                hp_cutoff = xm_clampf(hp_cutoff, 5, 20000);
 
-                float feedback_gain = xm_lerpf(resonance, -12, 12);
+                float feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
                 feedback_gain       = xm_fast_dB_to_gain(feedback_gain);
 
                 Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
@@ -339,10 +352,12 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
                     // Feedforward
                     // float y = x + s.fb_yn_1 * feedback_gain;
+                    // float y = x + s.fb_yn_1;
                     float y = x + s.fb_yn_1;
 
-                    // y = tanhf(y);
-                    y = softsine(y);
+                    y = tanhf(y);
+                    // y = sinarctan2(y);
+                    // y = softsine(y);
                     // y = sinarctan(y);
                     // y = xm_clampf(y, -1, 1);
                     y = filter_process(y, &lp_c, s.lp);
@@ -365,12 +380,12 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     // float feed = y;
                     float feed = y * feedback_gain;
 
-                    feed = xm_clampf(feed, -1, 1);
                     // feed = sinarctan(feed);
-                    // feed = tanhf(feed);
-                    // feed = softsine(feed);
                     feed = filter_process(feed, &hp_c, s.hp);
-                    // feed = softsine(feed * feedback_gain);
+                    // feed = xm_clampf(feed, -1, 1);
+                    feed = tanhf(feed);
+                    // feed = softsine(feed);
+                    // feed = softsine2(feed);
 
                     // Feedback gate, triggered by input
                     s.peak_xn_1        = detect_peak(fabsf(x), s.peak_xn_1, expander_attack, expander_release);
@@ -395,19 +410,19 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                         lp_cutoff = s.values[PARAM_CUTOFF].current;
                         hp_cutoff = s.values[PARAM_SCREAM].current;
                         resonance = s.values[PARAM_RESONANCE].current;
-                        lp_Q      = xm_lerpf(resonance, XM_SQRT1_2f, XM_SQRT2f);
-                        hp_Q      = xm_lerpf(resonance, XM_SQRT1_2f, 3 * XM_SQRT1_2f);
+                        lp_Q      = xm_lerpf(resonance, LP_Q_MIN, LP_Q_MAX);
+                        hp_Q      = xm_lerpf(resonance, HP_Q_MIN, HP_Q_MAX);
 
-                        lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, MIDI_NOTE_NUM_20kHz);
-                        hp_cutoff  = xm_lerpf(hp_cutoff, 0, MIDI_NOTE_NUM_20kHz);
-                        hp_cutoff -= MIDI_NOTE_NUM_20kHz - lp_cutoff;
+                        lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, CUTOFF_MAX);
+                        hp_cutoff  = xm_lerpf(hp_cutoff, HP_CUTOFF_MIN, CUTOFF_MAX);
+                        hp_cutoff -= CUTOFF_MAX - lp_cutoff;
 
                         lp_cutoff = xm_midi_to_Hz(lp_cutoff);
                         hp_cutoff = xm_midi_to_Hz(hp_cutoff);
                         lp_cutoff = xm_clampf(lp_cutoff, 20, 20000);
                         hp_cutoff = xm_clampf(hp_cutoff, 20, 20000);
 
-                        feedback_gain = xm_lerpf(resonance, -12, 12);
+                        feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
                         feedback_gain = xm_fast_dB_to_gain(feedback_gain);
 
                         lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
