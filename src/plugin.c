@@ -203,6 +203,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
         cplug_atomic_exchange_i32(&p->queue_audio_tail, tail);
     }
 
+    // NOTE: FL studio may return NULL if your FX slot is bypassed
     float** output = ctx->getAudioOutput(ctx, 0);
     CPLUG_LOG_ASSERT(output != NULL);
     CPLUG_LOG_ASSERT(output[0] != NULL);
@@ -211,15 +212,14 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     // Force "in place processing"
     {
         float** input = ctx->getAudioInput(ctx, 0);
-        if (input && input[0] != output[0])
+        if (input && output && input[0] != output[0])
         {
             memcpy(output[0], input[0], sizeof(float) * ctx->numFrames);
             memcpy(output[1], input[1], sizeof(float) * ctx->numFrames);
         }
     }
 
-    const float fs_inv    = 1.0f / p->sample_rate;
-    float       peak_gain = 0;
+    float peak_gain = 0;
 
     CplugEvent event;
     uint32_t   frame = 0;
@@ -255,7 +255,14 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
         case CPLUG_EVENT_PROCESS_AUDIO:
         {
+            if (output == NULL)
+            {
+                frame = event.processAudio.endFrame;
+                continue;
+            }
             int num_frames = event.processAudio.endFrame - frame;
+
+            const float fs_inv = 1.0f / p->sample_rate;
 
 #ifdef CPLUG_BUILD_STANDALONE
             // Saw wave oscillator for testing
