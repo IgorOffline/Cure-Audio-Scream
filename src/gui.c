@@ -560,6 +560,9 @@ void pw_tick(void* _gui)
             frame_time_ms,
             approx_fps);
         nvgText(nvg, 5, height - 5, text, NULL);
+
+        nvgTextAlign(nvg, NVG_ALIGN_BR);
+        nvgText(nvg, width - 5, height - 5, "Version " CPLUG_PLUGIN_VERSION, NULL);
     }
     // #endif
 
