@@ -403,7 +403,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     // Feedback gate, triggered by input
                     s.peak_xn_1        = detect_peak(fabsf(x), s.peak_xn_1, expander_attack, expander_release);
                     float peak_dB      = xm_fast_gain_to_dB(s.peak_xn_1);
-                    float reduction_dB = hard_knee_expander(peak_dB, -60.0f, 100);
+                    float reduction_dB = hard_knee_expander(peak_dB, -120.0f, 2);
                     xassert(reduction_dB == reduction_dB);
                     reduction_dB         -= peak_dB;
                     float reduction_gain  = xm_fast_dB_to_gain(reduction_dB);
