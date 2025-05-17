@@ -290,16 +290,16 @@ double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
     switch ((ParamID)paramId)
     {
     case PARAM_CUTOFF:
-        if (1 == scanf(str, "%lfHz", &val))
+        if (1 == sscanf(str, "%lfHz", &val))
             val = xm_fast_normalise_Hz1(val);
         break;
     case PARAM_SCREAM:
     case PARAM_RESONANCE:
-        if (1 == scanf(str, "%lf%%", &val))
+        if (1 == sscanf(str, "%lf%%", &val))
             val *= 0.01;
         break;
     case PARAM_INPUT_GAIN:
-        if (1 == scanf(str, "%lfdB", &val))
+        if (1 == sscanf(str, "%lfdB", &val))
             val = xm_normd(val, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
         break;
     }
