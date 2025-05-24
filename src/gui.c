@@ -37,16 +37,6 @@ typedef struct GUI
     float input_gain_peaks_fast[2];
 } GUI;
 
-// Relative to GUI width
-#define SLIDER_RADIUS 0.085f
-// Angle radians
-// 120deg
-#define SLIDER_START_RAD 2.0943951023931953f
-// 120deg + 360deg * 0.8333
-#define SLIDER_END_RAD 7.330173418865945f
-// end - start
-#define SLIDER_LENGTH_RAD 5.23577831647275f
-
 // Nanovg helpers
 // clang-format off
 #define NVG_ALIGN_TL (NVG_ALIGN_TOP | NVG_ALIGN_LEFT)
@@ -390,7 +380,7 @@ void pw_tick(void* _gui)
 #endif
         sg_begin_pass(gui->sg, &(sg_pass){.action = pass_action, .swapchain = swapchain});
 
-        nvgBeginFrame(gui->nvg, gui_width, gui_height, dpi);
+        nvgBeginFrame(gui->nvg, gui_width, gui_height, 1.0f);
     }
 
     NVGcontext*    nvg = gui->nvg;
@@ -403,9 +393,14 @@ void pw_tick(void* _gui)
         HEIGHT_FOOTER = 20,
     };
 
-    const float height_header  = HEIGHT_HEADER * dpi;
-    const float height_footer  = HEIGHT_FOOTER * dpi;
-    const float height_content = gui_height - height_header - height_footer;
+    const float height_header = HEIGHT_HEADER * dpi;
+    const float height_footer = HEIGHT_FOOTER * dpi;
+
+    const float content_x      = 8;
+    const float content_r      = gui_width - 8;
+    const float content_y      = floorf(height_header + 8);
+    const float content_b      = floorf(gui_height - height_footer - 16);
+    const float content_height = content_b - content_y;
 
     // Background
     {
@@ -427,12 +422,6 @@ void pw_tick(void* _gui)
 
     // Main content background
     {
-        const float content_x      = 8;
-        const float content_r      = gui_width - 8;
-        const float content_y      = floorf(height_header + 8);
-        const float content_b      = floorf(gui_height - height_footer - 16);
-        const float content_height = content_b - content_y;
-
         nvgBeginPath(nvg);
         nvgRoundedRect(nvg, 8, content_y, gui_width - 16, content_height, 8);
         nvgFillColour(nvg, COLOUR_BG_LIGHT);
@@ -525,7 +514,7 @@ void pw_tick(void* _gui)
         const float scale_x = (float)gui_width / (float)GUI_INIT_WIDTH;
         const float scale_y = (float)gui_height / (float)GUI_INIT_HEIGHT;
 
-        const float param_scale = xm_minf(1, xm_minf(scale_x, scale_y));
+        const float param_scale = xm_maxf(1, xm_minf(scale_x, scale_y));
 
 #define snapf(val, interval) (roundf((val) / (interval)) * (interval))
 
@@ -559,7 +548,158 @@ void pw_tick(void* _gui)
             case PARAM_CUTOFF:
             case PARAM_SCREAM:
             case PARAM_RESONANCE:
+            {
+                enum
+                {
+                    RADIUS_INNER          = 86 / 2,
+                    RADIUS_OUTER          = 98 / 2,
+                    RADIUS_INLET          = 122 / 2,
+                    RADIUS_VALUE_ARC      = 140 / 2,
+                    RADIUS_DASHED_PATTERN = 154 / 2,
+                };
+                imgui_pt pt;
+                pt.x                      = param_cx;
+                pt.y                      = roundf(content_y + content_height * 0.5f);
+                const float slider_radius = rotary_param_diameter * 0.5f;
+
+                uint32_t events  = imgui_get_events_circle(im, pt, slider_radius);
+                double   value_d = handle_param_events(gui, i, events, 300);
+
+                // Inlet
+                {
+                    // 3 stop radial gradient
+                    const float r100 = roundf(RADIUS_INLET * param_scale);
+                    const float r90  = roundf(r100 * 0.9f);
+                    const float r80  = roundf(r100 * 0.8f);
+
+                    static const NVGcolor stop100 = nvgHexColour(0x40454AFF);
+                    static const NVGcolor stop90  = nvgHexColour(0xB7C7D7FF);
+                    static const NVGcolor stop80  = nvgHexColour(0xC9D3DDFF);
+
+                    NVGpaint grad_100_90 = nvgRadialGradient(nvg, pt.x, pt.y, r90, r100, stop90, stop100);
+                    nvgBeginPath(nvg);
+                    nvgCircle(nvg, pt.x, pt.y, r100);
+                    nvgFillPaint(nvg, grad_100_90);
+                    nvgFill(nvg);
+
+                    NVGpaint grad_90_80 = nvgRadialGradient(nvg, pt.x, pt.y, r80, r90, stop80, stop90);
+                    nvgBeginPath(nvg);
+                    nvgCircle(nvg, pt.x, pt.y, r90);
+                    nvgFillPaint(nvg, grad_90_80);
+                    nvgFill(nvg);
+                }
+
+                // Outer knob
+                const float radius_outer = roundf(RADIUS_OUTER * param_scale);
+                const float outer_y      = pt.y - radius_outer;
+                const float outer_h      = radius_outer * 2;
+
+                // Outer knob outer shadow
+                {
+                    const float y            = pt.y + 16 * param_scale;
+                    const float inner_radius = radius_outer - 8 * param_scale;
+                    const float outer_radius = radius_outer + 4 * param_scale;
+
+                    static const NVGcolor icol = {0, 0, 0, 0.25f};
+                    static const NVGcolor ocol = {0, 0, 0, 0};
+                    NVGpaint grad = nvgRadialGradient(nvg, pt.x, y, inner_radius, outer_radius, icol, ocol);
+                    nvgBeginPath(nvg);
+                    nvgCircle(nvg, pt.x, y, outer_radius);
+                    nvgFillPaint(nvg, grad);
+                    nvgFill(nvg);
+                }
+
+                {
+                    static const NVGcolor stop0 = nvgHexColour(0xD4DFEAFF);
+                    static const NVGcolor stop1 = nvgHexColour(0xB5BFC8FF);
+
+                    const float top         = outer_y + outer_h * 0.13f;
+                    const float bottom      = outer_y + outer_h * 0.84f;
+                    NVGpaint    out_lingrad = nvgLinearGradient(nvg, 0, top, 0, bottom, stop0, stop1);
+                    nvgBeginPath(nvg);
+                    nvgCircle(nvg, pt.x, pt.y, radius_outer);
+                    nvgFillPaint(nvg, out_lingrad);
+                    nvgFill(nvg);
+                }
+
+                // Outer knob inner shadow
+                {
+                    static const NVGcolor icol = {1, 1, 1, 0};
+                    static const NVGcolor ocol = {1, 1, 1, 0.8};
+                    NVGpaint grad = nvgRadialGradient(nvg, pt.x, pt.y + 1, radius_outer - 1, radius_outer, icol, ocol);
+                    nvgBeginPath(nvg);
+                    nvgCircle(nvg, pt.x, pt.y, radius_outer);
+                    nvgFillPaint(nvg, grad);
+                    nvgFill(nvg);
+                }
+
+                // Inner
+                const float radius_inner = RADIUS_INNER * param_scale;
+                const float inner_y      = pt.y - radius_inner;
+                const float inner_h      = radius_inner * 2;
+                const float inner_s0_y   = inner_y + inner_h * 0.16f;
+                const float inner_s1_y   = inner_y + inner_h * 0.87f;
+
+                static const NVGcolor in_lin_s0 = nvgHexColour(0xB5BFC8FF);
+                static const NVGcolor in_lin_s1 = nvgHexColour(0xD4DFEAFF);
+                NVGpaint inner_grad = nvgLinearGradient(nvg, 0, inner_s0_y, 0, inner_s1_y, in_lin_s0, in_lin_s1);
+
+                nvgBeginPath(nvg);
+                nvgCircle(nvg, pt.x, pt.y, radius_inner);
+                nvgFillPaint(nvg, inner_grad);
+                nvgFill(nvg);
+
+// Slider Tick/Notch
+// Angle radians
+// 120deg
+#define SLIDER_START_RAD 2.0943951023931953f
+// 120deg + 360deg * 0.8333
+#define SLIDER_END_RAD 7.330173418865945f
+// end - start
+#define SLIDER_LENGTH_RAD 5.23577831647275f
+
+                float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value_d);
+                float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
+
+                float angle_x = cosf(angle_value);
+                float angle_y = sinf(angle_value);
+
+                float tick_radius_start = radius_inner - 10 * param_scale;
+                float tick_radius_end   = radius_inner * 0.4f;
+
+                const imgui_pt pt1 = {pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y};
+                const imgui_pt pt2 = {pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y};
+                nvgStrokeWidth(nvg, 6 * param_scale);
+                nvgLineCap(nvg, NVG_ROUND);
+
+                nvgBeginPath(nvg); // Skeumorphic inner shadow
+                nvgMoveTo(nvg, pt1.x, pt1.y);
+                nvgLineTo(nvg, pt2.x, pt2.y);
+                nvgStrokeColour(nvg, (NVGcolour){1, 1, 1, 1});
+                nvgStroke(nvg);
+
+                nvgBeginPath(nvg);
+                nvgMoveTo(nvg, pt1.x, pt1.y - 1);
+                nvgLineTo(nvg, pt2.x, pt2.y - 1);
+                nvgStrokeColour(nvg, nvgHexColour(0x242E56FF));
+                nvgStroke(nvg);
+
+                nvgLineCap(nvg, NVG_BUTT);
+
+                // Value arc
+                const float arc_radius = roundf(RADIUS_VALUE_ARC * param_scale);
+                nvgStrokeWidth(nvg, roundf(param_scale * 4));
+                nvgBeginPath(nvg);
+                nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
+                nvgStrokeColour(nvg, COLOUR_GREY_1);
+                nvgStroke(nvg);
+
+                nvgBeginPath(nvg);
+                nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, angle_value, NVG_CW);
+                nvgStrokeColour(nvg, COLOUR_GREY_2);
+                nvgStroke(nvg);
                 break;
+            }
             case PARAM_INPUT_GAIN:
             {
                 const float meter_width  = snapf(METER_WIDTH * param_scale, 2);
@@ -654,7 +794,7 @@ void pw_tick(void* _gui)
                 double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, rect.b - rect.y);
 
                 nvgBeginPath(nvg);
-                nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4);
+                nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4 * param_scale);
                 nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
 
                 static const NVGcolour bg_grad_stop0 = nvgHexColour(0x2C2F35FF);
@@ -708,7 +848,7 @@ void pw_tick(void* _gui)
                 nvgBeginPath(nvg);
                 for (int ch = 0; ch < 2; ch++)
                 {
-                    nvgRoundedRect(nvg, ch_x[ch], ch_y, ch_w, ch_h, 2);
+                    nvgRoundedRect(nvg, ch_x[ch], ch_y, ch_w, ch_h, 2 * param_scale);
                 }
 
                 static const NVGcolour ch_grad_stop0 = nvgHexColour(0x6C7483FF);
@@ -742,7 +882,7 @@ void pw_tick(void* _gui)
                     {
                         float norm        = xm_normf(peak_dB_1, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
                         float peak_height = norm * ch_h;
-                        nvgRoundedRect(nvg, ch_x[ch], ch_b - peak_height, ch_w, peak_height, 2);
+                        nvgRoundedRect(nvg, ch_x[ch], ch_b - peak_height, ch_w, peak_height, 2 * param_scale);
                         has_peaks = true;
                     }
                 }
@@ -773,7 +913,7 @@ void pw_tick(void* _gui)
                 {
                     if (rt_peak_dB[ch] > RANGE_INPUT_GAIN_MIN)
                     {
-                        static const float blur = 4;
+                        const float blur = 4 * param_scale;
 
                         float gx = ch_x[ch] - blur;
                         float gy = rt_peak_y[ch] - blur;
@@ -825,13 +965,94 @@ void pw_tick(void* _gui)
                 break;
             }
             case PARAM_WET:
+            {
+                const float meter_width  = snapf(METER_WIDTH * param_scale, 2);
+                const float meter_height = snapf(METER_HEIGHT * param_scale, 2);
+
+                imgui_rect rect;
+
+                rect.x = roundf(param_cx - meter_width * 0.5);
+                rect.r = roundf(param_cx + meter_width * 0.5);
+                rect.y = roundf(gui_height * 0.5 - meter_height * 0.5f);
+                rect.b = roundf(gui_height * 0.5 + meter_height * 0.5f);
+
+                imgui_rect slider_dimensions  = rect;
+                slider_dimensions.x          += 4; // padding
+                slider_dimensions.y          += 4;
+                slider_dimensions.r          -= 4;
+                slider_dimensions.b          -= 4;
+                float handle_width            = slider_dimensions.r - slider_dimensions.x;
+                float drag_y                  = slider_dimensions.y + handle_width * 0.5f;
+                float drag_b                  = slider_dimensions.b - handle_width * 0.5f;
+                float drag_height             = drag_b - drag_y;
+
+                uint32_t events  = imgui_get_events_rect(im, &rect);
+                double   value_d = handle_param_events(gui, PARAM_WET, events, drag_height);
+
+                // Draw BG
+                nvgBeginPath(nvg);
+                nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4);
+                nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
+                nvgFill(nvg);
+
+                // Draw BG notches
+                enum
+                {
+                    NOTCH_COUNT = 16
+                };
+                const float y_inc = (drag_height + handle_width * 0.5f) / (float)NOTCH_COUNT;
+
+                float notch_x = slider_dimensions.x + handle_width * 0.25;
+                float notch_r = slider_dimensions.x + handle_width * 0.75;
+                nvgBeginPath(nvg);
+                for (int n = 1; n < NOTCH_COUNT - 1; n++)
+                {
+                    float y = roundf(drag_y + n * y_inc) + 0.5f;
+                    nvgMoveTo(nvg, notch_x, y);
+                    nvgLineTo(nvg, notch_r, y);
+                }
+                notch_x = slider_dimensions.x + handle_width * 0.125;
+                notch_r = slider_dimensions.x + handle_width * 0.875;
+
+                float top_y = roundf(drag_y) + 0.5f;
+                nvgMoveTo(nvg, notch_x, top_y);
+                nvgLineTo(nvg, notch_r, top_y);
+                float bot_y = roundf(drag_b) + 0.5f;
+                nvgMoveTo(nvg, notch_x, bot_y);
+                nvgLineTo(nvg, notch_r, bot_y);
+
+                nvgStrokeColour(nvg, COLOUR_GREY_2);
+                nvgStrokeWidth(nvg, 1);
+                nvgStroke(nvg);
+
+                // Draw handle
+                float handle_cy = xm_lerpf(value_d, drag_b, drag_y);
+                nvgBeginPath(nvg);
+                nvgRoundedRect(
+                    nvg,
+                    slider_dimensions.x,
+                    handle_cy - handle_width * 0.5f,
+                    handle_width,
+                    handle_width,
+                    2);
+                nvgFillColour(nvg, COLOUR_GREY_1);
+                nvgFill(nvg);
+                // Handle notch
+                nvgBeginPath(nvg);
+                nvgMoveTo(nvg, notch_x, handle_cy);
+                nvgLineTo(nvg, notch_r, handle_cy);
+                nvgStrokeColour(nvg, nvgHexColour(0x2C2F35FF));
+                nvgStroke(nvg);
                 break;
+            }
             }
         }
 
         nvgFillColour(nvg, COLOUR_TEXT);
-        nvgTextAlign(nvg, NVG_ALIGN_CC);
-        nvgFontSize(nvg, dpi * 14);
+        nvgFontSize(nvg, 14 * dpi * param_scale);
+
+        const float value_y = content_y + 40 * param_scale;
+        const float label_b = content_b - 40 * param_scale;
 
         static const char* NAMES[] = {"CUTOFF", "SCREAM", "RESONANCE", "INPUT", "WET"};
         _Static_assert(ARRLEN(NAMES) == NUM_PARAMS);
@@ -840,134 +1061,16 @@ void pw_tick(void* _gui)
             const ParamID param_id = param_positions[i].param_id;
             const float   param_cx = param_positions[i].cx;
 
-            nvgText(nvg, param_cx, gui_height * 0.75, NAMES[param_id], NULL);
+            nvgTextAlign(nvg, NVG_ALIGN_BC);
+            nvgText(nvg, param_cx, label_b, NAMES[param_id], NULL);
 
             char   label[24];
             double value = cplug_getParameterValue(gui->plugin, param_id);
             cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
-            nvgText(nvg, param_cx, gui_height * 0.25, label, NULL);
+            nvgTextAlign(nvg, NVG_ALIGN_TC);
+            nvgText(nvg, param_cx, value_y, label, NULL);
         }
     }
-
-    /*
-    // Main parameters
-    static const float SLIDER_POSITIONS[] = {0.3, 0.5, 0.7};
-    const float        slider_radius      = SLIDER_RADIUS * gui_width;
-    for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
-    {
-        imgui_pt pt;
-        pt.x = SLIDER_POSITIONS[i] * gui_width;
-        pt.y = gui_height * 0.5f;
-
-        uint32_t events  = imgui_get_events_circle(im, pt, slider_radius);
-        double   value_d = handle_param_events(gui, i, events, 300);
-
-        // Knob
-        nvgBeginPath(nvg);
-        nvgCircle(nvg, pt.x, pt.y, slider_radius);
-        nvgFillColour(nvg, nvgRGBA(91, 100, 109, 255));
-        nvgFill(nvg);
-
-        // Labels
-        nvgFillColour(nvg, COLOUR_TEXT);
-        nvgTextAlign(nvg, NVG_ALIGN_CC);
-        nvgFontSize(nvg, gui->scale * 16);
-
-        char label[24];
-        cplug_getParameterName(gui->plugin, i, label, sizeof(label));
-        nvgText(nvg, pt.x, gui_height * 0.75, label, NULL);
-
-        cplug_parameterValueToString(gui->plugin, i, label, sizeof(label), value_d);
-        nvgText(nvg, pt.x, gui_height * 0.25, label, NULL);
-
-        // Slider Tick/Notch
-        float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value_d);
-        float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
-
-        float angle_x = cosf(angle_value);
-        float angle_y = sinf(angle_value);
-
-        float tick_radius_start = slider_radius * 0.8f;
-        float tick_radius_end   = slider_radius * 0.4f;
-
-        nvgBeginPath(nvg);
-        nvgMoveTo(nvg, pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y);
-        nvgLineTo(nvg, pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y);
-        nvgStrokeWidth(nvg, gui->scale * 8);
-        nvgStrokeColour(nvg, COLOUR_BG_DARK);
-        nvgLineCap(nvg, NVG_ROUND);
-        nvgStroke(nvg);
-    }
-
-    // Wet/dry
-    {
-        imgui_rect rect;
-        rect.x = gui_width * 0.885;
-        rect.r = gui_width * 0.925;
-        rect.y = gui_height * 0.5 - slider_radius;
-        rect.b = gui_height * 0.5 + slider_radius;
-
-        imgui_rect slider_dimensions  = rect;
-        slider_dimensions.x          += 4; // padding
-        slider_dimensions.y          += 4;
-        slider_dimensions.r          -= 4;
-        slider_dimensions.b          -= 4;
-        float handle_width            = slider_dimensions.r - slider_dimensions.x;
-        float drag_y                  = slider_dimensions.y + handle_width * 0.5f;
-        float drag_b                  = slider_dimensions.b - handle_width * 0.5f;
-        float drag_height             = drag_b - drag_y;
-
-        uint32_t events  = imgui_get_events_rect(im, &rect);
-        double   value_d = handle_param_events(gui, PARAM_WET, events, drag_height);
-
-        // Draw BG
-        nvgBeginPath(nvg);
-        nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4);
-        nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
-        nvgFill(nvg);
-
-        // Draw BG notches
-        enum
-        {
-            NOTCH_COUNT = 16
-        };
-        const float y_inc   = drag_height / (float)NOTCH_COUNT;
-        const float notch_x = slider_dimensions.x + handle_width * 0.25;
-        const float notch_r = slider_dimensions.x + handle_width * 0.75;
-        nvgBeginPath(nvg);
-        for (int i = 0; i < NOTCH_COUNT; i++)
-        {
-            float y = roundf(drag_y + i * y_inc) + 0.5f;
-            nvgMoveTo(nvg, notch_x, y);
-            nvgLineTo(nvg, notch_r, y);
-        }
-        nvgStrokeColour(nvg, COLOUR_GREY_2);
-        nvgStrokeWidth(nvg, 1);
-        nvgStroke(nvg);
-
-        // Draw handle
-        float handle_cy = xm_lerpf(value_d, drag_b, drag_y);
-        nvgBeginPath(nvg);
-        nvgRoundedRect(nvg, slider_dimensions.x, handle_cy - handle_width * 0.5f, handle_width, handle_width, 2);
-        nvgFillColour(nvg, COLOUR_GREY_1);
-        nvgFill(nvg);
-        // Handle notch
-        nvgBeginPath(nvg);
-        nvgMoveTo(nvg, notch_x, handle_cy);
-        nvgLineTo(nvg, notch_r, handle_cy);
-        nvgStrokeColour(nvg, nvgHexColour(0x2C2F35FF));
-        nvgStroke(nvg);
-
-        nvgFillColour(nvg, COLOUR_TEXT);
-        char  label[24];
-        float cx = (rect.x + rect.r) * 0.5f;
-        cplug_getParameterName(gui->plugin, PARAM_WET, label, sizeof(label));
-        nvgText(nvg, cx, gui_height * 0.75, label, NULL);
-
-        cplug_parameterValueToString(gui->plugin, PARAM_WET, label, sizeof(label), value_d);
-        nvgText(nvg, cx, gui_height * 0.25, label, NULL);
-    }
-    */
 
     /*
     const float peak_gain = gui->plugin->gui_output_peak_gain;
