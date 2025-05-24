@@ -109,6 +109,14 @@ set(PLUGIN_DEFINITIONS
     )
 if (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     list(APPEND PLUGIN_DEFINITIONS DEBUG=1)
+
+    set(FONT_PATH_UNIX "${PROJECT_SOURCE_DIR}/assets/Tomorrow-SemiBold.ttf")
+    if (WIN32)
+        string(REPLACE "/" "\\\\" FONT_PATH_WIN ${FONT_PATH_UNIX})
+        list(APPEND PLUGIN_DEFINITIONS FONT_PATH="${FONT_PATH_WIN}")
+    else()
+        list(APPEND PLUGIN_DEFINITIONS FONT_PATH="${FONT_PATH_UNIX}")
+    endif()
 endif()
 
 set(PLUGIN_SOURCES
@@ -322,4 +330,6 @@ if (WIN32 AND CMAKE_BUILD_TYPE MATCHES Debug)
     target_compile_options(${PROJECT_NAME}_hotreload PRIVATE ${PLUGIN_OPTIONS})
     # Forces plugin to be built before the host
     add_dependencies(${PROJECT_NAME}_hotreload ${HOTRELOAD_LIB_NAME})
+
+    add_dependencies(${HOTRELOAD_LIB_NAME} shader_header)
 endif()

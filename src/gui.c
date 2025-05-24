@@ -242,8 +242,8 @@ void* pw_create_gui(void* _plugin, void* _pw)
 #if __APPLE__
     env.metal.device = pw_get_metal_device(gui->pw);
 #elif _WIN32
-    env.d3d11.device             = pw_get_dx11_device(gui->pw);
-    env.d3d11.device_context     = pw_get_dx11_device_context(gui->pw);
+    env.d3d11.device         = pw_get_dx11_device(gui->pw);
+    env.d3d11.device_context = pw_get_dx11_device_context(gui->pw);
 #endif
     gui->sg = sg_setup(&(sg_desc){
         .environment        = env,
@@ -254,12 +254,19 @@ void* pw_create_gui(void* _plugin, void* _pw)
     gui->nvg = nvgCreateSokol(gui->sg, NVG_ANTIALIAS | NVG_STENCIL_STROKES);
     CPLUG_LOG_ASSERT(gui->nvg);
 
-#ifdef _WIN32
-    static const char* font_path = "C:\\Windows\\Fonts\\arial.ttf";
-#elif defined(__APPLE__)
-    static const char* font_path = "/Library/Fonts/Arial Unicode.ttf";
+#ifndef NDEBUG
+    static const char* font_path = FONT_PATH;
 #endif
-    int font_id = nvgCreateFont(gui->nvg, "Arial", font_path);
+
+    if (!xfiles_exists(font_path))
+    {
+#ifdef _WIN32
+        font_path = "C:\\Windows\\Fonts\\arial.ttf";
+#elif defined(__APPLE__)
+        font_path = "/Library/Fonts/Arial Unicode.ttf";
+#endif
+    }
+    int font_id = nvgCreateFont(gui->nvg, "default", font_path);
     CPLUG_LOG_ASSERT(font_id != -1);
     if (font_id == -1)
     {
