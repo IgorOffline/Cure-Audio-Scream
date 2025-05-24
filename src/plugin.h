@@ -21,8 +21,8 @@ enum
 {
     NUM_PARAMS = PARAM_WET + 1,
 
-    GUI_INIT_WIDTH  = 900,
-    GUI_INIT_HEIGHT = GUI_INIT_WIDTH / 2,
+    GUI_INIT_WIDTH  = 960,
+    GUI_INIT_HEIGHT = 400,
 
     GUI_RATIO_X = 2,
     GUI_RATIO_Y = 1,

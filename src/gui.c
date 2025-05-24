@@ -22,18 +22,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define NVG_ALIGN_TL (NVG_ALIGN_TOP | NVG_ALIGN_LEFT)
-#define NVG_ALIGN_TC (NVG_ALIGN_TOP | NVG_ALIGN_CENTER)
-#define NVG_ALIGN_TR (NVG_ALIGN_TOP | NVG_ALIGN_RIGHT)
-
-#define NVG_ALIGN_CL (NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT)
-#define NVG_ALIGN_CC (NVG_ALIGN_MIDDLE | NVG_ALIGN_CENTER)
-#define NVG_ALIGN_CR (NVG_ALIGN_MIDDLE | NVG_ALIGN_RIGHT)
-
-#define NVG_ALIGN_BL (NVG_ALIGN_BOTTOM | NVG_ALIGN_LEFT)
-#define NVG_ALIGN_BC (NVG_ALIGN_BOTTOM | NVG_ALIGN_CENTER)
-#define NVG_ALIGN_BR (NVG_ALIGN_BOTTOM | NVG_ALIGN_RIGHT)
-
 typedef struct GUI
 {
     Plugin*     plugin;
@@ -59,20 +47,37 @@ typedef struct GUI
 // end - start
 #define SLIDER_LENGTH_RAD 5.23577831647275f
 
+// Nanovg helpers
 // clang-format off
-#define nvgHexColour(hex) (NVGcolor){( hex >> 24)         / 255.0f,\
+#define NVG_ALIGN_TL (NVG_ALIGN_TOP | NVG_ALIGN_LEFT)
+#define NVG_ALIGN_TC (NVG_ALIGN_TOP | NVG_ALIGN_CENTER)
+#define NVG_ALIGN_TR (NVG_ALIGN_TOP | NVG_ALIGN_RIGHT)
+
+#define NVG_ALIGN_CL (NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT)
+#define NVG_ALIGN_CC (NVG_ALIGN_MIDDLE | NVG_ALIGN_CENTER)
+#define NVG_ALIGN_CR (NVG_ALIGN_MIDDLE | NVG_ALIGN_RIGHT)
+
+#define NVG_ALIGN_BL (NVG_ALIGN_BOTTOM | NVG_ALIGN_LEFT)
+#define NVG_ALIGN_BC (NVG_ALIGN_BOTTOM | NVG_ALIGN_CENTER)
+#define NVG_ALIGN_BR (NVG_ALIGN_BOTTOM | NVG_ALIGN_RIGHT)
+
+// Fake english to real english helpers
+typedef struct NVGcolor NVGcolour;
+static inline void nvgFillColour(NVGcontext* ctx, NVGcolour col) { nvgFillColor(ctx, col); }
+static inline void nvgStrokeColour(NVGcontext* ctx, NVGcolour col) { nvgStrokeColor(ctx, col); }
+#define nvgHexColour(hex) (NVGcolour){( hex >> 24)         / 255.0f,\
                                      ((hex >> 16) & 0xff) / 255.0f,\
                                      ((hex >>  8) & 0xff) / 255.0f,\
                                      ( hex        & 0xff) / 255.0f}
 // clang-format on
 
-static const NVGcolor COLOUR_TEXT = nvgHexColour(0x8D949BFF);
+static const NVGcolour COLOUR_TEXT = nvgHexColour(0x8D949BFF);
 
-static const NVGcolor COLOUR_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
-static const NVGcolor COLOUR_BG_DARK  = nvgHexColour(0x151B32FF);
+static const NVGcolour COLOUR_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
+static const NVGcolour COLOUR_BG_DARK  = nvgHexColour(0x151B32FF);
 
-static const NVGcolor COLOUR_GREY_1 = nvgHexColour(0xB5BEC7FF);
-static const NVGcolor COLOUR_GREY_2 = nvgHexColour(0x636A78FF);
+static const NVGcolour COLOUR_GREY_1 = nvgHexColour(0xB5BEC7FF);
+static const NVGcolour COLOUR_GREY_2 = nvgHexColour(0x636A78FF);
 
 void main_set_param(Plugin* p, ParamID id, double value);
 void main_notify_host_param_change(Plugin* p, ParamID id, double value);
@@ -403,22 +408,19 @@ void pw_tick(void* _gui)
     // if (gui->imgui.num_duplicate_backbuffers >= MAX_DUP_BACKBUFFER_COUNT)
     //     return;
 
-    int width  = gui->plugin->width;
-    int height = gui->plugin->height;
+    const int   gui_width  = gui->plugin->width;
+    const int   gui_height = gui->plugin->height;
+    const float dpi        = pw_get_dpi(gui->pw);
 
     // Begin frame
     {
-        static const float r = 202.0f / 255.0f;
-        static const float g = 211.0f / 255.0f;
-        static const float b = 220.0f / 255.0f;
-
         sg_pass_action pass_action = {
-            .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {r, g, b, 1.0f}}};
+            .colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1.0f}}};
 
         sg_swapchain swapchain;
         memset(&swapchain, 0, sizeof(swapchain));
-        swapchain.width        = width;
-        swapchain.height       = height;
+        swapchain.width        = gui_width;
+        swapchain.height       = gui_height;
         swapchain.sample_count = 1;
         swapchain.color_format = SG_PIXELFORMAT_BGRA8;
         swapchain.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
@@ -433,20 +435,129 @@ void pw_tick(void* _gui)
 #endif
         sg_begin_pass(gui->sg, &(sg_pass){.action = pass_action, .swapchain = swapchain});
 
-        nvgBeginFrame(gui->nvg, width, height, pw_get_dpi(gui->pw));
+        nvgBeginFrame(gui->nvg, gui_width, gui_height, dpi);
     }
 
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
 
+    // Layout
+    enum
+    {
+        HEIGHT_HEADER = 32,
+        HEIGHT_FOOTER = 20,
+    };
+
+    const float height_header  = HEIGHT_HEADER * dpi;
+    const float height_footer  = HEIGHT_FOOTER * dpi;
+    const float height_content = gui_height - height_header - height_footer;
+
+    // Background
+    {
+        nvgBeginPath(nvg);
+        nvgRect(nvg, 0, 0, gui_width, gui_height);
+        NVGcolour stop0 = nvgHexColour(0x151B33FF);
+        NVGcolour stop1 = nvgHexColour(0x090E1FFF);
+        nvgFillPaint(nvg, nvgLinearGradient(nvg, 0, 0, 0, gui_height, stop0, stop1));
+        nvgFill(nvg);
+    }
+
+    // Header
+    {
+        nvgFontSize(nvg, dpi * 24);
+        nvgFillColour(nvg, COLOUR_BG_LIGHT);
+        nvgTextAlign(nvg, NVG_ALIGN_CC);
+        nvgText(nvg, gui_width * 0.5f, height_header * 0.5f, "SCREAM", NULL);
+    }
+
+    // Main content background
+    {
+        const float content_x      = 8;
+        const float content_r      = gui_width - 8;
+        const float content_y      = floorf(height_header + 8);
+        const float content_b      = floorf(gui_height - height_footer - 16);
+        const float content_height = content_b - content_y;
+
+        nvgBeginPath(nvg);
+        nvgRoundedRect(nvg, 8, content_y, gui_width - 16, content_height, 8);
+        nvgFillColour(nvg, COLOUR_BG_LIGHT);
+        nvgFill(nvg);
+
+        // Inner shadows
+        const float blur_radius = 8;
+        float       grad_x      = content_x - blur_radius * 0.5f;
+        float       grad_r      = content_r + blur_radius * 0.5f;
+        float       grad_w      = grad_r - grad_x;
+
+        NVGcolour icol  = (NVGcolour){1, 1, 1, 0};
+        NVGcolour ocol  = (NVGcolour){1, 1, 1, 0.75};
+        NVGpaint  paint = nvgBoxGradient(nvg, grad_x, content_y, grad_w, content_height, 16, blur_radius, icol, ocol);
+
+        // Top inner shadow (light)
+        nvgBeginPath(nvg);
+        nvgRoundedRectVarying(nvg, 8, content_y, gui_width - 16, blur_radius * 2, 8, 8, 0, 0);
+        nvgFillPaint(nvg, paint);
+        nvgFill(nvg);
+
+        // Bottom inner shadow (dark)
+        paint.innerColor = (NVGcolour){0, 0, 0, 0};
+        paint.outerColor = (NVGcolour){0, 0, 0, 0.75f};
+        nvgBeginPath(nvg);
+        nvgRoundedRectVarying(nvg, 8, content_b - blur_radius * 2, gui_width - 16, blur_radius * 2, 0, 0, 8, 8);
+        nvgFillPaint(nvg, paint);
+        nvgFill(nvg);
+
+        // Dots
+        const float DOT_DIAMETER = 6;
+        const float DOT_RADIUS   = DOT_DIAMETER / 2;
+        const float DOT_PADDING  = 6;
+
+        const float left_dot_cx  = roundf(content_x + 8 + DOT_RADIUS);
+        const float right_dot_cx = roundf(content_r - 8 - DOT_RADIUS);
+        const float top_dot_cy   = roundf(content_y + 8 + DOT_RADIUS);
+        const float dot_offset   = roundf(DOT_DIAMETER + DOT_PADDING);
+
+        const xvec2f points[] = {
+            // Left
+            {left_dot_cx, top_dot_cy},
+            {left_dot_cx + dot_offset, top_dot_cy},
+            {left_dot_cx + dot_offset + dot_offset, top_dot_cy},
+            {left_dot_cx, top_dot_cy + dot_offset},
+            {left_dot_cx, top_dot_cy + dot_offset + dot_offset},
+            // Right
+            {right_dot_cx, top_dot_cy},
+            {right_dot_cx - dot_offset, top_dot_cy},
+            {right_dot_cx - dot_offset - dot_offset, top_dot_cy},
+            {right_dot_cx, top_dot_cy + dot_offset},
+            {right_dot_cx, top_dot_cy + dot_offset + dot_offset},
+        };
+        _Static_assert(ARRLEN(points) == 10, "Should be 5 dots each side");
+
+        nvgBeginPath(nvg);
+        for (int i = 0; i < ARRLEN(points); i++)
+        {
+            nvgCircle(nvg, points[i].x, points[i].y, DOT_RADIUS);
+        }
+        nvgFillColor(nvg, (NVGcolour){1, 1, 1, 1});
+
+        nvgFill(nvg);
+        nvgBeginPath(nvg);
+        for (int i = 0; i < ARRLEN(points); i++)
+        {
+            nvgCircle(nvg, points[i].x, points[i].y - 1, DOT_RADIUS);
+        }
+        nvgFillColor(nvg, nvgHexColour(0x111629FF));
+        nvgFill(nvg);
+    }
+
     // Main parameters
     static const float SLIDER_POSITIONS[] = {0.3, 0.5, 0.7};
-    const float        slider_radius      = SLIDER_RADIUS * width;
+    const float        slider_radius      = SLIDER_RADIUS * gui_width;
     for (int i = 0; i < ARRLEN(SLIDER_POSITIONS); i++)
     {
         imgui_pt pt;
-        pt.x = SLIDER_POSITIONS[i] * width;
-        pt.y = height * 0.5f;
+        pt.x = SLIDER_POSITIONS[i] * gui_width;
+        pt.y = gui_height * 0.5f;
 
         uint32_t events  = imgui_get_events_circle(im, pt, slider_radius);
         double   value_d = handle_param_events(gui, i, events, 300);
@@ -454,20 +565,20 @@ void pw_tick(void* _gui)
         // Knob
         nvgBeginPath(nvg);
         nvgCircle(nvg, pt.x, pt.y, slider_radius);
-        nvgFillColor(nvg, nvgRGBA(91, 100, 109, 255));
+        nvgFillColour(nvg, nvgRGBA(91, 100, 109, 255));
         nvgFill(nvg);
 
         // Labels
-        nvgFillColor(nvg, COLOUR_TEXT);
+        nvgFillColour(nvg, COLOUR_TEXT);
         nvgTextAlign(nvg, NVG_ALIGN_CC);
         nvgFontSize(nvg, gui->scale * 16);
 
         char label[24];
         cplug_getParameterName(gui->plugin, i, label, sizeof(label));
-        nvgText(nvg, pt.x, height * 0.75, label, NULL);
+        nvgText(nvg, pt.x, gui_height * 0.75, label, NULL);
 
         cplug_parameterValueToString(gui->plugin, i, label, sizeof(label), value_d);
-        nvgText(nvg, pt.x, height * 0.25, label, NULL);
+        nvgText(nvg, pt.x, gui_height * 0.25, label, NULL);
 
         // Slider Tick/Notch
         float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value_d);
@@ -483,7 +594,7 @@ void pw_tick(void* _gui)
         nvgMoveTo(nvg, pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y);
         nvgLineTo(nvg, pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y);
         nvgStrokeWidth(nvg, gui->scale * 8);
-        nvgStrokeColor(nvg, COLOUR_BG_DARK);
+        nvgStrokeColour(nvg, COLOUR_BG_DARK);
         nvgLineCap(nvg, NVG_ROUND);
         nvgStroke(nvg);
     }
@@ -491,10 +602,10 @@ void pw_tick(void* _gui)
     // Input gain
     {
         imgui_rect rect;
-        rect.x = width * 0.075;
-        rect.r = width * 0.115;
-        rect.y = height * 0.5 - slider_radius;
-        rect.b = height * 0.5 + slider_radius;
+        rect.x = gui_width * 0.075;
+        rect.r = gui_width * 0.115;
+        rect.y = gui_height * 0.5 - slider_radius;
+        rect.b = gui_height * 0.5 + slider_radius;
 
         float rect_r    = rect.r;
         float icon_r    = rect.r + 20;
@@ -506,11 +617,11 @@ void pw_tick(void* _gui)
 
         nvgBeginPath(nvg);
         nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4);
-        nvgFillColor(nvg, nvgHexColour(0x2C2F35FF));
+        nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
 
-        static const NVGcolor bg_grad_stop0 = nvgHexColour(0x2C2F35FF);
-        static const NVGcolor bg_grad_stop1 = nvgHexColour(0x585E6AFF);
-        const NVGpaint        bg_paint = nvgLinearGradient(nvg, 0, rect.y, 0, rect.b, bg_grad_stop0, bg_grad_stop1);
+        static const NVGcolour bg_grad_stop0 = nvgHexColour(0x2C2F35FF);
+        static const NVGcolour bg_grad_stop1 = nvgHexColour(0x585E6AFF);
+        const NVGpaint         bg_paint = nvgLinearGradient(nvg, 0, rect.y, 0, rect.b, bg_grad_stop0, bg_grad_stop1);
         nvgFillPaint(nvg, bg_paint);
         nvgFill(nvg);
 
@@ -521,7 +632,7 @@ void pw_tick(void* _gui)
         nvgLineTo(nvg, icon_r, icon_y - 8);
         nvgLineTo(nvg, icon_r, icon_y + 8);
         nvgClosePath(nvg);
-        nvgFillColor(nvg, COLOUR_TEXT);
+        nvgFillColour(nvg, COLOUR_TEXT);
         nvgFill(nvg);
 
         xvec2f peaks;
@@ -548,8 +659,8 @@ void pw_tick(void* _gui)
 
             nvgBeginPath(nvg);
             nvgRoundedRect(nvg, ch_rect.x, ch_rect.y, ch_rect.r - ch_rect.x, ch_rect.b - ch_rect.y, 2);
-            static const NVGcolor ch_grad_stop0 = nvgHexColour(0x6C7483FF);
-            static const NVGcolor ch_grad_stop1 = nvgHexColour(0x7C8493FF);
+            static const NVGcolour ch_grad_stop0 = nvgHexColour(0x6C7483FF);
+            static const NVGcolour ch_grad_stop1 = nvgHexColour(0x7C8493FF);
             nvgFillPaint(nvg, nvgLinearGradient(nvg, 0, ch_rect.y, 0, ch_rect.b, ch_grad_stop0, ch_grad_stop1));
             nvgFill(nvg);
 
@@ -566,14 +677,14 @@ void pw_tick(void* _gui)
                 xm_fast_gain_to_dB(gui->input_gain_peaks_slow[ch]),
                 xm_fast_gain_to_dB(gui->input_gain_peaks_fast[ch]),
             };
-            static const NVGcolor peak_colours[2] = {
+            static const NVGcolour peak_colours[2] = {
                 nvgHexColour(0x459DB5FF),
                 nvgHexColour(0xACDEECFF),
             };
             for (int i = 0; i < 2; i++)
             {
-                float    peak_dB = decaying_peaks[i];
-                NVGcolor col     = peak_colours[i];
+                float     peak_dB = decaying_peaks[i];
+                NVGcolour col     = peak_colours[i];
 
                 if (peak_dB > RANGE_INPUT_GAIN_MIN)
                 {
@@ -581,7 +692,7 @@ void pw_tick(void* _gui)
                     float peak_height = norm * channel_height;
                     nvgBeginPath(nvg);
                     nvgRect(nvg, ch_rect.x, ch_rect.b - peak_height, ch_rect.r - ch_rect.x, peak_height);
-                    nvgFillColor(nvg, col);
+                    nvgFillColour(nvg, col);
                     nvgFill(nvg);
                 }
             }
@@ -593,7 +704,7 @@ void pw_tick(void* _gui)
             //     float peak_height = norm * channel_height;
             //     nvgBeginPath(nvg);
             //     nvgRect(nvg, ch_rect.x, ch_rect.b - peak_height, ch_rect.r - ch_rect.x, peak_height);
-            //     nvgFillColor(nvg, nvgHexColour(0x459DB5FF));
+            //     nvgFillColour(nvg, nvgHexColour(0x459DB5FF));
             //     nvgFill(nvg);
             // }
 
@@ -605,7 +716,7 @@ void pw_tick(void* _gui)
             //     float peak_height = norm * channel_height;
             //     nvgBeginPath(nvg);
             //     nvgRect(nvg, ch_rect.x, ch_rect.b - peak_height, ch_rect.r - ch_rect.x, peak_height);
-            //     nvgFillColor(nvg, nvgHexColour(0xACDEECFF));
+            //     nvgFillColour(nvg, nvgHexColour(0xACDEECFF));
             //     nvgFill(nvg);
             // }
         }
@@ -620,23 +731,23 @@ void pw_tick(void* _gui)
         nvgStrokeWidth(nvg, 1);
         nvgStroke(nvg);
 
-        nvgFillColor(nvg, COLOUR_TEXT);
+        nvgFillColour(nvg, COLOUR_TEXT);
         float cx = (rect.x + rect.r) * 0.5f;
         char  label[24];
         cplug_getParameterName(gui->plugin, PARAM_INPUT_GAIN, label, sizeof(label));
-        nvgText(nvg, cx, height * 0.75, label, NULL);
+        nvgText(nvg, cx, gui_height * 0.75, label, NULL);
 
         cplug_parameterValueToString(gui->plugin, PARAM_INPUT_GAIN, label, sizeof(label), value_d);
-        nvgText(nvg, cx, height * 0.25, label, NULL);
+        nvgText(nvg, cx, gui_height * 0.25, label, NULL);
     }
 
     // Wet/dry
     {
         imgui_rect rect;
-        rect.x = width * 0.885;
-        rect.r = width * 0.925;
-        rect.y = height * 0.5 - slider_radius;
-        rect.b = height * 0.5 + slider_radius;
+        rect.x = gui_width * 0.885;
+        rect.r = gui_width * 0.925;
+        rect.y = gui_height * 0.5 - slider_radius;
+        rect.b = gui_height * 0.5 + slider_radius;
 
         imgui_rect slider_dimensions  = rect;
         slider_dimensions.x          += 4; // padding
@@ -654,7 +765,7 @@ void pw_tick(void* _gui)
         // Draw BG
         nvgBeginPath(nvg);
         nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4);
-        nvgFillColor(nvg, nvgHexColour(0x2C2F35FF));
+        nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
         nvgFill(nvg);
 
         // Draw BG notches
@@ -672,7 +783,7 @@ void pw_tick(void* _gui)
             nvgMoveTo(nvg, notch_x, y);
             nvgLineTo(nvg, notch_r, y);
         }
-        nvgStrokeColor(nvg, COLOUR_GREY_2);
+        nvgStrokeColour(nvg, COLOUR_GREY_2);
         nvgStrokeWidth(nvg, 1);
         nvgStroke(nvg);
 
@@ -680,46 +791,46 @@ void pw_tick(void* _gui)
         float handle_cy = xm_lerpf(value_d, drag_b, drag_y);
         nvgBeginPath(nvg);
         nvgRoundedRect(nvg, slider_dimensions.x, handle_cy - handle_width * 0.5f, handle_width, handle_width, 2);
-        nvgFillColor(nvg, COLOUR_GREY_1);
+        nvgFillColour(nvg, COLOUR_GREY_1);
         nvgFill(nvg);
         // Handle notch
         nvgBeginPath(nvg);
         nvgMoveTo(nvg, notch_x, handle_cy);
         nvgLineTo(nvg, notch_r, handle_cy);
-        nvgStrokeColor(nvg, nvgHexColour(0x2C2F35FF));
+        nvgStrokeColour(nvg, nvgHexColour(0x2C2F35FF));
         nvgStroke(nvg);
 
-        nvgFillColor(nvg, COLOUR_TEXT);
+        nvgFillColour(nvg, COLOUR_TEXT);
         char  label[24];
         float cx = (rect.x + rect.r) * 0.5f;
         cplug_getParameterName(gui->plugin, PARAM_WET, label, sizeof(label));
-        nvgText(nvg, cx, height * 0.75, label, NULL);
+        nvgText(nvg, cx, gui_height * 0.75, label, NULL);
 
         cplug_parameterValueToString(gui->plugin, PARAM_WET, label, sizeof(label), value_d);
-        nvgText(nvg, cx, height * 0.25, label, NULL);
+        nvgText(nvg, cx, gui_height * 0.25, label, NULL);
     }
 
     const float peak_gain = gui->plugin->gui_output_peak_gain;
     if (peak_gain > 1)
     {
         nvgTextAlign(nvg, NVG_ALIGN_BR);
-        nvgFillColor(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
+        nvgFillColour(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
         float dB = xm_fast_gain_to_dB(peak_gain);
         char  label[48];
         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
-        nvgText(nvg, width - 20, height - 20, label, NULL);
+        nvgText(nvg, gui_width - 20, gui_height - 20, label, NULL);
     }
 
 #ifdef CPLUG_BUILD_STANDALONE
     {
         Plugin* p = gui->plugin;
-        // plot_expander(nvg, width, height);
-        // plot_peak_detection(nvg, width, height);
-        // plot_peak_distortion(nvg, im, width, height);
-        // plot_peak_upwards_compression(nvg, im, width, height);
+        // plot_expander(nvg, gui_width, gui_height);
+        // plot_peak_detection(nvg, gui_width, gui_height);
+        // plot_peak_distortion(nvg, im, gui_width, gui_height);
+        // plot_peak_upwards_compression(nvg, im, gui_width, gui_height);
         float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
         float phase = xt_atomic_load_f32(&p->gui_osc_phase);
-        plot_oscilloscope(nvg, width - 230, 10, 220, 180, p->sample_rate, midi, phase);
+        plot_oscilloscope(nvg, gui_width - 230, 10, 220, 180, p->sample_rate, midi, phase);
 
         imgui_rect  rect   = {10, 10, 180, 25};
         const float offset = 10 + (rect.b - rect.y);
@@ -738,6 +849,7 @@ void pw_tick(void* _gui)
         // im_slider(nvg, im, rect, &g_hp_Q, 0.05, 2, "%.3f", "HP Q");
     }
 #endif
+
     // #ifndef NDEBUG
     {
         uint64_t frame_time_end         = xtime_now_ns();
@@ -755,16 +867,18 @@ void pw_tick(void* _gui)
 
         nvgTextAlign(nvg, NVG_ALIGN_BL);
         nvgFontSize(nvg, gui->scale * 12);
-        nvgFillColor(nvg, nvgRGBAf(0, 0, 0, 1));
+        NVGcolour footer_col = COLOUR_BG_LIGHT;
+        footer_col.a         = 0.5f;
+        nvgFillColour(nvg, footer_col);
         char text[64] = {0};
         int  len      = snprintf(
             text,
             sizeof(text),
-            "CPU: %.2lf%% Time: %.2lfms. Max FPS: %.lf",
+            "CPU: %.2lf%% Time: %.3lfms. Max FPS: %.lf",
             (cpu_amt * 100),
             frame_time_ms,
             approx_fps);
-        nvgText(nvg, 5, height - 5, text, NULL);
+        nvgText(nvg, 5, gui_height - 5, text, NULL);
 
         // TODO: remove after release
         const char*    plugin_type_name = "";
@@ -784,7 +898,7 @@ void pw_tick(void* _gui)
 #endif
         snprintf(text, sizeof(text), "%s | %s | %s", os_name, plugin_type_name, "Version " CPLUG_PLUGIN_VERSION);
         nvgTextAlign(nvg, NVG_ALIGN_BR);
-        nvgText(nvg, width - 5, height - 5, text, NULL);
+        nvgText(nvg, gui_width - 5, gui_height - 5, text, NULL);
     }
     // #endif
 
