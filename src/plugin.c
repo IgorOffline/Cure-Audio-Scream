@@ -135,7 +135,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     DISABLE_DENORMALS
     Plugin* p                     = _p;
     bool    should_post_to_global = false;
-    bool    panic_btn_pressed     = false;
 
     // Dequeue events sent from main thread
     {
@@ -193,9 +192,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 CPLUG_LOG_ASSERT(ok);
                 break;
             }
-            case EVENT_PANIC_BUTTON_PRESSED:
-                panic_btn_pressed = true;
-                break;
             }
 
             tail++;
@@ -493,29 +489,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     xt_atomic_store_f32(&p->gui_osc_phase, phase);
     g_osc_phase = phase;
 #endif
-
-    if (panic_btn_pressed)
-    {
-        // Self oscillation is caused by existing feedback & filter state
-        memset(&p->state, 0, sizeof(p->state));
-
-        // Smooth audio fade out. Linear dB
-        const float target_dB   = -100;
-        const float dB_inc      = target_dB / ctx->numFrames;
-        const float scalar_gain = xm_fast_dB_to_gain(dB_inc);
-
-        for (int ch = 0; ch < 2; ch++)
-        {
-            float              gain = scalar_gain;
-            float*             it   = output[ch];
-            const float* const end  = output[ch] + ctx->numFrames;
-            for (; it != end; it++)
-            {
-                *it  *= gain;
-                gain *= gain;
-            }
-        }
-    }
 
     p->gui_output_peak_gain = peak_output_gain;
     xt_atomic_store_u64(&p->gui_input_peak_gain, peak_input_gain.u64);

@@ -47,8 +47,6 @@ typedef struct GUI
 
     float input_gain_peaks_slow[2];
     float input_gain_peaks_fast[2];
-
-    bool hover_panic_btn;
 } GUI;
 
 // Relative to GUI width
@@ -711,45 +709,6 @@ void pw_tick(void* _gui)
         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
         nvgText(nvg, width - 20, height - 20, label, NULL);
     }
-
-    // Panic button
-    /*
-    {
-        imgui_rect d = {width - 100, 0, width, 40};
-
-        uint32_t events = imgui_get_events_rect(im, &d);
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-        if ((events & IMGUI_EVENT_MOUSE_EXIT) && im->mouse_over_id == 0)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
-
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-        {
-            CplugEvent e = {0};
-            e.type       = EVENT_PANIC_BUTTON_PRESSED;
-            send_to_audio_event_queue(gui->plugin, e);
-            println("PANIC!");
-        }
-
-        nvgBeginPath(nvg);
-        nvgRect(nvg, d.x, d.y, d.r - d.x, d.b - d.y);
-        const bool hover = events & IMGUI_EVENT_MOUSE_HOVER;
-        NVGcolor   bgcol = hover ? (NVGcolor){1.0f, 0.15f, 0.3f, 1.0f} : (NVGcolor){0.8f, 0.1f, 0.2f, 1.0f};
-        nvgFillColor(nvg, bgcol);
-        nvgFill(nvg);
-
-        nvgFillColor(nvg, (NVGcolor){0.9f, 0.9f, 0.2f, 1.0f});
-        nvgTextAlign(nvg, NVG_ALIGN_CC);
-        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        {
-            d.y += 1.0f;
-            d.b += 1.0f;
-        }
-        float cx = (d.x + d.r) * 0.5f;
-        float cy = (d.y + d.b) * 0.5f;
-        nvgText(nvg, cx, cy, "PANIC!", NULL);
-    }
-    */
 
 #ifdef CPLUG_BUILD_STANDALONE
     {
