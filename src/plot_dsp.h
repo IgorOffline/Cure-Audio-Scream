@@ -44,7 +44,7 @@ void im_slider(
 
     nvgBeginPath(nvg);
     nvgRect(nvg, rect.x, rect.y, slider_width, slider_height);
-    nvgFillColor(nvg, nvgRGBAf(0.2, 0.2, 0.25, 0.5));
+    nvgFillColor(nvg, nvgRGBAf(0.6, 0.6, 0.75, 0.5));
     nvgFill(nvg);
 
     float val_x = xm_mapf(*pValue, vmin, vmax, rect.x, rect.r - slider_height);
@@ -62,7 +62,7 @@ void im_slider(
     nvgText(nvg, c.x, c.y, label, NULL);
 
     nvgTextAlign(nvg, NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT);
-    nvgFillColor(nvg, (NVGcolor){0, 0, 0, 1});
+    nvgFillColor(nvg, (NVGcolor){1, 1, 1, 1});
     nvgText(nvg, rect.r + 10, c.y, name, NULL);
 }
 
