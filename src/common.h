@@ -51,7 +51,7 @@ void println(const char* const fmt, ...);
 #define LOG_MALLOC(sz)       (println("malloc(%s) - %s:%d", #sz, __FILE__, __LINE__), xmalloc(sz))
 #define LOG_CALLOC(n, sz)    (println("calloc(%s, %s) - %s:%d", #n, #sz, __FILE__, __LINE__), xcalloc(n, sz))
 #define LOG_REALLOC(ptr, sz) (println("realloc(%s, %s) - %s:%d", #ptr, #sz, __FILE__, __LINE__), xrealloc(ptr, sz))
-#define LOG_FREE(ptr)        (println("free(%s) - %s:%d", #ptr, __FILE__, __LINE__), xfree(ptr))
+#define LOG_FREE(ptr)        (println("free(%s) (0x%p) - %s:%d", #ptr, (ptr), __FILE__, __LINE__), xfree(ptr))
 
 #define MY_MALLOC(sz)       xmalloc(sz)
 #define MY_CALLOC(n, sz)    xcalloc(n, sz)
@@ -65,5 +65,13 @@ void println(const char* const fmt, ...);
 #define SGNVG_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)
 #define SGNVG_FREE(ptr)        MY_FREE(ptr)
 #define SGNVG_ASSERT           xassert
+
+#define STBI_MALLOC(sz)       MY_MALLOC(sz)
+#define STBI_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)
+#define STBI_FREE(ptr)        MY_FREE(ptr)
+#define STBI_ASSERT           xassert
+
+#define XFILES_MALLOC(sz) MY_MALLOC(sz)
+#define XFILES_FREE(ptr)  MY_FREE(ptr)
 
 #endif // PLUGIN_CONFIG_H

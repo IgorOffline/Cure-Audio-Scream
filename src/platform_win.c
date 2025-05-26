@@ -5,6 +5,7 @@
 #define XHL_MATHS_IMPL
 #define XHL_THREAD_IMPL
 #define XHL_TIME_IMPL
+#define STB_IMAGE_IMPLEMENTATION
 
 #ifndef NDEBUG
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
@@ -14,6 +15,7 @@
 
 #include "libs/sokol_gfx.h"
 #include <cplug_extensions/window_win.c>
+#include <stb_image.h>
 
 #include <stdio.h>
 #include <xhl/alloc.h>

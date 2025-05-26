@@ -2,4 +2,5 @@
 .clangd
 .DS_Store
 .ideas
+.vscode
 build
