@@ -257,13 +257,21 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
         desc.pixel_format == SG_PIXELFORMAT_RGBA8 || desc.pixel_format == SG_PIXELFORMAT_BGRA8 ||
         desc.pixel_format == SG_PIXELFORMAT_R8);
 
-    unsigned pixel_size = 1;
+    unsigned num_channels = 1;
     if (desc.pixel_format == SG_PIXELFORMAT_RGBA8 || desc.pixel_format == SG_PIXELFORMAT_BGRA8)
-        pixel_size = 4;
+        num_channels = 4;
+
     int w          = desc.width;
     int h          = desc.height * desc.num_slices;
     int total_size = 0;
-    for (int level = 1; level < SG_MAX_MIPMAPS; ++level)
+
+    int max_mipmap_levels = desc.num_mipmaps;
+    if (max_mipmap_levels < 1)
+        max_mipmap_levels = 1;
+    if (max_mipmap_levels > SG_MAX_MIPMAPS)
+        max_mipmap_levels = SG_MAX_MIPMAPS;
+
+    for (int level = 1; level < max_mipmap_levels; ++level)
     {
         w /= 2;
         h /= 2;
@@ -271,7 +279,7 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
         if (w < 1 && h < 1)
             break;
 
-        total_size += (w * h * pixel_size);
+        total_size += (w * h * num_channels);
     }
 
     int cube_faces = 0;
@@ -282,7 +290,7 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
     }
 
     total_size                *= (cube_faces + 1);
-    unsigned char* big_target  = xmalloc(total_size);
+    unsigned char* big_target  = xcalloc(1, total_size);
     unsigned char* target      = big_target;
 
     for (int cube_face = 0; cube_face < cube_faces; ++cube_face)
@@ -291,16 +299,16 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
         int target_height = desc.height;
         int dst_height    = target_height * desc.num_slices;
 
-        for (int level = 1; level < SG_MAX_MIPMAPS; ++level)
+        for (int level = 1; level < max_mipmap_levels; ++level)
         {
-            unsigned char* source = (unsigned char*)desc.data.subimage[cube_face][level - 1].ptr;
-            if (!source)
+            unsigned char* src = (unsigned char*)desc.data.subimage[cube_face][level - 1].ptr;
+            if (!src)
                 break;
 
-            int source_width   = target_width;
-            int source_height  = target_height;
-            target_width      /= 2;
-            target_height     /= 2;
+            int src_w      = target_width;
+            int src_h      = target_height;
+            target_width  /= 2;
+            target_height /= 2;
             if (target_width < 1 && target_height < 1)
                 break;
 
@@ -311,7 +319,7 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
                 target_height = 1;
 
             dst_height               /= 2;
-            unsigned       img_size   = target_width * dst_height * pixel_size;
+            unsigned       img_size   = target_width * dst_height * num_channels;
             unsigned char* miptarget  = target;
 
             for (int slice = 0; slice < desc.num_slices; ++slice)
@@ -320,24 +328,24 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
                 {
                     for (int y = 0; y < target_height; ++y)
                     {
-                        uint16_t colors[8] = {0};
-                        for (int chanell = 0; chanell < pixel_size; ++chanell)
+                        for (int ch = 0; ch < num_channels; ++ch)
                         {
-                            int color  = 0;
-                            int sx     = x * 2;
-                            int sy     = y * 2;
-                            color     += source[source_width * pixel_size * sx + sy * pixel_size + chanell];
-                            color     += source[source_width * pixel_size * (sx + 1) + sy * pixel_size + chanell];
-                            color     += source[source_width * pixel_size * (sx + 1) + (sy + 1) * pixel_size + chanell];
-                            color     += source[source_width * pixel_size * sx + (sy + 1) * pixel_size + chanell];
-                            color     /= 4;
-                            miptarget[target_width * pixel_size * (x) + (y)*pixel_size + chanell] = (uint8_t)color;
+                            int col = 0;
+                            int sx  = x * 2;
+                            int sy  = y * 2;
+
+                            col += src[(sy * src_w + sx) * num_channels + ch];
+                            col += src[(sy * src_w + (sx + 1)) * num_channels + ch];
+                            col += src[((sy + 1) * src_w + (sx + 1)) * num_channels + ch];
+                            col += src[((sy + 1) * src_w + sx) * num_channels + ch];
+                            col /= 4;
+                            miptarget[(y * target_width + x) * num_channels + ch] = (uint8_t)col;
                         }
                     }
                 }
 
-                source    += (source_width * source_height * pixel_size);
-                miptarget += (target_width * target_height * pixel_size);
+                src       += (src_w * src_h * num_channels);
+                miptarget += (target_width * target_height * num_channels);
             }
             desc.data.subimage[cube_face][level].ptr   = target;
             desc.data.subimage[cube_face][level].size  = img_size;
@@ -494,12 +502,15 @@ void* pw_create_gui(void* _plugin, void* _pw)
                          }},
                 .label = "logo-pipeline"});
 
-        // // a sampler object
+        // a sampler object
         gui->logo_smp = sg_make_sampler(
             gui->sg,
             &(sg_sampler_desc){
                 .min_filter = SG_FILTER_LINEAR,
-                .mag_filter = SG_FILTER_LINEAR,
+                .mag_filter    = SG_FILTER_LINEAR,
+                .mipmap_filter = SG_FILTER_LINEAR,
+                .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+                .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
             });
 
         void*  file_data     = NULL;
@@ -520,11 +531,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
             {
                 // TODO: mip maps
                 // gui->logo_img_id = nvgCreateImageRGBA(gui->nvg, x, y, NVG_IMAGE_GENERATE_MIPMAPS, img_buf);
-
-                // nvgCreateImage(gui->nvg, LOGO_PATH, 0);
-
-                // gui->logo_img_id     = nvgCreateImageRGBA(gui->nvg, x, y, 0, img_buf);
-
+                // gui->logo_img_id = nvgCreateImageRGBA(gui->nvg, x, y, 0, img_buf);
                 // xassert(gui->logo_img_id);
 
                 gui->logo_img = sg_make_image_with_mipmaps(
@@ -532,7 +539,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
                     &(sg_image_desc){
                         .width        = x,
                         .height       = y,
-                        .num_mipmaps  = 2,
+                        .num_mipmaps  = 5,
                         .num_slices   = 1,
                         .pixel_format = SG_PIXELFORMAT_RGBA8,
 
@@ -1634,6 +1641,7 @@ void pw_tick(void* _gui)
     }
 
     // Logo shader
+    if (gui->logo_img.id)
     {
         float x, y, w, h, img_scale;
 
@@ -1641,7 +1649,7 @@ void pw_tick(void* _gui)
         img_scale = h / (float)gui->logo_img_height;
         w         = (float)gui->logo_img_width * img_scale;
         x         = gui_width - 16 - w;
-        x         = 16;
+        // x         = 16;
         y         = 4;
 
         float l = xm_mapf(x, 0, gui_width, -1, 1);
@@ -1663,8 +1671,8 @@ void pw_tick(void* _gui)
         sg_bindings bind       = {0};
         bind.vertex_buffers[0] = gui->logo_vbo;
         bind.index_buffer      = gui->logo_ibo;
-        bind.images[IMG_tex]   = gui->logo_img;
-        bind.samplers[SMP_smp] = gui->logo_smp;
+        bind.images[IMG_texquad_tex]   = gui->logo_img;
+        bind.samplers[SMP_texquad_smp] = gui->logo_smp;
 
         sg_apply_bindings(gui->sg, &bind);
         sg_draw(gui->sg, 0, 6, 1);

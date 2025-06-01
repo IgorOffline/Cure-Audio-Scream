@@ -12,14 +12,14 @@ void main() {
 
 /* texquad fragment shader */
 @fs texquad_fs
-layout(binding=0) uniform texture2D tex;
-layout(binding=0) uniform sampler smp;
+layout(binding=0) uniform texture2D texquad_tex;
+layout(binding=0) uniform sampler texquad_smp;
 
 in vec2 uv;
 out vec4 frag_color;
 
 void main() {
-    frag_color = texture(sampler2D(tex, smp), uv);
+    frag_color = texture(sampler2D(texquad_tex, texquad_smp), uv);
 }
 @end
 
