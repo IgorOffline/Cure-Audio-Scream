@@ -18127,10 +18127,12 @@ SOKOL_API_IMPL void sg_shutdown(_sg_state_t* _sg) {
     _sg_discard_backend(_sg);
     _sg_discard_commit_listeners(_sg);
     _sg_discard_pools(_sg, &_sg->pools);
+
+    sg_allocator allocator = _sg->desc.allocator;
     _SG_CLEAR_ARC_STRUCT(_sg_state_t, (*_sg));
     
-    if (_sg->desc.allocator.free_fn)
-        _sg->desc.allocator.free_fn(_sg, _sg->desc.allocator.user_data);
+    if (allocator.free_fn)
+        allocator.free_fn(_sg, allocator.user_data);
     else
         free(_sg);
 }

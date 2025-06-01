@@ -155,6 +155,13 @@ static void my_sg_logger(
     println("[%s] %s %u:%s", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);
 }
 
+void* my_sg_allocator_alloc(size_t size, void* user_data)
+{
+    void* ptr = MY_MALLOC(size);
+    return ptr;
+}
+void my_sg_allocator_free(void* ptr, void* user_data) { MY_FREE(ptr); }
+
 void pw_get_info(struct PWGetInfo* info)
 {
     if (info->type == PW_INFO_INIT_SIZE)
@@ -290,7 +297,7 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
     }
 
     total_size                *= (cube_faces + 1);
-    unsigned char* big_target  = xcalloc(1, total_size);
+    unsigned char* big_target  = MY_MALLOC(total_size);
     unsigned char* target      = big_target;
 
     for (int cube_face = 0; cube_face < cube_faces; ++cube_face)
@@ -356,7 +363,7 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
     }
 
     sg_image img = sg_make_image(sg, &desc);
-    xfree(big_target);
+    MY_FREE(big_target);
     return img;
 }
 
@@ -382,6 +389,12 @@ void* pw_create_gui(void* _plugin, void* _pw)
     env.d3d11.device_context = pw_get_dx11_device_context(gui->pw);
 #endif
     gui->sg = sg_setup(&(sg_desc){
+        .allocator =
+            {
+                .alloc_fn  = my_sg_allocator_alloc,
+                .free_fn   = my_sg_allocator_free,
+                .user_data = gui,
+            },
         .environment        = env,
         .logger             = my_sg_logger,
         .pipeline_pool_size = 512,
@@ -506,11 +519,11 @@ void* pw_create_gui(void* _plugin, void* _pw)
         gui->logo_smp = sg_make_sampler(
             gui->sg,
             &(sg_sampler_desc){
-                .min_filter = SG_FILTER_LINEAR,
+                .min_filter    = SG_FILTER_LINEAR,
                 .mag_filter    = SG_FILTER_LINEAR,
                 .mipmap_filter = SG_FILTER_LINEAR,
-                .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
-                .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+                .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
+                .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
             });
 
         void*  file_data     = NULL;
@@ -1650,7 +1663,7 @@ void pw_tick(void* _gui)
         w         = (float)gui->logo_img_width * img_scale;
         x         = gui_width - 16 - w;
         // x         = 16;
-        y         = 4;
+        y = 4;
 
         float l = xm_mapf(x, 0, gui_width, -1, 1);
         float r = xm_mapf(x + w, 0, gui_width, -1, 1);

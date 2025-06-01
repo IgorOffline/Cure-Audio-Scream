@@ -73,7 +73,6 @@ void library_load_platform()
     int refcount = cplug_atomic_fetch_add_i32(&g_platform_init_counter, 1);
     if (refcount == 0)
     {
-        println("Creating global timer");
         // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-settimer
         g_timer = SetTimer(NULL, UNIQUE_INT_ID, 200, TimerFunc);
     }
@@ -88,7 +87,6 @@ void library_unload_platform()
     {
         if (g_timer != 0)
         {
-            println("Destroying global timer");
             // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-killtimer
             KillTimer(NULL, g_timer);
         }
