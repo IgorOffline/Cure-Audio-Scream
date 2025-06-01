@@ -249,6 +249,109 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     return value_d;
 }
 
+// Source: https://github.com/floooh/sokol/issues/102
+sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
+{
+    sg_image_desc desc = *desc_;
+    xassert(
+        desc.pixel_format == SG_PIXELFORMAT_RGBA8 || desc.pixel_format == SG_PIXELFORMAT_BGRA8 ||
+        desc.pixel_format == SG_PIXELFORMAT_R8);
+
+    unsigned pixel_size = 1;
+    if (desc.pixel_format == SG_PIXELFORMAT_RGBA8 || desc.pixel_format == SG_PIXELFORMAT_BGRA8)
+        pixel_size = 4;
+    int w          = desc.width;
+    int h          = desc.height * desc.num_slices;
+    int total_size = 0;
+    for (int level = 1; level < SG_MAX_MIPMAPS; ++level)
+    {
+        w /= 2;
+        h /= 2;
+
+        if (w < 1 && h < 1)
+            break;
+
+        total_size += (w * h * pixel_size);
+    }
+
+    int cube_faces = 0;
+    for (; cube_faces < SG_CUBEFACE_NUM; ++cube_faces)
+    {
+        if (!desc.data.subimage[cube_faces][0].ptr)
+            break;
+    }
+
+    total_size                *= (cube_faces + 1);
+    unsigned char* big_target  = xmalloc(total_size);
+    unsigned char* target      = big_target;
+
+    for (int cube_face = 0; cube_face < cube_faces; ++cube_face)
+    {
+        int target_width  = desc.width;
+        int target_height = desc.height;
+        int dst_height    = target_height * desc.num_slices;
+
+        for (int level = 1; level < SG_MAX_MIPMAPS; ++level)
+        {
+            unsigned char* source = (unsigned char*)desc.data.subimage[cube_face][level - 1].ptr;
+            if (!source)
+                break;
+
+            int source_width   = target_width;
+            int source_height  = target_height;
+            target_width      /= 2;
+            target_height     /= 2;
+            if (target_width < 1 && target_height < 1)
+                break;
+
+            if (target_width < 1)
+                target_width = 1;
+
+            if (target_height < 1)
+                target_height = 1;
+
+            dst_height               /= 2;
+            unsigned       img_size   = target_width * dst_height * pixel_size;
+            unsigned char* miptarget  = target;
+
+            for (int slice = 0; slice < desc.num_slices; ++slice)
+            {
+                for (int x = 0; x < target_width; ++x)
+                {
+                    for (int y = 0; y < target_height; ++y)
+                    {
+                        uint16_t colors[8] = {0};
+                        for (int chanell = 0; chanell < pixel_size; ++chanell)
+                        {
+                            int color  = 0;
+                            int sx     = x * 2;
+                            int sy     = y * 2;
+                            color     += source[source_width * pixel_size * sx + sy * pixel_size + chanell];
+                            color     += source[source_width * pixel_size * (sx + 1) + sy * pixel_size + chanell];
+                            color     += source[source_width * pixel_size * (sx + 1) + (sy + 1) * pixel_size + chanell];
+                            color     += source[source_width * pixel_size * sx + (sy + 1) * pixel_size + chanell];
+                            color     /= 4;
+                            miptarget[target_width * pixel_size * (x) + (y)*pixel_size + chanell] = (uint8_t)color;
+                        }
+                    }
+                }
+
+                source    += (source_width * source_height * pixel_size);
+                miptarget += (target_width * target_height * pixel_size);
+            }
+            desc.data.subimage[cube_face][level].ptr   = target;
+            desc.data.subimage[cube_face][level].size  = img_size;
+            target                                    += img_size;
+            if (desc.num_mipmaps <= level)
+                desc.num_mipmaps = level + 1;
+        }
+    }
+
+    sg_image img = sg_make_image(sg, &desc);
+    xfree(big_target);
+    return img;
+}
+
 void* pw_create_gui(void* _plugin, void* _pw)
 {
     CPLUG_LOG_ASSERT(_plugin);
@@ -407,6 +510,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
         {
             // stbi_set_unpremultiply_on_load(1);
             // stbi_convert_iphone_png_to_rgb(1);
+            stbi_set_flip_vertically_on_load(1);
 
             int      x = 0, y = 0, comp = 0;
             stbi_uc* img_buf = stbi_load_from_memory(file_data, file_data_len, &x, &y, &comp, 4);
@@ -423,13 +527,15 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
                 // xassert(gui->logo_img_id);
 
-                gui->logo_img = sg_make_image(
+                gui->logo_img = sg_make_image_with_mipmaps(
                     gui->sg,
                     &(sg_image_desc){
-                        .width  = x,
-                        .height = y,
-                        // .num_mipmaps         = 4,
-                        .pixel_format        = SG_PIXELFORMAT_RGBA8,
+                        .width        = x,
+                        .height       = y,
+                        .num_mipmaps  = 2,
+                        .num_slices   = 1,
+                        .pixel_format = SG_PIXELFORMAT_RGBA8,
+
                         .data.subimage[0][0] = {
                             .ptr  = img_buf,
                             .size = x * y * comp,
