@@ -145,6 +145,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
         while (tail != head)
         {
             CplugEvent event = p->queue_audio_events[tail];
+            tail++;
+            tail &= EVENT_QUEUE_MASK;
 
             switch (event.type)
             {
@@ -193,9 +195,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 break;
             }
             }
-
-            tail++;
-            tail &= EVENT_QUEUE_MASK;
         }
         cplug_atomic_exchange_i32(&p->queue_audio_tail, tail);
     }

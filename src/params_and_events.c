@@ -93,7 +93,7 @@ void param_change_begin(Plugin* p, ParamID id)
     e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_BEGIN;
     e.parameter.id   = id;
 
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
         send_to_audio_event_queue(p, e);
     else
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
@@ -106,7 +106,7 @@ void param_change_end(Plugin* p, ParamID id)
     CplugEvent e     = {0};
     e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_END;
     e.parameter.id   = id;
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
         send_to_audio_event_queue(p, e);
     else
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
@@ -127,7 +127,7 @@ void param_change_update(Plugin* p, ParamID id, double value)
     e.parameter.type  = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
     e.parameter.id    = id;
     e.parameter.value = value;
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
     {
         send_to_audio_event_queue(p, e);
     }
@@ -162,6 +162,14 @@ void main_set_param(Plugin* p, ParamID id, double value)
     p->main_params[id] = value;
 }
 
+double main_get_param(Plugin* p, ParamID id)
+{
+    // println("%s %s", __FUNCTION__, PARAM_STR[id]);
+    CPLUG_LOG_ASSERT(is_main_thread());
+    CPLUG_LOG_ASSERT(id >= 0 && id < NUM_PARAMS);
+    return p->main_params[id];
+}
+
 void audio_set_param(Plugin* p, ParamID id, double value)
 {
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
@@ -174,7 +182,7 @@ void main_notify_host_param_change(Plugin* p, ParamID id, double value)
 {
     CPLUG_LOG_ASSERT(is_main_thread());
     CplugEvent event = {.parameter.id = id, .parameter.value = value};
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
     {
         event.type = EVENT_SET_PARAMETER_NOTIFYING_HOST;
         send_to_audio_event_queue(p, event);
@@ -190,6 +198,37 @@ void main_notify_host_param_change(Plugin* p, ParamID id, double value)
         event.type = CPLUG_EVENT_PARAM_CHANGE_END;
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &event);
     }
+}
+
+void main_dequeue_events(Plugin* p)
+{
+    CPLUG_LOG_ASSERT(is_main_thread());
+    uint32_t head = xt_atomic_load_u32(&p->queue_main_head) & EVENT_QUEUE_MASK;
+    uint32_t tail = p->queue_main_tail;
+
+    while (tail != head)
+    {
+        CplugEvent* event = &p->queue_main_events[tail];
+
+        switch (event->type)
+        {
+        case CPLUG_EVENT_PARAM_CHANGE_UPDATE:
+        case EVENT_SET_PARAMETER:
+        case EVENT_SET_PARAMETER_NOTIFYING_HOST:
+            main_set_param(p, event->parameter.id, event->parameter.value);
+            if (event->type == EVENT_SET_PARAMETER_NOTIFYING_HOST)
+                main_notify_host_param_change(p, event->parameter.id, event->parameter.value);
+            break;
+
+        default:
+            println("[MAIN] Unhandled event in main queue: %u", event->type);
+            break;
+        }
+
+        tail++;
+        tail &= EVENT_QUEUE_MASK;
+    }
+    p->queue_main_tail = tail;
 }
 
 uint32_t cplug_getNumParameters(void*) { return NUM_PARAMS; }
@@ -260,7 +299,6 @@ double cplug_getParameterValue(void* _p, uint32_t paramId)
 // [hopefully audio thread] VST3 & AU only
 void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
 {
-    // println("%s %s %f", __FUNCTION__, PARAM_STR[paramId], value);
     Plugin* p = _p;
     if (value < 0)
         value = 0;
@@ -272,12 +310,14 @@ void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
     e.parameter.value = value;
     if (is_main_thread())
     {
+        // println("[main] %s %s %f", __FUNCTION__, PARAM_STR[paramId], value);
         main_set_param(p, paramId, value);
         e.type = EVENT_SET_PARAMETER;
         send_to_audio_event_queue(p, e);
     }
     else
     {
+        // println("[audio] %s %s %f", __FUNCTION__, PARAM_STR[paramId], value);
         audio_set_param(p, paramId, value);
         e.type = EVENT_SET_PARAMETER;
         send_to_main_event_queue(p, e);

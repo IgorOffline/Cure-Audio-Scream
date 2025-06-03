@@ -52,6 +52,10 @@ typedef struct Plugin
     xt_atomic_float gui_osc_phase;
     xt_atomic_float gui_osc_midi;
 
+    // Used by a temporary hack until Ableton fixes its bug where it updates the plugin with old paramter values while
+    // dragging parameters
+    bool is_ableton_vst3;
+
     double main_params[NUM_PARAMS];
     double audio_params[NUM_PARAMS];
 

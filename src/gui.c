@@ -94,46 +94,6 @@ static const NVGcolour COLOUR_BG_DARK  = nvgHexColour(0x151B32FF);
 static const NVGcolour COLOUR_GREY_1 = nvgHexColour(0xB5BEC7FF);
 static const NVGcolour COLOUR_GREY_2 = nvgHexColour(0x636A78FF);
 
-void main_set_param(Plugin* p, ParamID id, double value);
-void main_notify_host_param_change(Plugin* p, ParamID id, double value);
-void main_dequeue_events(Plugin* p)
-{
-    CPLUG_LOG_ASSERT(is_main_thread());
-    uint32_t head = xt_atomic_load_u32(&p->queue_main_head) & EVENT_QUEUE_MASK;
-    uint32_t tail = p->queue_main_tail;
-
-    if (p->gui)
-    {
-        GUI* gui = p->gui;
-        if (head != tail)
-            gui->imgui.num_duplicate_backbuffers = 0;
-    }
-
-    while (tail != head)
-    {
-        CplugEvent* event = &p->queue_main_events[tail];
-
-        switch (event->type)
-        {
-        case CPLUG_EVENT_PARAM_CHANGE_UPDATE:
-        case EVENT_SET_PARAMETER:
-        case EVENT_SET_PARAMETER_NOTIFYING_HOST:
-            main_set_param(p, event->parameter.id, event->parameter.value);
-            if (event->type == EVENT_SET_PARAMETER_NOTIFYING_HOST)
-                main_notify_host_param_change(p, event->parameter.id, event->parameter.value);
-            break;
-
-        default:
-            println("[MAIN] Unhandled event in main queue: %u", event->type);
-            break;
-        }
-
-        tail++;
-        tail &= EVENT_QUEUE_MASK;
-    }
-    p->queue_main_tail = tail;
-}
-
 static void my_sg_logger(
     const char* tag,              // always "sapp"
     uint32_t    log_level,        // 0=panic, 1=error, 2=warning, 3=info
@@ -183,77 +143,6 @@ void pw_get_info(struct PWGetInfo* info)
         info->constrain_size.width  = width;
         info->constrain_size.height = height;
     }
-}
-
-double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float drag_range_px)
-{
-    imgui_context* im      = &gui->imgui;
-    double         value_d = gui->plugin->main_params[param_id];
-    float          value_f = value_d;
-
-    if (events & IMGUI_EVENT_MOUSE_ENTER)
-        pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
-    if ((events & IMGUI_EVENT_MOUSE_EXIT) && im->mouse_over_id == 0)
-        pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
-
-    if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-    {
-        if (im->left_click_counter == 2)
-        {
-            im->left_click_counter = 0; // single and triple click not supported
-
-            value_d = value_f = cplug_getDefaultParameterValue(gui->plugin, param_id);
-            param_set(gui->plugin, param_id, value_d);
-        }
-    }
-
-    if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_TOUCHPAD_BEGIN))
-        param_change_begin(gui->plugin, param_id);
-    if (events & IMGUI_EVENT_DRAG_MOVE)
-    {
-        float next_value = value_f;
-        imgui_drag_value(im, &next_value, 0, 1, drag_range_px, IMGUI_DRAG_VERTICAL);
-        bool changed = value_f != next_value;
-        if (changed)
-        {
-            value_d = value_f = next_value;
-            param_change_update(gui->plugin, param_id, value_d);
-        }
-    }
-    if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
-    {
-        float delta = im->mouse_touchpad.y / drag_range_px;
-        if (im->mouse_touchpad_mods & PW_MOD_INVERTED_SCROLL)
-            delta = -delta;
-        if (im->mouse_touchpad_mods & PW_MOD_PLATFORM_KEY_CTRL)
-            delta *= 0.1f;
-        if (im->mouse_touchpad_mods & PW_MOD_KEY_SHIFT)
-            delta *= 0.1f;
-
-        float next_value = xm_clampf(value_f + delta, 0, 1);
-
-        bool changed = value_f != next_value;
-        if (changed)
-        {
-            value_d = value_f = next_value;
-            param_change_update(gui->plugin, param_id, value_d);
-        }
-    }
-    if (events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
-        param_change_end(gui->plugin, param_id);
-    if (events & IMGUI_EVENT_MOUSE_WHEEL)
-    {
-        double delta = im->mouse_wheel * 0.1;
-        if (im->mouse_wheel_mods & PW_MOD_PLATFORM_KEY_CTRL)
-            delta *= 0.1;
-        if (im->mouse_wheel_mods & PW_MOD_KEY_SHIFT)
-            delta *= 0.1;
-
-        double v  = gui->plugin->main_params[param_id];
-        v        += delta;
-        param_set(gui->plugin, param_id, v);
-    }
-    return value_d;
 }
 
 // Source: https://github.com/floooh/sokol/issues/102
@@ -376,6 +265,15 @@ void* pw_create_gui(void* _plugin, void* _pw)
     gui->plugin = p;
     gui->pw     = _pw;
     p->gui      = gui;
+
+    {
+        char name[128] = {0};
+        p->cplug_ctx->getHostName(p->cplug_ctx, name, sizeof(name)); // eg. "Ableton 12.1.1"
+        int ret = strncmp(name, "Ableton", ARRLEN("Ableton") - 1);   // Ignore version number
+
+        const bool is_ableton = ret == 0;
+        p->is_ableton_vst3    = is_ableton && p->cplug_ctx->type == CPLUG_PLUGIN_IS_VST3;
+    }
 
     sg_environment env;
     memset(&env, 0, sizeof(env));
@@ -627,79 +525,82 @@ bool pw_event(const PWEvent* event)
     return false;
 }
 
-// Autogenerated using assets/svg_to_nvg.py
-void draw_cure_audio_logo_fixed_svg(NVGcontext* nvg, const float scale, float x, float y)
+double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float drag_range_px)
 {
-    // clang-format off
-    nvgBeginPath(nvg);
-    nvgPathWinding(nvg, NVG_CCW);
-    nvgMoveTo(nvg, x + scale * 82.8352f, y + scale * 236.4f);
-    nvgBezierTo(nvg, x + scale * 101.235f, y + scale * 245.2f, x + scale * 121.102f, y + scale * 243.467f, x + scale * 134.569f, y + scale * 232.0f);
-    nvgBezierTo(nvg, x + scale * 150.302f, y + scale * 218.534f, x + scale * 158.968f, y + scale * 194.133f, x + scale * 159.102f, y + scale * 162.8f);
-    nvgBezierTo(nvg, x + scale * 159.235f, y + scale * 130.8f, x + scale * 152.568f, y + scale * 102.666f, x + scale * 137.635f, y + scale * 72.3997f);
-    nvgBezierTo(nvg, x + scale * 128.035f, y + scale * 52.9332f, x + scale * 119.768f, y + scale * 41.3333f, x + scale * 105.102f, y + scale * 26.5335f);
-    nvgBezierTo(nvg, x + scale * 93.7685f, y + scale * 15.3335f, x + scale * 89.7683f, y + scale * 12.1333f, x + scale * 79.9016f, y + scale * 7.33328f);
-    nvgBezierTo(nvg, x + scale * 68.835f, y + scale * 1.86663f, x + scale * 67.2349f, y + scale * 1.46668f, x + scale * 55.9016f, y + scale * 1.06668f);
-    nvgBezierTo(nvg, x + scale * 47.6353f, y + scale * 0.800028f, x + scale * 42.0353f, y + scale * 1.33309f, x + scale * 38.5686f, y + scale * 2.66629f);
-    nvgBezierTo(nvg, x + scale * 22.0352f, y + scale * 8.93296f, x + scale * 8.83506f, y + scale * 27.3337f, x + scale * 3.36839f, y + scale * 51.4671f);
-    nvgBezierTo(nvg, x + scale * -0.098177f, y + scale * 66.6671f, x + scale * 0.301637f, y + scale * 98.6663f, x + scale * 4.1682f, y + scale * 116.666f);
-    nvgBezierTo(nvg, x + scale * 16.0349f, y + scale * 172.8f, x + scale * 46.5685f, y + scale * 219.2f, x + scale * 82.8352f, y + scale * 236.4f);
-    nvgClosePath(nvg);
+    imgui_context* im      = &gui->imgui;
+    double         value_d = gui->plugin->main_params[param_id];
+    float          value_f = value_d;
 
-    nvgPathWinding(nvg, NVG_CW);
+    if (events & IMGUI_EVENT_MOUSE_ENTER)
+        pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
+    if ((events & IMGUI_EVENT_MOUSE_EXIT) && im->mouse_over_id == 0)
+        pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
 
-    nvgMoveTo(nvg, x + scale * 133.635f, y + scale * 141.067f);
-    nvgBezierTo(nvg, x + scale * 133.635f, y + scale * 141.6f, x + scale * 122.302f, y + scale * 136.267f, x + scale * 108.302f, y + scale * 129.333f);
-    nvgBezierTo(nvg, x + scale * 94.4357f, y + scale * 122.4f, x + scale * 82.3023f, y + scale * 117.067f, x + scale * 81.3684f, y + scale * 117.333f);
-    nvgBezierTo(nvg, x + scale * 79.9017f, y + scale * 117.867f, x + scale * 78.9679f, y + scale * 113.333f, x + scale * 77.2346f, y + scale * 97.0667f);
-    nvgBezierTo(nvg, x + scale * 74.7013f, y + scale * 75.4668f, x + scale * 73.3679f, y + scale * 70.6664f, x + scale * 69.2346f, y + scale * 68.1331f);
-    nvgBezierTo(nvg, x + scale * 67.3682f, y + scale * 66.9334f, x + scale * 66.4351f, y + scale * 67.2006f, x + scale * 64.8352f, y + scale * 69.2005f);
-    nvgBezierTo(nvg, x + scale * 62.9687f, y + scale * 71.7336f, x + scale * 62.968f, y + scale * 71.7333f, x + scale * 62.968f, y + scale * 68.5335f);
-    nvgBezierTo(nvg, x + scale * 62.968f, y + scale * 66.8001f, x + scale * 62.3017f, y + scale * 59.7334f, x + scale * 61.635f, y + scale * 52.8001f);
-    nvgBezierTo(nvg, x + scale * 60.7017f, y + scale * 42.8003f, x + scale * 59.9015f, y + scale * 39.7337f, x + scale * 57.635f, y + scale * 37.4671f);
-    nvgBezierTo(nvg, x + scale * 55.5488f, y + scale * 35.4976f, x + scale * 53.7408f, y + scale * 35.7614f, x + scale * 52.4348f, y + scale * 37.4671f);
-    nvgBezierTo(nvg, x + scale * 50.7016f, y + scale * 39.6008f, x + scale * 49.3683f, y + scale * 46.9344f, x + scale * 47.1018f, y + scale * 66.8001f);
-    nvgBezierTo(nvg, x + scale * 45.5018f, y + scale * 81.3334f, x + scale * 43.7684f, y + scale * 96.2669f, x + scale * 43.3684f, y + scale * 100.0f);
-    nvgLineTo(nvg, x + scale * 41.8821f, y + scale * 111.0f);
-    nvgLineTo(nvg, x + scale * 40.302f, y + scale * 84.6663f);
-    nvgBezierTo(nvg, x + scale * 38.8353f, y + scale * 63.8667f, x + scale * 37.7682f, y + scale * 59.3333f, x + scale * 34.1682f, y + scale * 59.3333f);
-    nvgBezierTo(nvg, x + scale * 31.7683f, y + scale * 59.3334f, x + scale * 30.4349f, y + scale * 62.8003f, x + scale * 27.635f, y + scale * 77.0667f);
-    nvgLineTo(nvg, x + scale * 25.3684f, y + scale * 88.5335f);
-    nvgLineTo(nvg, x + scale * 8.03538f, y + scale * 80.0003f);
-    nvgLineTo(nvg, x + scale * 8.83519f, y + scale * 70.6663f);
-    nvgBezierTo(nvg, x + scale * 10.702f, y + scale * 48.1332f, x + scale * 20.8352f, y + scale * 29.9996f, x + scale * 35.3684f, y + scale * 22.6663f);
-    nvgBezierTo(nvg, x + scale * 44.9683f, y + scale * 17.7331f, x + scale * 57.7684f, y + scale * 18.3998f, x + scale * 69.9016f, y + scale * 24.3997f);
-    nvgBezierTo(nvg, x + scale * 94.1683f, y + scale * 36.3997f, x + scale * 118.168f, y + scale * 70.6671f, x + scale * 127.635f, y + scale * 107.467f);
-    nvgBezierTo(nvg, x + scale * 129.502f, y + scale * 114.534f, x + scale * 133.502f, y + scale * 137.2f, x + scale * 133.635f, y + scale * 141.067f);
+    if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+    {
+        if (im->left_click_counter == 2)
+        {
+            im->left_click_counter = 0; // single and triple click not supported
 
-    nvgMoveTo(nvg, x + scale * 90.968f, y + scale * 213.333f);
-    nvgBezierTo(nvg, x + scale * 82.4351f, y + scale * 213.333f, x + scale * 79.6349f, y + scale * 212.667f, x + scale * 72.302f, y + scale * 209.2f);
-    nvgBezierTo(nvg, x + scale * 46.9687f, y + scale * 196.934f, x + scale * 25.2348f, y + scale * 166.267f, x + scale * 14.4348f, y + scale * 128.0f);
-    nvgBezierTo(nvg, x + scale * 11.1015f, y + scale * 116.534f, x + scale * 6.70159f, y + scale * 92.6663f, x + scale * 7.90159f, y + scale * 92.6663f);
-    nvgBezierTo(nvg, x + scale * 8.16857f, y + scale * 92.6665f, x + scale * 13.1021f, y + scale * 95.3331f, x + scale * 18.8352f, y + scale * 98.6663f);
-    nvgBezierTo(nvg, x + scale * 24.5685f, y + scale * 102.0f, x + scale * 29.5016f, y + scale * 104.666f, x + scale * 29.9016f, y + scale * 104.666f);
-    nvgBezierTo(nvg, x + scale * 30.9366f, y + scale * 105.202f, x + scale * 31.59f, y + scale * 103.479f, x + scale * 31.7678f, y + scale * 100.934f);
-    nvgBezierTo(nvg, x + scale * 32.4345f, y + scale * 98.5339f, x + scale * 33.5013f, y + scale * 106.667f, x + scale * 34.968f, y + scale * 125.6f);
-    nvgBezierTo(nvg, x + scale * 36.7013f, y + scale * 146.799f, x + scale * 37.768f, y + scale * 154.666f, x + scale * 39.5012f, y + scale * 157.333f);
-    nvgBezierTo(nvg, x + scale * 42.1679f, y + scale * 161.467f, x + scale * 45.3682f, y + scale * 161.6f, x + scale * 46.1682f, y + scale * 157.6f);
-    nvgBezierTo(nvg, x + scale * 47.1016f, y + scale * 153.066f, x + scale * 53.6342f, y + scale * 101.736f, x + scale * 53.7678f, y + scale * 98.0003f);
-    nvgBezierTo(nvg, x + scale * 53.9011f, y + scale * 94.9337f, x + scale * 54.0345f, y + scale * 94.9335f, x + scale * 55.7678f, y + scale * 99.0667f);
-    nvgBezierTo(nvg, x + scale * 58.0344f, y + scale * 104.4f, x + scale * 61.3683f, y + scale * 106.0f, x + scale * 63.635f, y + scale * 102.934f);
-    nvgBezierTo(nvg, x + scale * 66.1683f, y + scale * 99.4672f, x + scale * 66.968f, y + scale * 100.267f, x + scale * 66.968f, y + scale * 106.267f);
-    nvgBezierTo(nvg, x + scale * 66.968f, y + scale * 109.467f, x + scale * 68.1684f, y + scale * 121.867f, x + scale * 69.635f, y + scale * 134.0f);
-    nvgBezierTo(nvg, x + scale * 72.3016f, y + scale * 156.267f, x + scale * 73.6351f, y + scale * 160.266f, x + scale * 79.3684f, y + scale * 163.866f);
-    nvgBezierTo(nvg, x + scale * 82.7017f, y + scale * 166.0f, x + scale * 83.9018f, y + scale * 164.0f, x + scale * 87.1018f, y + scale * 151.333f);
-    nvgBezierTo(nvg, x + scale * 88.5684f, y + scale * 145.067f, x + scale * 90.0349f, y + scale * 139.867f, x + scale * 90.1682f, y + scale * 139.6f);
-    nvgBezierTo(nvg, x + scale * 90.4356f, y + scale * 139.467f, x + scale * 99.3687f, y + scale * 144.4f, x + scale * 110.168f, y + scale * 150.666f);
-    nvgBezierTo(nvg, x + scale * 120.968f, y + scale * 156.933f, x + scale * 130.435f, y + scale * 162.0f, x + scale * 131.102f, y + scale * 162.0f);
-    nvgBezierTo(nvg, x + scale * 132.835f, y + scale * 162.001f, x + scale * 132.568f, y + scale * 166.534f, x + scale * 130.168f, y + scale * 175.734f);
-    nvgBezierTo(nvg, x + scale * 126.035f, y + scale * 191.6f, x + scale * 117.101f, y + scale * 204.8f, x + scale * 106.435f, y + scale * 210.4f);
-    nvgBezierTo(nvg, x + scale * 102.301f, y + scale * 212.533f, x + scale * 98.568f, y + scale * 213.333f, x + scale * 90.968f, y + scale * 213.333f);
-    // nvgClosePath(nvg);
+            value_d = value_f = cplug_getDefaultParameterValue(gui->plugin, param_id);
+            param_set(gui->plugin, param_id, value_d);
+        }
+    }
 
-    nvgFill(nvg);
-    nvgPathWinding(nvg, NVG_CCW);
-    // clang-format on
+    if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_TOUCHPAD_BEGIN))
+    {
+        println("Begin drag: %d %f", param_id, value_f);
+        param_change_begin(gui->plugin, param_id);
+    }
+    if (events & IMGUI_EVENT_DRAG_MOVE)
+    {
+        float next_value = value_f;
+        imgui_drag_value(im, &next_value, 0, 1, drag_range_px, IMGUI_DRAG_VERTICAL);
+        bool changed = value_f != next_value;
+        if (changed)
+        {
+            value_d = value_f = next_value;
+            param_change_update(gui->plugin, param_id, value_d);
+            println("Update drag: %d %f", param_id, value_f);
+        }
+    }
+    if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
+    {
+        float delta = im->mouse_touchpad.y / drag_range_px;
+        if (im->mouse_touchpad_mods & PW_MOD_INVERTED_SCROLL)
+            delta = -delta;
+        if (im->mouse_touchpad_mods & PW_MOD_PLATFORM_KEY_CTRL)
+            delta *= 0.1f;
+        if (im->mouse_touchpad_mods & PW_MOD_KEY_SHIFT)
+            delta *= 0.1f;
+
+        float next_value = xm_clampf(value_f + delta, 0, 1);
+
+        bool changed = value_f != next_value;
+        if (changed)
+        {
+            value_d = value_f = next_value;
+            param_change_update(gui->plugin, param_id, value_d);
+        }
+    }
+    if (events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
+    {
+        println("End drag: %d %f", param_id, value_f);
+        param_change_end(gui->plugin, param_id);
+    }
+    if (events & IMGUI_EVENT_MOUSE_WHEEL)
+    {
+        double delta = im->mouse_wheel * 0.1;
+        if (im->mouse_wheel_mods & PW_MOD_PLATFORM_KEY_CTRL)
+            delta *= 0.1;
+        if (im->mouse_wheel_mods & PW_MOD_KEY_SHIFT)
+            delta *= 0.1;
+
+        double v  = gui->plugin->main_params[param_id];
+        v        += delta;
+        param_set(gui->plugin, param_id, v);
+    }
+    return value_d;
 }
 
 void pw_tick(void* _gui)
@@ -710,7 +611,14 @@ void pw_tick(void* _gui)
     if (!gui || !gui->plugin)
         return;
 
-    main_dequeue_events(gui->plugin);
+    {
+        Plugin*  p    = gui->plugin;
+        uint32_t head = xt_atomic_load_u32(&p->queue_main_head) & EVENT_QUEUE_MASK;
+        uint32_t tail = p->queue_main_tail;
+        if (head != tail)
+            gui->imgui.num_duplicate_backbuffers = 0;
+        main_dequeue_events(gui->plugin);
+    }
 
     // #ifndef NDEBUG
     uint64_t frame_time_start = xtime_now_ns();
@@ -776,7 +684,7 @@ void pw_tick(void* _gui)
 #ifdef __APPLE__
     const float content_scale = dpi * 0.5;
 #else
-    const float content_scale = dpi;
+    const float    content_scale            = dpi;
 #endif
 
     const float height_header = HEIGHT_HEADER * content_scale;
@@ -1486,8 +1394,10 @@ void pw_tick(void* _gui)
             nvgTextAlign(nvg, NVG_ALIGN_BC);
             nvgText(nvg, param_cx, label_b, NAMES[param_id], NULL);
 
+            extern double main_get_param(Plugin * p, ParamID id);
+
             char   label[24];
-            double value = cplug_getParameterValue(gui->plugin, param_id);
+            double value = main_get_param(gui->plugin, param_id);
             cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
             nvgTextAlign(nvg, NVG_ALIGN_TC);
             nvgText(nvg, param_cx, value_y, label, NULL);
