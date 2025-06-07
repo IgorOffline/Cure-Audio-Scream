@@ -254,15 +254,28 @@ elseif(WIN32)
         modules/CPLUG/src/cplug_vst3.c)
     set_target_properties(${PROJECT_NAME}_plugin PROPERTIES
         OUTPUT_NAME ${PROJECT_NAME}_plugin
-        SUFFIX .vst3
         PDB_NAME ${PROJECT_NAME}_plugin
         )
-    add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3 to %LOCALAPPDATA%\\Programs\\Common\\VST3"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3" "%LOCALAPPDATA%\\Programs\\Common\\VST3\\${PROJECT_NAME}.vst3"
 
-        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3 to %LOCALAPPDATA%\\Programs\\Common\\CLAP"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3" "%LOCALAPPDATA%\\Programs\\Common\\CLAP\\${PROJECT_NAME}.clap"
+    set(VST3_BUILD_PATH ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3)
+    add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
+        # https://steinbergmedia.github.io/vst3_dev_portal/pages/Technical+Documentation/Locations+Format/Plugin+Format.html
+        COMMAND ${CMAKE_COMMAND} -E echo "Building VST3"
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${VST3_BUILD_PATH}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${VST3_BUILD_PATH}/Contents"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${VST3_BUILD_PATH}/Contents/x86_64-win"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.dll" "${VST3_BUILD_PATH}/Contents/x86_64-win/${PROJECT_NAME}.vst3"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/assets/PlugIn.ico"                      "${VST3_BUILD_PATH}/PlugIn.ico"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/assets/desktop.ini.in"                  "${VST3_BUILD_PATH}/desktop.ini"
+        COMMAND attrib +s +h ${VST3_BUILD_PATH}/desktop.ini
+        COMMAND attrib +s +h ${VST3_BUILD_PATH}/PlugIn.ico
+        COMMAND attrib +s ${VST3_BUILD_PATH}
+
+        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.vst3 to %LOCALAPPDATA%\\Programs\\Common\\VST3"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory  "${VST3_BUILD_PATH}" "%LOCALAPPDATA%\\Programs\\Common\\VST3\\${PROJECT_NAME}.vst3"
+
+        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.dll to %LOCALAPPDATA%\\Programs\\Common\\CLAP"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.dll" "%LOCALAPPDATA%\\Programs\\Common\\CLAP\\${PROJECT_NAME}.clap"
         )
 endif()
 
