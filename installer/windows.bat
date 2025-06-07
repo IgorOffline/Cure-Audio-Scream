@@ -69,7 +69,8 @@ ECHO F | XCOPY %0\..\..\build\Release\Scream_plugin.pdb %0\..\..\dist\Scream_v%V
 @REM To my knowledge, call strip here does nothing when building with clang.
 @REM Maybe older versions of clang on windows needed symbol stripping,
 @REM but Clang 16 seems to follow MSVC conventions of keeping all the symbols in a .pdb file
-CALL llvm-strip -x %0\..\..\build\Release\Scream_plugin.vst3
+@REM Since this is an open source plugin, none of this matters...
+@REM CALL llvm-strip -x %0\..\..\build\Release\Scream.vst3\Contents\x86_64-win\Scream.vst3
 
 ECHO Building installer
 CALL ISCC.exe /DMyVersion=%VERSION% %0\..\_windows.iss
