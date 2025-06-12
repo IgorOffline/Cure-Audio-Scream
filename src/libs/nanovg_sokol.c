@@ -220,7 +220,7 @@ void main(void) {
 
 */
 
-#include "nanovg_sokol.glsl.h"
+#include <nanovg_sokol.glsl.h>
 
 #if !defined(SGNVG_MALLOC) || !defined(SGNVG_REALLOC) || !defined(SGNVG_FREE)
 #include <stdlib.h>
@@ -253,11 +253,6 @@ struct SGNVGtexture
     uint8_t*   imgData;
 };
 typedef struct SGNVGtexture SGNVGtexture;
-
-enum
-{
-    NVG_IMAGE_DIRTY = 1 << 31, // Should send img buffer to GPU on render pass
-};
 
 struct SGNVGblend
 {
@@ -380,7 +375,6 @@ typedef struct SGNVGpipelineCache SGNVGpipelineCache;
 
 struct SGNVGcontext
 {
-    _sg_state_t*       _sg;
     sg_shader          shader;
     SGNVGtexture*      textures;
     SGNVGvertUniforms  view;
@@ -503,7 +497,7 @@ static int sgnvg__deleteTexture(SGNVGcontext* sg, int id)
         if (tex->id == id)
         {
             if (tex->img.id != 0 && (tex->flags & NVG_IMAGE_NODELETE) == 0)
-                sg_destroy_image(sg->_sg, tex->img);
+                sg_destroy_image(tex->img);
             SGNVG_FREE(tex->imgData);
             memset(tex, 0, sizeof(*tex));
             return 1;
@@ -545,7 +539,6 @@ static void sgnvg__initPipeline(
         write_mask,
         cull_mode);
     sg_init_pipeline(
-        sg->_sg,
         pip,
         &(sg_pipeline_desc){
             .shader = sg->shader,
@@ -629,7 +622,7 @@ static int sgnvg__getIndexFromCache(SGNVGcontext* sg, uint16_t blendNumber)
     // we may have had data already initialized; deinit those
     for (uint32_t type = SGNVG_PIP_BASE; type < SGNVG_PIP_NUM_; type++)
         if (pipelinesActive & (1 << type))
-            sg_uninit_pipeline(sg->_sg, pipelines[type]);
+            sg_uninit_pipeline(pipelines[type]);
     // mark all as inactive
     sg->pipelineCache.pipelinesActive[maxAgeIndex] = 0;
     return maxAgeIndex;
@@ -813,8 +806,8 @@ static void sgnvg__setUniforms(SGNVGcontext* sg, int uniformOffset, int image)
     SGNVG_INTLOG("sgnvg__setUniforms(sg: %p, uniformOffset: %d, image: %d)\n", sg, uniformOffset, image);
     SGNVGtexture*      tex  = NULL;
     SGNVGfragUniforms* frag = nvg__fragUniformPtr(sg, uniformOffset);
-    sg_apply_uniforms(sg->_sg, UB_nanovg_viewSize, &(sg_range){&sg->view, sizeof(sg->view)});
-    sg_apply_uniforms(sg->_sg, UB_nanovg_frag, &(sg_range){frag, sizeof(*frag)});
+    sg_apply_uniforms(UB_nanovg_viewSize, &(sg_range){&sg->view, sizeof(sg->view)});
+    sg_apply_uniforms(UB_nanovg_frag, &(sg_range){frag, sizeof(*frag)});
 
     if (image != 0)
     {
@@ -825,14 +818,12 @@ static void sgnvg__setUniforms(SGNVGcontext* sg, int uniformOffset, int image)
     {
         tex = sgnvg__findTexture(sg, sg->dummyTex);
     }
-    sg_apply_bindings(
-        sg->_sg,
-        &(sg_bindings){
-            .vertex_buffers[0]        = sg->vertBuf,
-            .index_buffer             = sg->indexBuf,
-            .images[IMG_nanovg_tex]   = tex ? tex->img : (sg_image){0},
-            .samplers[SMP_nanovg_smp] = tex ? tex->smp : (sg_sampler){0},
-        });
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers[0]        = sg->vertBuf,
+        .index_buffer             = sg->indexBuf,
+        .images[IMG_nanovg_tex]   = tex ? tex->img : (sg_image){0},
+        .samplers[SMP_nanovg_smp] = tex ? tex->smp : (sg_sampler){0},
+    });
 }
 
 static void
@@ -845,7 +836,7 @@ sgnvg__preparePipelineUniforms(SGNVGcontext* sg, SGNVGpipelineType pipelineType,
         uniformOffset,
         image);
     sg_pipeline pip = sgnvg__getPipelineFromCache(sg, pipelineType);
-    sg_apply_pipeline(sg->_sg, pip);
+    sg_apply_pipeline(pip);
     sgnvg__setUniforms(sg, uniformOffset, image);
 }
 
@@ -861,9 +852,9 @@ static int sgnvg__renderCreate(void* uptr)
     int           align = 4;
 
     // if(sg->flags & NVG_ANTIALIAS)
-    sg->shader = sg_make_shader(sg->_sg, nanovg_sg_shader_desc(sg_query_backend(sg->_sg)));
+    sg->shader = sg_make_shader(nanovg_sg_shader_desc(sg_query_backend()));
     // else
-    // sg->shader = sg_make_shader(sg->_sg, nanovg_sg_shader_desc(sg_query_backend()));
+    // sg->shader = sg_make_shader(nanovg_sg_shader_desc(sg_query_backend()));
     for (int i = 0; i < NANOVG_SG_PIPELINE_CACHE_SIZE; i++)
     {
         for (uint32_t t = 0; t < SGNVG_PIP_NUM_; t++)
@@ -871,7 +862,7 @@ static int sgnvg__renderCreate(void* uptr)
             // only allocate pipelines if correct flags are set
             if (!sgnvg__pipelineTypeIsInUse(sg, (SGNVGpipelineType)t))
                 continue;
-            sg->pipelineCache.pipelines[i][t] = sg_alloc_pipeline(sg->_sg);
+            sg->pipelineCache.pipelines[i][t] = sg_alloc_pipeline();
         }
     }
 
@@ -885,8 +876,8 @@ static int sgnvg__renderCreate(void* uptr)
         .op_alpha         = SG_BLENDOP_ADD,
     };
 
-    sg->vertBuf  = sg_alloc_buffer(sg->_sg);
-    sg->indexBuf = sg_alloc_buffer(sg->_sg);
+    sg->vertBuf  = sg_alloc_buffer();
+    sg->indexBuf = sg_alloc_buffer();
 
     sg->fragSize = sizeof(SGNVGfragUniforms) + (align - sizeof(SGNVGfragUniforms) % align) % align;
 
@@ -944,38 +935,35 @@ static int sgnvg__renderCreateTexture(void* uptr, int type, int w, int h, int im
         // TODO mipmaps
         .subimage[0][0] = {data, w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1)},
     };
-    tex->img = sg_make_image(
-        sg->_sg,
-        &(sg_image_desc){
+    tex->img     = sg_make_image(&(sg_image_desc){
             .type = SG_IMAGETYPE_2D,
-            //.render_target
-            .width        = w,
-            .height       = h,
-            .num_mipmaps  = 1, // TODO mipmaps
-            .usage        = immutable ? SG_USAGE_IMMUTABLE : SG_USAGE_DYNAMIC,
-            .pixel_format = type == NVG_TEXTURE_RGBA ? SG_PIXELFORMAT_RGBA8 : SG_PIXELFORMAT_R8,
-            .data         = ((imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data) ? imageData
-                                                                                : (sg_image_data){.subimage[0][0] = {NULL, 0}},
-            .label        = "nanovg.image[]",
-        });
+        //.render_target
+            .width                = w,
+            .height               = h,
+            .num_mipmaps          = 1, // TODO mipmaps
+            .usage.immutable      = immutable,
+            .usage.dynamic_update = !immutable,
+            .pixel_format         = type == NVG_TEXTURE_RGBA ? SG_PIXELFORMAT_RGBA8 : SG_PIXELFORMAT_R8,
+            .data                 = ((imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data) ? imageData
+                                                                                        : (sg_image_data){.subimage[0][0] = {NULL, 0}},
+            .label                = "nanovg.image[]",
+    });
     tex->imgData = SGNVG_MALLOC(w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
     if (data != NULL)
     {
         memcpy(tex->imgData, data, w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
     }
-    tex->smp = sg_make_sampler(
-        sg->_sg,
-        &(sg_sampler_desc){
-            .min_filter    = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
-                                 ? _SG_FILTER_DEFAULT
-                                 : (imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR),
-            .mipmap_filter = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
-                                 ? (imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR)
-                                 : _SG_FILTER_DEFAULT,
-            .mag_filter    = imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR,
-            .wrap_u        = imageFlags & NVG_IMAGE_REPEATX ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
-            .wrap_v        = imageFlags & NVG_IMAGE_REPEATY ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
-        });
+    tex->smp = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter    = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
+                             ? _SG_FILTER_DEFAULT
+                             : (imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR),
+        .mipmap_filter = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
+                             ? (imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR)
+                             : _SG_FILTER_DEFAULT,
+        .mag_filter    = imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR,
+        .wrap_u        = imageFlags & NVG_IMAGE_REPEATX ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
+        .wrap_v        = imageFlags & NVG_IMAGE_REPEATY ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
+    });
 
     return tex->id;
 }
@@ -1027,8 +1015,6 @@ static int sgnvg__renderUpdateTexture(void* uptr, int image, int x0, int y0, int
             src += srcLineInBytes;
             dst += dstLineInBytes;
         }
-
-        tex->flags |= NVG_IMAGE_DIRTY;
     }
 
     return 1;
@@ -1192,18 +1178,18 @@ static void sgnvg__fill(SGNVGcontext* sg, SGNVGcall* call)
 
     sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_FILL_STENCIL, call->uniformOffset, 0);
     for (i = 0; i < npaths; i++)
-        sg_draw(sg->_sg, paths[i].fillOffset, paths[i].fillCount, 1);
+        sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
 
     // if (sg->flags & NVG_ANTIALIAS) {
     sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_FILL_ANTIALIAS, call->uniformOffset + sg->fragSize, call->image);
     // Draw fringes
     for (i = 0; i < npaths; i++)
-        sg_draw(sg->_sg, paths[i].strokeOffset, paths[i].strokeCount, 1);
+        sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
     // }
 
     // Draw fill
     sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_FILL_DRAW, call->uniformOffset + sg->fragSize, call->image);
-    sg_draw(sg->_sg, call->triangleOffset, call->triangleCount, 1);
+    sg_draw(call->triangleOffset, call->triangleCount, 1);
 }
 
 static void sgnvg__convexFill(SGNVGcontext* sg, SGNVGcall* call)
@@ -1215,11 +1201,11 @@ static void sgnvg__convexFill(SGNVGcontext* sg, SGNVGcall* call)
     sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_BASE, call->uniformOffset, call->image);
     for (i = 0; i < npaths; i++)
     {
-        sg_draw(sg->_sg, paths[i].fillOffset, paths[i].fillCount, 1);
+        sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
         // Draw fringes
         if (paths[i].strokeCount > 0)
         {
-            sg_draw(sg->_sg, paths[i].strokeOffset, paths[i].strokeCount, 1);
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
         }
     }
 }
@@ -1238,17 +1224,17 @@ static void sgnvg__stroke(SGNVGcontext* sg, SGNVGcall* call)
             call->uniformOffset + sg->fragSize,
             call->image);
         for (i = 0; i < npaths; i++)
-            sg_draw(sg->_sg, paths[i].strokeOffset, paths[i].strokeCount, 1);
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
 
         // Draw anti-aliased pixels.
         sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_STROKE_STENCIL_ANTIALIAS, call->uniformOffset, call->image);
         for (i = 0; i < npaths; i++)
-            sg_draw(sg->_sg, paths[i].strokeOffset, paths[i].strokeCount, 1);
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
 
         // Clear stencil buffer.
         sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_STROKE_STENCIL_CLEAR, call->uniformOffset, 0);
         for (i = 0; i < npaths; i++)
-            sg_draw(sg->_sg, paths[i].strokeOffset, paths[i].strokeCount, 1);
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
 
         //		sgnvg__convertPaint(sg, nvg__fragUniformPtr(sg, call->uniformOffset + sg->fragSize), paint,
         // scissor, strokeWidth, fringe, 1.0f - 0.5f/255.0f);
@@ -1258,7 +1244,7 @@ static void sgnvg__stroke(SGNVGcontext* sg, SGNVGcall* call)
         sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_BASE, call->uniformOffset, call->image);
         // Draw Strokes
         for (i = 0; i < npaths; i++)
-            sg_draw(sg->_sg, paths[i].strokeOffset, paths[i].strokeCount, 1);
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
     }
 }
 
@@ -1266,7 +1252,7 @@ static void sgnvg__triangles(SGNVGcontext* sg, SGNVGcall* call)
 {
     SGNVG_INTLOG("sgnvg__triangles(sg: %p, call: %p)\n", sg, call);
     sgnvg__preparePipelineUniforms(sg, SGNVG_PIP_BASE, call->uniformOffset, call->image);
-    sg_draw(sg->_sg, call->triangleOffset, call->triangleCount, 1);
+    sg_draw(call->triangleOffset, call->triangleCount, 1);
 }
 
 static void sgnvg__renderCancel(void* uptr)
@@ -1340,18 +1326,17 @@ static void sgnvg__renderFlush(void* uptr)
     {
         if (sg->textures[i].id != 0)
         {
+            // sgnvg__flushTexture(&sg->textures[i]);
+
             SGNVGtexture* tex = &sg->textures[i];
 
-            if (tex->flags & NVG_IMAGE_DIRTY)
-            {
-                tex->flags ^= NVG_IMAGE_DIRTY;
-                SGNVG_INTLOG("sgnvg__flushTexture(%p -> tex->id: %d, tex->img: 0x%0X)\n", tex, tex->id, tex->img.id);
-                const sg_range img_range = {
-                    tex->imgData,
-                    tex->width * tex->height * (tex->type == NVG_TEXTURE_RGBA ? 4 : 1)};
-                const sg_image_data imgdata = {.subimage[0][0] = img_range};
-                sg_update_image(sg->_sg, tex->img, &imgdata);
-            }
+            SGNVG_INTLOG("sgnvg__flushTexture(%p -> tex->id: %d, tex->img: 0x%0X)\n", tex, tex->id, tex->img.id);
+            sg_update_image(
+                tex->img,
+                &(sg_image_data){
+                    .subimage[0][0] =
+                        {tex->imgData, tex->width * tex->height * (tex->type == NVG_TEXTURE_RGBA ? 4 : 1)},
+                });
         }
     }
 
@@ -1360,38 +1345,36 @@ static void sgnvg__renderFlush(void* uptr)
         if (sg->cverts_gpu < sg->nverts) // resize GPU vertex buffer
         {
             if (sg->cverts_gpu) // delete old buffer if necessary
-                sg_uninit_buffer(sg->_sg, sg->vertBuf);
+                sg_uninit_buffer(sg->vertBuf);
             sg->cverts_gpu = sg->cverts;
             sg_init_buffer(
-                sg->_sg,
                 sg->vertBuf,
                 &(sg_buffer_desc){
-                    .size  = sg->cverts_gpu * sizeof(*sg->verts),
-                    .type  = SG_BUFFERTYPE_VERTEXBUFFER,
-                    .usage = SG_USAGE_STREAM,
-                    .label = "nanovg.vertBuf",
+                    .size                = sg->cverts_gpu * sizeof(*sg->verts),
+                    .usage.vertex_buffer = true,
+                    .usage.stream_update = true,
+                    .label               = "nanovg.vertBuf",
                 });
         }
         // upload vertex data
-        sg_update_buffer(sg->_sg, sg->vertBuf, &(sg_range){sg->verts, sg->nverts * sizeof(*sg->verts)});
+        sg_update_buffer(sg->vertBuf, &(sg_range){sg->verts, sg->nverts * sizeof(*sg->verts)});
 
         if (sg->cindexes_gpu < sg->nindexes) // resize GPU index buffer
         {
             if (sg->cindexes_gpu) // delete old buffer if necessary
-                sg_uninit_buffer(sg->_sg, sg->indexBuf);
+                sg_uninit_buffer(sg->indexBuf);
             sg->cindexes_gpu = sg->cindexes;
             sg_init_buffer(
-                sg->_sg,
                 sg->indexBuf,
                 &(sg_buffer_desc){
-                    .size  = sg->cindexes_gpu * sizeof(*sg->indexes),
-                    .type  = SG_BUFFERTYPE_INDEXBUFFER,
-                    .usage = SG_USAGE_STREAM,
-                    .label = "nanovg.indexBuf",
+                    .size                = sg->cindexes_gpu * sizeof(*sg->indexes),
+                    .usage.index_buffer  = true,
+                    .usage.stream_update = true,
+                    .label               = "nanovg.indexBuf",
                 });
         }
         // upload index data
-        sg_update_buffer(sg->_sg, sg->indexBuf, &(sg_range){sg->indexes, sg->nindexes * sizeof(*sg->indexes)});
+        sg_update_buffer(sg->indexBuf, &(sg_range){sg->indexes, sg->nindexes * sizeof(*sg->indexes)});
 
         for (i = 0; i < sg->ncalls; i++)
         {
@@ -1913,7 +1896,7 @@ static void sgnvg__renderDelete(void* uptr)
     if (sg == NULL)
         return;
 
-    sg_destroy_shader(sg->_sg, sg->shader);
+    sg_destroy_shader(sg->shader);
 
     for (i = 0; i < NANOVG_SG_PIPELINE_CACHE_SIZE; i++)
     {
@@ -1923,24 +1906,24 @@ static void sgnvg__renderDelete(void* uptr)
             if (!sgnvg__pipelineTypeIsInUse(sg, (SGNVGpipelineType)t))
                 continue;
             if (sg->pipelineCache.pipelinesActive[i] & (1 << t))
-                sg_uninit_pipeline(sg->_sg, sg->pipelineCache.pipelines[i][t]);
-            sg_dealloc_pipeline(sg->_sg, sg->pipelineCache.pipelines[i][t]);
+                sg_uninit_pipeline(sg->pipelineCache.pipelines[i][t]);
+            sg_dealloc_pipeline(sg->pipelineCache.pipelines[i][t]);
         }
     }
 
     if (sg->cverts_gpu)
-        sg_uninit_buffer(sg->_sg, sg->vertBuf);
-    sg_dealloc_buffer(sg->_sg, sg->vertBuf);
+        sg_uninit_buffer(sg->vertBuf);
+    sg_dealloc_buffer(sg->vertBuf);
 
     if (sg->cindexes_gpu)
-        sg_uninit_buffer(sg->_sg, sg->indexBuf);
-    sg_dealloc_buffer(sg->_sg, sg->indexBuf);
+        sg_uninit_buffer(sg->indexBuf);
+    sg_dealloc_buffer(sg->indexBuf);
 
     sgnvg__renderDeleteTexture(sg, sg->dummyTex);
     for (i = 0; i < sg->ntextures; i++)
     {
         if (sg->textures[i].img.id != 0 && (sg->textures[i].flags & NVG_IMAGE_NODELETE) == 0)
-            sg_destroy_image(sg->_sg, sg->textures[i].img);
+            sg_destroy_image(sg->textures[i].img);
     }
 
     if (sg->textures)
@@ -1971,7 +1954,7 @@ static void sgnvg__renderDelete(void* uptr)
     SGNVG_FREE(sg);
 }
 
-NVGcontext* nvgCreateSokol(_sg_state_t* _sg, int flags)
+NVGcontext* nvgCreateSokol(int flags)
 {
     SGNVG_EXTLOG("nvgCreateSokol(flags: %d)\n", flags);
     NVGparams     params;
@@ -1980,7 +1963,6 @@ NVGcontext* nvgCreateSokol(_sg_state_t* _sg, int flags)
     if (sg == NULL)
         goto error;
     memset(sg, 0, sizeof(SGNVGcontext));
-    sg->_sg = _sg;
 
     memset(&params, 0, sizeof(params));
     params.renderCreate         = sgnvg__renderCreate;

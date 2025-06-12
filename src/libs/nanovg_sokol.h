@@ -47,7 +47,7 @@ enum NVGcreateFlags
     NVG_DEBUG = 1 << 2,
 };
 
-NVGcontext* nvgCreateSokol(struct _sg_state_t* _sg, int flags);
+NVGcontext* nvgCreateSokol(int flags);
 void        nvgDeleteSokol(NVGcontext* ctx);
 
 int nvsgCreateImageFromHandleSokol(

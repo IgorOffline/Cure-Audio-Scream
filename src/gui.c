@@ -146,7 +146,7 @@ void pw_get_info(struct PWGetInfo* info)
 }
 
 // Source: https://github.com/floooh/sokol/issues/102
-sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
+sg_image sg_make_image_with_mipmaps(const sg_image_desc* desc_)
 {
     sg_image_desc desc = *desc_;
     xassert(
@@ -251,7 +251,7 @@ sg_image sg_make_image_with_mipmaps(_sg_state_t* sg, const sg_image_desc* desc_)
         }
     }
 
-    sg_image img = sg_make_image(sg, &desc);
+    sg_image img = sg_make_image(&desc);
     MY_FREE(big_target);
     return img;
 }
@@ -298,7 +298,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
         .pipeline_pool_size = 512,
     });
 
-    gui->nvg = nvgCreateSokol(gui->sg, NVG_ANTIALIAS | NVG_STENCIL_STROKES);
+    gui->nvg = nvgCreateSokol(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
     CPLUG_LOG_ASSERT(gui->nvg);
 
     // Load font
@@ -340,10 +340,9 @@ void* pw_create_gui(void* _plugin, void* _pw)
     // Knob shader
     {
         gui->knob_vbo = sg_make_buffer(
-            gui->sg,
             &(sg_buffer_desc){
-                .type  = SG_BUFFERTYPE_VERTEXBUFFER,
-                .usage = SG_USAGE_STREAM,
+                .usage.vertex_buffer = true,
+                .usage.stream_update = true,
                 .size  = sizeof(vertex_t) * 4 * 3,
                 .label = "knob-vertices"});
 
@@ -357,17 +356,15 @@ void* pw_create_gui(void* _plugin, void* _pw)
         // clang-format on
 
         gui->knob_ibo = sg_make_buffer(
-            gui->sg,
             &(sg_buffer_desc){
-                .type  = SG_BUFFERTYPE_INDEXBUFFER,
-                .usage = SG_USAGE_IMMUTABLE,
+                .usage.index_buffer = true,
+                .usage.immutable = true,
                 .data  = SG_RANGE(KNOB_INDICES),
                 .size  = sizeof(KNOB_INDICES),
                 .label = "knob-indices"});
 
-        sg_shader shd = sg_make_shader(gui->sg, knob_shader_desc(sg_query_backend(gui->sg)));
+        sg_shader shd = sg_make_shader(knob_shader_desc(sg_query_backend()));
         gui->knob_pip = sg_make_pipeline(
-            gui->sg,
             &(sg_pipeline_desc){
                 .shader     = shd,
                 .index_type = SG_INDEXTYPE_UINT16,
@@ -393,20 +390,17 @@ void* pw_create_gui(void* _plugin, void* _pw)
         static const uint16_t indices[] = {0, 1, 2, 0, 2, 3};
 
         gui->logo_vbo = sg_make_buffer(
-            gui->sg,
             &(sg_buffer_desc){
-                .type  = SG_BUFFERTYPE_VERTEXBUFFER,
-                .usage = SG_USAGE_STREAM,
+                .usage.vertex_buffer  = true,
+                .usage.stream_update = true,
                 .size  = sizeof(vertex_t) * 4,
                 .label = "logo-vertices"});
 
         gui->logo_ibo = sg_make_buffer(
-            gui->sg,
-            &(sg_buffer_desc){.type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices), .label = "logo-indices"});
+            &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "logo-indices"});
 
-        sg_shader shd = sg_make_shader(gui->sg, texquad_shader_desc(sg_query_backend(gui->sg)));
+        sg_shader shd = sg_make_shader(texquad_shader_desc(sg_query_backend()));
         gui->logo_pip = sg_make_pipeline(
-            gui->sg,
             &(sg_pipeline_desc){
                 .shader     = shd,
                 .index_type = SG_INDEXTYPE_UINT16,
@@ -428,7 +422,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
         // a sampler object
         gui->logo_smp = sg_make_sampler(
-            gui->sg,
             &(sg_sampler_desc){
                 .min_filter    = SG_FILTER_LINEAR,
                 .mag_filter    = SG_FILTER_LINEAR,
@@ -465,7 +458,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
                 // xassert(gui->logo_img_id);
 
                 gui->logo_img = sg_make_image_with_mipmaps(
-                    gui->sg,
                     &(sg_image_desc){
                         .width        = x,
                         .height       = y,
@@ -500,6 +492,7 @@ void pw_destroy_gui(void* _gui)
     //     gui->logo_img_id = 0;
     // }
 
+    sg_set_global(gui->sg);
     nvgDeleteSokol(gui->nvg);
     sg_shutdown(gui->sg);
 
@@ -686,7 +679,8 @@ void pw_tick(void* _gui)
         swapchain.d3d11.render_view        = pw_get_dx11_render_target_view(gui->pw);
         swapchain.d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(gui->pw);
 #endif
-        sg_begin_pass(gui->sg, &(sg_pass){.action = pass_action, .swapchain = swapchain});
+        sg_set_global(gui->sg);
+        sg_begin_pass(&(sg_pass){.action = pass_action, .swapchain = swapchain});
     }
 
     NVGcontext*    nvg = gui->nvg;
@@ -1629,17 +1623,17 @@ void pw_tick(void* _gui)
             verts[v_idx + 3].y = bottom;
         }
 
-        sg_update_buffer(gui->sg, gui->knob_vbo, &SG_RANGE(verts));
-        sg_apply_pipeline(gui->sg, gui->knob_pip);
+        sg_update_buffer(gui->knob_vbo, &SG_RANGE(verts));
+        sg_apply_pipeline(gui->knob_pip);
 
         sg_bindings bind       = {0};
         bind.vertex_buffers[0] = gui->knob_vbo;
         bind.index_buffer      = gui->knob_ibo;
-        sg_apply_bindings(gui->sg, &bind);
+        sg_apply_bindings(&bind);
 
-        xassert(sg_isvalid(gui->sg));
+        xassert(sg_isvalid());
 
-        sg_draw(gui->sg, 0, 6 * 3, 1);
+        sg_draw(0, 6 * 3, 1);
     }
 
     // Logo shader
@@ -1668,8 +1662,8 @@ void pw_tick(void* _gui)
             {l, b, 0,     0},
         };
 
-        sg_update_buffer(gui->sg, gui->logo_vbo, &SG_RANGE(verts));
-        sg_apply_pipeline(gui->sg, gui->logo_pip);
+        sg_update_buffer(gui->logo_vbo, &SG_RANGE(verts));
+        sg_apply_pipeline(gui->logo_pip);
 
         sg_bindings bind       = {0};
         bind.vertex_buffers[0] = gui->logo_vbo;
@@ -1677,12 +1671,13 @@ void pw_tick(void* _gui)
         bind.images[IMG_texquad_tex]   = gui->logo_img;
         bind.samplers[SMP_texquad_smp] = gui->logo_smp;
 
-        sg_apply_bindings(gui->sg, &bind);
-        sg_draw(gui->sg, 0, 6, 1);
+        sg_apply_bindings(&bind);
+        sg_draw(0, 6, 1);
     }
 
-    sg_end_pass(gui->sg);
-    sg_commit(gui->sg);
+    sg_end_pass();
+    sg_commit();
+    sg_set_global(gui->sg);
 
     imgui_end_frame(&gui->imgui);
 }
