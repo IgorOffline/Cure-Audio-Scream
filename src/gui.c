@@ -339,12 +339,11 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     // Knob shader
     {
-        gui->knob_vbo = sg_make_buffer(
-            &(sg_buffer_desc){
-                .usage.vertex_buffer = true,
-                .usage.stream_update = true,
-                .size  = sizeof(vertex_t) * 4 * 3,
-                .label = "knob-vertices"});
+        gui->knob_vbo = sg_make_buffer(&(sg_buffer_desc){
+            .usage.vertex_buffer = true,
+            .usage.stream_update = true,
+            .size                = sizeof(vertex_t) * 4 * 3,
+            .label               = "knob-vertices"});
 
         // clang-format off
         static const uint16_t KNOB_INDICES[] = {
@@ -355,80 +354,75 @@ void* pw_create_gui(void* _plugin, void* _pw)
         _Static_assert(ARRLEN(KNOB_INDICES) == (3 * 6), "");
         // clang-format on
 
-        gui->knob_ibo = sg_make_buffer(
-            &(sg_buffer_desc){
-                .usage.index_buffer = true,
-                .usage.immutable = true,
-                .data  = SG_RANGE(KNOB_INDICES),
-                .size  = sizeof(KNOB_INDICES),
-                .label = "knob-indices"});
+        gui->knob_ibo = sg_make_buffer(&(sg_buffer_desc){
+            .usage.index_buffer = true,
+            .usage.immutable    = true,
+            .data               = SG_RANGE(KNOB_INDICES),
+            .size               = sizeof(KNOB_INDICES),
+            .label              = "knob-indices"});
 
         sg_shader shd = sg_make_shader(knob_shader_desc(sg_query_backend()));
-        gui->knob_pip = sg_make_pipeline(
-            &(sg_pipeline_desc){
-                .shader     = shd,
-                .index_type = SG_INDEXTYPE_UINT16,
-                .layout =
-                    {.attrs =
-                         {[ATTR_knob_position].format = SG_VERTEXFORMAT_FLOAT2,
-                          [ATTR_knob_coord].format    = SG_VERTEXFORMAT_SHORT2N}},
-                .colors[0] =
-                    {.write_mask = SG_COLORMASK_RGBA,
-                     .blend =
-                         {
-                             .enabled          = true,
-                             .src_factor_rgb   = SG_BLENDFACTOR_ONE,
-                             .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                             .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                             .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                         }},
-                .label = "knob-pipeline"});
+        gui->knob_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .shader     = shd,
+            .index_type = SG_INDEXTYPE_UINT16,
+            .layout =
+                {.attrs =
+                     {[ATTR_knob_position].format = SG_VERTEXFORMAT_FLOAT2,
+                      [ATTR_knob_coord].format    = SG_VERTEXFORMAT_SHORT2N}},
+            .colors[0] =
+                {.write_mask = SG_COLORMASK_RGBA,
+                 .blend =
+                     {
+                         .enabled          = true,
+                         .src_factor_rgb   = SG_BLENDFACTOR_ONE,
+                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                         .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     }},
+            .label = "knob-pipeline"});
     }
 
     // Logo shader
     {
         static const uint16_t indices[] = {0, 1, 2, 0, 2, 3};
 
-        gui->logo_vbo = sg_make_buffer(
-            &(sg_buffer_desc){
-                .usage.vertex_buffer  = true,
-                .usage.stream_update = true,
-                .size  = sizeof(vertex_t) * 4,
-                .label = "logo-vertices"});
+        gui->logo_vbo = sg_make_buffer(&(sg_buffer_desc){
+            .usage.vertex_buffer = true,
+            .usage.stream_update = true,
+            .size                = sizeof(vertex_t) * 4,
+            .label               = "logo-vertices"});
 
         gui->logo_ibo = sg_make_buffer(
             &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "logo-indices"});
 
         sg_shader shd = sg_make_shader(texquad_shader_desc(sg_query_backend()));
-        gui->logo_pip = sg_make_pipeline(
-            &(sg_pipeline_desc){
-                .shader     = shd,
-                .index_type = SG_INDEXTYPE_UINT16,
-                .layout =
-                    {.attrs =
-                         {[ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                          [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-                .colors[0] =
-                    {.write_mask = SG_COLORMASK_RGBA,
-                     .blend =
-                         {
-                             .enabled          = true,
-                             .src_factor_rgb   = SG_BLENDFACTOR_ONE,
-                             .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                             .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                             .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                         }},
-                .label = "logo-pipeline"});
+        gui->logo_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .shader     = shd,
+            .index_type = SG_INDEXTYPE_UINT16,
+            .layout =
+                {.attrs =
+                     {[ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
+                      [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
+            .colors[0] =
+                {.write_mask = SG_COLORMASK_RGBA,
+                 .blend =
+                     {
+                         .enabled          = true,
+                         .src_factor_rgb   = SG_BLENDFACTOR_ONE,
+                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                         .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                     }},
+            .label = "logo-pipeline"});
 
         // a sampler object
-        gui->logo_smp = sg_make_sampler(
-            &(sg_sampler_desc){
-                .min_filter    = SG_FILTER_LINEAR,
-                .mag_filter    = SG_FILTER_LINEAR,
-                .mipmap_filter = SG_FILTER_LINEAR,
-                .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
-                .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
-            });
+        gui->logo_smp = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter    = SG_FILTER_LINEAR,
+            .mag_filter    = SG_FILTER_LINEAR,
+            .mipmap_filter = SG_FILTER_LINEAR,
+            .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
+            .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
+        });
 
         void*  file_data     = NULL;
         size_t file_data_len = 0;
@@ -455,18 +449,17 @@ void* pw_create_gui(void* _plugin, void* _pw)
                 // gui->logo_img_id = nvgCreateImageRGBA(gui->nvg, x, y, 0, img_buf);
                 // xassert(gui->logo_img_id);
 
-                gui->logo_img = sg_make_image_with_mipmaps(
-                    &(sg_image_desc){
-                        .width        = x,
-                        .height       = y,
-                        .num_mipmaps  = 5,
-                        .num_slices   = 1,
-                        .pixel_format = SG_PIXELFORMAT_RGBA8,
+                gui->logo_img = sg_make_image_with_mipmaps(&(sg_image_desc){
+                    .width        = x,
+                    .height       = y,
+                    .num_mipmaps  = 5,
+                    .num_slices   = 1,
+                    .pixel_format = SG_PIXELFORMAT_RGBA8,
 
-                        .data.subimage[0][0] = {
-                            .ptr  = img_buf,
-                            .size = x * y * comp,
-                        }});
+                    .data.subimage[0][0] = {
+                        .ptr  = img_buf,
+                        .size = x * y * comp,
+                    }});
                 stbi_image_free(img_buf);
 
                 gui->logo_img_width  = x;
@@ -694,7 +687,7 @@ void pw_tick(void* _gui)
 #ifdef __APPLE__
     const float content_scale = dpi * 0.5;
 #else
-    const float    content_scale            = dpi;
+    const float content_scale = dpi;
 #endif
 
     const float scale_x = (float)gui_width / (float)GUI_INIT_WIDTH;
