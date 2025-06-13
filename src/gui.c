@@ -444,8 +444,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
         }
         if (ok)
         {
-            stbi_set_flip_vertically_on_load(1);
-
             int      x = 0, y = 0, comp = 0;
             stbi_uc* img_buf = stbi_load_from_memory(file_data, file_data_len, &x, &y, &comp, 4);
             xassert(img_buf);
@@ -1656,10 +1654,10 @@ void pw_tick(void* _gui)
 
         // clang-format off
         vertex_t verts[] = {
-            {l, t, 0,     32767},
-            {r, t, 32767, 32767},
-            {r, b, 32767, 0},
-            {l, b, 0,     0},
+            {l, t, 0,     0},
+            {r, t, 32767, 0},
+            {r, b, 32767, 32767},
+            {l, b, 0,     32767},
         };
 
         sg_update_buffer(gui->logo_vbo, &SG_RANGE(verts));
