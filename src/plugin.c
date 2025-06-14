@@ -199,11 +199,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
         cplug_atomic_exchange_i32(&p->queue_audio_tail, tail);
     }
 
-    // NOTE: FL studio may return NULL if your FX slot is bypassed
+    // NOTE: FL Studio and Ableton may return NULL if your FX slot is bypassed
     float** output = ctx->getAudioOutput(ctx, 0);
-    CPLUG_LOG_ASSERT(output != NULL);
-    CPLUG_LOG_ASSERT(output[0] != NULL);
-    CPLUG_LOG_ASSERT(output[1] != NULL);
 
     // Force "in place processing"
     {
@@ -302,13 +299,39 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             // const float expander_release = convert_compressor_time(p->sample_rate * 0.001 * 0.5); // 5 ms
             const float expander_release = convert_compressor_time(p->sample_rate * 0.001); // 1 ms
 
+            const double smoothing_len        = 0.010; // 10ms
+            int          param_smoothing_time = xm_droundi(p->sample_rate * smoothing_len);
+            double       block_len_ms         = (double)ctx->numFrames / p->sample_rate;
+            // It's difficult to tell where param updates are coming from, and how many there are across all plugin
+            // formats
+            // Cond 1: This helps if parameter updates are highly infrequent and block sizes are long
+            const bool cond1 = block_len_ms > smoothing_len;
+
+            // WIP!
+            // // Cond 2: This helps if DAW such as FL Studio sends loads of tiny sub blocks to reduce latency
+            // const bool cond2 = ctx->numFrames < p->max_block_size;
+            // if (frame == 0 && (cond1 || cond2))
+            if (frame == 0 && cond1)
+            {
+                // println("Adjusting param smoothing time from %d > %d", param_smoothing_time, ctx->numFrames);
+                param_smoothing_time = ctx->numFrames;
+            }
+            // FL Studio shenanigans
+            // if (frame == 0 && ctx->numFrames < p->max_block_size)
+            // {
+            //     // println(
+            //     //     "Adjusting param smoothing time from %d > %d",
+            //     //     param_smoothing_time,
+            //     //     (param_smoothing_time * 4));
+            //     param_smoothing_time *= 4;
+            // }
+
             for (int ch = 0; ch < 2; ch++)
             {
                 float*             it  = output[ch] + frame;
                 const float* const end = output[ch] + event.processAudio.endFrame;
                 struct FilterState s   = p->state[ch];
 
-                const int param_smoothing_time = xm_droundi(p->sample_rate * 0.010); // 10ms
                 for (int i = 0; i < ARRLEN(p->audio_params); i++)
                     smoothvalue_set_target(&s.values[i], p->audio_params[i], param_smoothing_time);
 
