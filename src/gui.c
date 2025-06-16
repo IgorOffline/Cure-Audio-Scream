@@ -1238,8 +1238,8 @@ void pw_tick(void* _gui)
 
                     // Realtime Peak
                     float rt_peak_dB[2] = {
-                        xm_fast_gain_to_dB(peaks.data[0]),
-                        xm_fast_gain_to_dB(peaks.data[1]),
+                        xm_fast_gain_to_dB(gui->input_gain_peaks_fast[0]),
+                        xm_fast_gain_to_dB(gui->input_gain_peaks_fast[1]),
                     };
                     float rt_peak_h[2] = {gui_height, gui_height};
                     float rt_peak_y[2] = {gui_height, gui_height};
