@@ -49,16 +49,15 @@ void println(const char* const fmt, ...)
 #ifdef CPLUG_BUILD_STANDALONE
         fwrite(buf, 1, n, stdout);
 #else
-        // char path[1024];
-        // xfiles_get_user_directory(path, sizeof(path), XFILES_USER_DIRECTORY_DESKTOP);
-        // strcat(path, "/log.txt");
-
-        // FILE* f = fopen(path, "a");
-        // if (f)
+        // static char path[1024] = {0};
+        // if (strlen(path) == 0)
         // {
-        //     fwrite(buf, 1, n, f);
-        //     fclose(f);
+        //     bool ok = xfiles_get_user_directory(path, sizeof(path), XFILES_USER_DIRECTORY_DESKTOP);
+        //     xassert(ok);
+        //     strcat(path, "/log.txt");
         // }
+        // bool ok = xfiles_append(path, buf, n);
+        // xassert(ok);
 #endif
     }
 }
