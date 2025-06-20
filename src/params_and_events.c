@@ -93,7 +93,7 @@ void param_change_begin(Plugin* p, ParamID id)
     e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_BEGIN;
     e.parameter.id   = id;
 
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
         send_to_audio_event_queue(p, e);
     else
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
@@ -106,7 +106,7 @@ void param_change_end(Plugin* p, ParamID id)
     CplugEvent e     = {0};
     e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_END;
     e.parameter.id   = id;
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
         send_to_audio_event_queue(p, e);
     else
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
@@ -127,16 +127,18 @@ void param_change_update(Plugin* p, ParamID id, double value)
     e.parameter.type  = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
     e.parameter.id    = id;
     e.parameter.value = value;
+
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_VST3 || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
+    {
+        p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
+    }
+
     if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE ||
-        p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2 || p->is_ableton_vst3)
+        p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
     {
         if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
             e.type = EVENT_SET_PARAMETER;
         send_to_audio_event_queue(p, e);
-    }
-    else
-    {
-        p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
     }
 }
 
@@ -183,7 +185,7 @@ void main_notify_host_param_change(Plugin* p, ParamID id, double value)
 {
     CPLUG_LOG_ASSERT(is_main_thread());
     CplugEvent event = {.parameter.id = id, .parameter.value = value};
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->is_ableton_vst3)
+    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
     {
         event.type = EVENT_SET_PARAMETER_NOTIFYING_HOST;
         send_to_audio_event_queue(p, event);

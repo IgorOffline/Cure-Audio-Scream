@@ -268,15 +268,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
     gui->pw     = _pw;
     p->gui      = gui;
 
-    {
-        char name[128] = {0};
-        p->cplug_ctx->getHostName(p->cplug_ctx, name, sizeof(name)); // eg. "Ableton 12.1.1"
-        int ret = strncmp(name, "Ableton", ARRLEN("Ableton") - 1);   // Ignore version number
-
-        const bool is_ableton = ret == 0;
-        p->is_ableton_vst3    = is_ableton && p->cplug_ctx->type == CPLUG_PLUGIN_IS_VST3;
-    }
-
     sg_environment env;
     memset(&env, 0, sizeof(env));
     env.defaults.sample_count = 1;
