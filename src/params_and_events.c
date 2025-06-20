@@ -343,7 +343,7 @@ double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
     {
     case PARAM_CUTOFF:
         if (1 == sscanf(str, "%lfHz", &val))
-            val = xm_fast_normalise_Hz1(val);
+            val = log(val / 20.0) / log(2.0) / 10.0; // Normalise Hz
         break;
     case PARAM_SCREAM:
     case PARAM_RESONANCE:
@@ -365,9 +365,9 @@ void cplug_parameterValueToString(void*, uint32_t paramId, char* buf, size_t buf
     {
     case PARAM_CUTOFF:
     {
-        float Hz = xm_fast_denomalise_Hz(value);
-        Hz       = xm_minf(Hz, 20000);
-        snprintf(buf, bufsize, "%.2fHz", Hz);
+        double Hz = 20 * pow(2, value * 10); // Denormalise Hz
+        Hz        = xm_mind(Hz, 20000);
+        snprintf(buf, bufsize, "%.2lfHz", Hz);
         break;
     }
     case PARAM_SCREAM:
