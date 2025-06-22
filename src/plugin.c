@@ -405,7 +405,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     // float y = x + s.fb_yn_1;
                     float y = x + s.fb_yn_1;
 
-                    y = tanhf(y);
+                    // y = tanhf(y);
+                    y = Tanh_ADAA2_process(&s.tanh_1, y);
                     // y = sinarctan2(y);
                     // y = softsine(y);
                     // y = sinarctan(y);
@@ -431,7 +432,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     // feed = sinarctan(feed);
                     feed = filter_process(feed, &hp_c, s.hp);
                     // feed = xm_clampf(feed, -1, 1);
-                    feed = tanhf(feed);
+                    // feed = tanhf(feed);
+                    feed = Tanh_ADAA2_process(&s.tanh_2, feed);
                     // feed = softsine(feed);
                     // feed = softsine2(feed);
 

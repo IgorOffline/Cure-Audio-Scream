@@ -6,6 +6,8 @@
 
 #include "param_smoothing.h"
 
+#include "libs/ADAA.h"
+
 typedef enum ParamID
 {
     PARAM_CUTOFF,
@@ -65,6 +67,9 @@ typedef struct Plugin
     struct FilterState
     {
         SmoothedValue values[NUM_PARAMS];
+
+        Tanh_ADAA2 tanh_1;
+        Tanh_ADAA2 tanh_2;
 
         float fb_yn_1;
         float peak_xn_1;
