@@ -8,6 +8,7 @@
 #include "plot_dsp.h"
 #endif
 
+#include <xhl/array.h>
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/maths.h>
@@ -26,75 +27,7 @@
 #include <knob.glsl.h>
 #include <texquad.glsl.h>
 
-typedef struct
-{
-    float   x, y;
-    int16_t u, v;
-} vertex_t;
-
-typedef struct GUI
-{
-    Plugin*     plugin;
-    void*       pw;
-    void*       sg;
-    NVGcontext* nvg;
-    int         font_id;
-    float       scale;
-
-    struct imgui_context imgui;
-
-    float input_gain_peaks_slow[2];
-    float input_gain_peaks_fast[2];
-
-    sg_pipeline knob_pip;
-    sg_buffer   knob_vbo;
-    sg_buffer   knob_ibo;
-
-    // TODO: fix whatever is wrong with NanoVG sokol so we can use that for drawing the logo...
-    sg_pipeline logo_pip;
-    sg_buffer   logo_vbo;
-    sg_buffer   logo_ibo;
-    sg_image    logo_img;
-    sg_sampler  logo_smp;
-
-    // int         logo_img_id;
-    int logo_img_width;
-    int logo_img_height;
-
-    uint64_t last_frame_time;
-} GUI;
-
-// Nanovg helpers
-// clang-format off
-#define NVG_ALIGN_TL (NVG_ALIGN_TOP | NVG_ALIGN_LEFT)
-#define NVG_ALIGN_TC (NVG_ALIGN_TOP | NVG_ALIGN_CENTER)
-#define NVG_ALIGN_TR (NVG_ALIGN_TOP | NVG_ALIGN_RIGHT)
-
-#define NVG_ALIGN_CL (NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT)
-#define NVG_ALIGN_CC (NVG_ALIGN_MIDDLE | NVG_ALIGN_CENTER)
-#define NVG_ALIGN_CR (NVG_ALIGN_MIDDLE | NVG_ALIGN_RIGHT)
-
-#define NVG_ALIGN_BL (NVG_ALIGN_BOTTOM | NVG_ALIGN_LEFT)
-#define NVG_ALIGN_BC (NVG_ALIGN_BOTTOM | NVG_ALIGN_CENTER)
-#define NVG_ALIGN_BR (NVG_ALIGN_BOTTOM | NVG_ALIGN_RIGHT)
-
-// Fake english to real english helpers
-typedef struct NVGcolor NVGcolour;
-static inline void nvgFillColour(NVGcontext* ctx, NVGcolour col) { nvgFillColor(ctx, col); }
-static inline void nvgStrokeColour(NVGcontext* ctx, NVGcolour col) { nvgStrokeColor(ctx, col); }
-#define nvgHexColour(hex) (NVGcolour){( hex >> 24)         / 255.0f,\
-                                     ((hex >> 16) & 0xff) / 255.0f,\
-                                     ((hex >>  8) & 0xff) / 255.0f,\
-                                     ( hex        & 0xff) / 255.0f}
-// clang-format on
-
-static const NVGcolour COLOUR_TEXT = nvgHexColour(0x858C94FF);
-
-static const NVGcolour COLOUR_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
-static const NVGcolour COLOUR_BG_DARK  = nvgHexColour(0x151B32FF);
-
-static const NVGcolour COLOUR_GREY_1 = nvgHexColour(0xB5BEC7FF);
-static const NVGcolour COLOUR_GREY_2 = nvgHexColour(0x636A78FF);
+#include "gui.h"
 
 static void my_sg_logger(
     const char* tag,              // always "sapp"
@@ -463,7 +396,9 @@ void* pw_create_gui(void* _plugin, void* _pw)
         }
     }
 
-    gui->last_frame_time = xtime_now_ns();
+    ted_init(&gui->texteditor);
+
+    gui->frame_end_time = xtime_now_ns();
 
     return gui;
 }
@@ -477,6 +412,8 @@ void pw_destroy_gui(void* _gui)
     //     nvgDeleteImage(gui->nvg, gui->logo_img_id);
     //     gui->logo_img_id = 0;
     // }
+
+    ted_deinit(&gui->texteditor);
 
     sg_set_global(gui->sg);
     nvgDeleteSokol(gui->nvg);
@@ -521,6 +458,82 @@ bool pw_event(const PWEvent* event)
         gui->scale          = (float)event->resize.width / (float)GUI_INIT_WIDTH;
     }
     imgui_send_event(&gui->imgui, event);
+
+    if (gui->texteditor.active_param != -1)
+    {
+        TextEditor* ted = &gui->texteditor;
+
+        if (event->type == PW_EVENT_MOUSE_LEFT_DOWN || event->type == PW_EVENT_MOUSE_RIGHT_DOWN ||
+            event->type == PW_EVENT_MOUSE_MIDDLE_DOWN)
+        {
+            imgui_pt   pos = {event->mouse.x, event->mouse.y};
+            imgui_rect rect;
+            rect.x = ted->dimensions.x;
+            rect.y = ted->dimensions.y;
+            rect.r = ted->dimensions.x + ted->dimensions.width;
+            rect.b = ted->dimensions.y + ted->dimensions.height;
+            if (false == imgui_hittest_rect(pos, &rect))
+            {
+                ted->active_param = -1;
+                pw_release_keyboard_focus(gui->pw);
+            }
+        }
+        else if (event->type == PW_EVENT_TEXT)
+        {
+            xassert(event->text.codepoint != 0x7f);
+
+            bool ret = false;
+
+            if (event->text.codepoint > 31)
+            {
+                ret = true;
+                ted_handle_text(ted, event->text.codepoint);
+            }
+            else if (event->text.codepoint == 13) // Enter (win) Return (mac)
+            {
+                ret = true;
+
+                char text[256];
+                ted_get_text(ted, text, sizeof(text));
+
+                extern bool param_string_to_value(uint32_t param_id, const char* str, double* val);
+
+                double val = 0;
+                if (param_string_to_value(ted->active_param, text, &val))
+                {
+                    param_set(gui->plugin, ted->active_param, val);
+                }
+
+                ted_deactivate(ted);
+            }
+            else if (event->text.codepoint == 27) // ESC
+            {
+                // This is not how Chrome behaves, it just feels intuitive to me...
+                ted_deactivate(ted);
+                ret = true;
+            }
+            else if (event->text.codepoint == 9) // TAB
+            {
+                // Ignored
+            }
+            xassert(ted->ibeam_idx >= 0 && ted->ibeam_idx <= xarr_len(ted->codepoints));
+            return ret;
+        }
+        else if (event->type == PW_EVENT_KEY_DOWN)
+        {
+            bool ret = ted_handle_key_down(ted, event);
+            xassert(ted->ibeam_idx >= 0 && ted->ibeam_idx <= xarr_len(ted->codepoints));
+            return ret;
+        }
+        else if (event->type == PW_EVENT_RESIZE)
+        {
+            ted_deactivate(ted);
+        }
+        else if (event->type == PW_EVENT_KEY_FOCUS_LOST)
+        {
+            ted_deactivate(ted);
+        }
+    }
 
     return false;
 }
@@ -618,7 +631,7 @@ void pw_tick(void* _gui)
     }
 
     // #ifndef NDEBUG
-    uint64_t frame_time_start = xtime_now_ns();
+    gui->frame_start_time = xtime_now_ns();
     // #endif
     if (!gui->nvg)
         return;
@@ -1438,6 +1451,7 @@ void pw_tick(void* _gui)
         }
 
         nvgFillColour(nvg, COLOUR_TEXT);
+        const float param_font_size = 14 * content_scale * param_scale;
         nvgFontSize(nvg, 14 * content_scale * param_scale);
 
         const float content_cy  = content_y + content_height * 0.5f;
@@ -1453,15 +1467,65 @@ void pw_tick(void* _gui)
             const float   param_cx = param_positions[i].cx;
 
             nvgTextAlign(nvg, NVG_ALIGN_BC);
+            nvgFillColour(nvg, COLOUR_TEXT);
             nvgText(nvg, param_cx, label_b, NAMES[param_id], NULL);
 
             extern double main_get_param(Plugin * p, ParamID id);
 
-            char   label[24];
-            double value = main_get_param(gui->plugin, param_id);
-            cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
-            nvgTextAlign(nvg, NVG_ALIGN_TC);
-            nvgText(nvg, param_cx, value_y, label, NULL);
+            imgui_rect rect;
+            rect.x = param_cx - 50;
+            rect.r = param_cx + 50;
+            rect.y = value_y;
+            rect.b = value_y + param_font_size;
+
+            uint32_t events = imgui_get_events_rect(im, &rect);
+
+            if (events & IMGUI_EVENT_MOUSE_ENTER)
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_IBEAM);
+            if ((events & IMGUI_EVENT_MOUSE_EXIT) && im->mouse_over_id == 0)
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
+
+            // Handle events
+            if (gui->texteditor.active_param == i)
+            {
+                TextEditor* ted = &gui->texteditor;
+                // Text editor stuff
+                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                {
+                    ted_handle_mouse_down(ted);
+                }
+                if (events & IMGUI_EVENT_DRAG_MOVE)
+                {
+                    ted_handle_mouse_drag(ted);
+                }
+                xassert(ted->ibeam_idx >= 0 && ted->ibeam_idx <= xarr_len(ted->codepoints));
+            }
+            else
+            {
+                // Not text editor
+                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                {
+                    xvec4f dimensions = {rect.x, rect.y, rect.r - rect.x, rect.b - rect.y};
+                    xvec2f pos        = {im->mouse_down.x, im->mouse_down.y};
+                    ted_activate(&gui->texteditor, dimensions, pos, param_font_size, i);
+                }
+            }
+
+            // Draw
+            if (gui->texteditor.active_param == i)
+            {
+                ted_draw(&gui->texteditor);
+            }
+            else
+            {
+                char   label[24];
+                double value = main_get_param(gui->plugin, param_id);
+                cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
+
+                nvgFillColour(nvg, COLOUR_TEXT);
+                nvgTextAlign(nvg, NVG_ALIGN_TC);
+                nvgText(nvg, param_cx, value_y, label, NULL);
+            }
         }
     }
 
@@ -1510,7 +1574,7 @@ void pw_tick(void* _gui)
     // Footer
     {
         uint64_t frame_time_end         = xtime_now_ns();
-        uint64_t frame_time_duration_ns = frame_time_end - frame_time_start;
+        uint64_t frame_time_duration_ns = frame_time_end - gui->frame_start_time;
 
         uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
 
@@ -1523,8 +1587,8 @@ void pw_tick(void* _gui)
         // double approx_fps    = 1000 / frame_time_ms; // Potential FPS
 
         // uint64_t actual
-        uint64_t diff_last_frame = frame_time_end - gui->last_frame_time;
-        gui->last_frame_time     = frame_time_end;
+        uint64_t diff_last_frame = frame_time_end - gui->frame_end_time;
+        gui->frame_end_time      = frame_time_end;
         double actual_fps        = 1000.0 / ((diff_last_frame >> 10) * 1024e-6);
 
         nvgFontSize(nvg, 12 * content_scale);

@@ -234,6 +234,34 @@ void main_dequeue_events(Plugin* p)
     p->queue_main_tail = tail;
 }
 
+bool param_string_to_value(uint32_t param_id, const char* str, double* val)
+{
+    int ok = 0;
+
+    switch ((ParamID)param_id)
+    {
+    case PARAM_CUTOFF:
+        if ((ok = sscanf(str, "%lfHz", val)))
+            *val = log(*val / 20.0) / log(2.0) / 10.0; // Normalise Hz
+        break;
+    case PARAM_SCREAM:
+    case PARAM_RESONANCE:
+    case PARAM_WET:
+        if ((ok = sscanf(str, "%lf%%", val)))
+            *val *= 0.01;
+        break;
+    case PARAM_INPUT_GAIN:
+        if ((ok = sscanf(str, "%lfdB", val)))
+            *val = xm_normd(*val, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        break;
+    }
+    if (ok)
+        *val = xm_clampd(*val, 0, 1);
+    return ok;
+}
+
+//=====================================================================================
+
 uint32_t cplug_getNumParameters(void*) { return NUM_PARAMS; }
 uint32_t cplug_getParameterID(void* p, uint32_t paramIndex) { return paramIndex; }
 uint32_t cplug_getParameterFlags(void* p, uint32_t paramId) { return CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE; }
@@ -339,23 +367,7 @@ double cplug_normaliseParameterValue(void*, uint32_t paramId, double value) { re
 double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
 {
     double val = 0;
-    switch ((ParamID)paramId)
-    {
-    case PARAM_CUTOFF:
-        if (1 == sscanf(str, "%lfHz", &val))
-            val = log(val / 20.0) / log(2.0) / 10.0; // Normalise Hz
-        break;
-    case PARAM_SCREAM:
-    case PARAM_RESONANCE:
-    case PARAM_WET:
-        if (1 == sscanf(str, "%lf%%", &val))
-            val *= 0.01;
-        break;
-    case PARAM_INPUT_GAIN:
-        if (1 == sscanf(str, "%lfdB", &val))
-            val = xm_normd(val, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-        break;
-    }
+    param_string_to_value(paramId, str, &val);
     return val;
 }
 

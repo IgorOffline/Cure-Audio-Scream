@@ -13,7 +13,7 @@ typedef struct imgui_pt
     float x, y;
 } imgui_pt;
 
-imgui_pt imgui_centre(const imgui_rect* rect)
+static imgui_pt imgui_centre(const imgui_rect* rect)
 {
     imgui_pt pt;
     pt.x = (rect->x + rect->r) * 0.5f;
@@ -77,12 +77,12 @@ typedef struct imgui_context
     imgui_pt mouse_last_drag;
 } imgui_context;
 
-bool imgui_hittest_rect(imgui_pt pos, const imgui_rect* rect)
+static bool imgui_hittest_rect(imgui_pt pos, const imgui_rect* rect)
 {
     return pos.x >= rect->x && pos.y >= rect->y && pos.x <= rect->r && pos.y <= rect->b;
 }
 
-bool imgui_hittest_circle(imgui_pt pos, imgui_pt centre, float radius)
+static bool imgui_hittest_circle(imgui_pt pos, imgui_pt centre, float radius)
 {
     float diff_x   = pos.x - centre.x;
     float diff_y   = pos.y - centre.y;
@@ -120,7 +120,7 @@ enum
     // TODO: keyboard events
 };
 
-unsigned _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool release)
+static unsigned _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool release)
 {
     unsigned events = 0;
     unsigned id     = ++ctx->id;
@@ -200,7 +200,7 @@ unsigned _imgui_get_events(imgui_context* ctx, bool hover, bool press, bool rele
     return events;
 }
 
-unsigned imgui_get_events_rect(imgui_context* ctx, const imgui_rect* rect)
+static unsigned imgui_get_events_rect(imgui_context* ctx, const imgui_rect* rect)
 {
     bool hover   = ctx->mouse_inside_window && imgui_hittest_rect(ctx->mouse_move, rect);
     bool press   = ctx->mouse_left_down && imgui_hittest_rect(ctx->mouse_down, rect);
@@ -208,7 +208,7 @@ unsigned imgui_get_events_rect(imgui_context* ctx, const imgui_rect* rect)
     return _imgui_get_events(ctx, hover, press, release);
 }
 
-unsigned imgui_get_events_circle(imgui_context* ctx, imgui_pt pt, float radius)
+static unsigned imgui_get_events_circle(imgui_context* ctx, imgui_pt pt, float radius)
 {
     bool hover   = ctx->mouse_inside_window && imgui_hittest_circle(ctx->mouse_move, pt, radius);
     bool press   = ctx->mouse_left_down && imgui_hittest_circle(ctx->mouse_down, pt, radius);
@@ -223,13 +223,8 @@ enum ImguiDragType
     IMGUI_DRAG_VERTICAL,
 };
 
-void imgui_drag_value(
-    imgui_context*     ctx,
-    float*             value,
-    float              vmin,
-    float              vmax,
-    float              range_px,
-    enum ImguiDragType drag_type)
+static void
+imgui_drag_value(imgui_context* ctx, float* value, float vmin, float vmax, float range_px, enum ImguiDragType drag_type)
 {
     xassert(ctx->mouse_left_down); // Are you really dragging right now? Or has your drag ended?
     float delta_x = ctx->mouse_move.x - ctx->mouse_last_drag.x;
@@ -270,7 +265,7 @@ void imgui_drag_value(
 }
 
 // Call at the end of every frame after all events have been processed
-void imgui_end_frame(imgui_context* ctx)
+static void imgui_end_frame(imgui_context* ctx)
 {
     ctx->num_duplicate_backbuffers++;
     ctx->mouse_left_down_frame = false;
@@ -298,7 +293,7 @@ void imgui_end_frame(imgui_context* ctx)
     ctx->id = 0;
 }
 
-void imgui_send_event(imgui_context* ctx, const PWEvent* e)
+static void imgui_send_event(imgui_context* ctx, const PWEvent* e)
 {
     ctx->num_duplicate_backbuffers = 0;
     ctx->frame_events              = 1 << e->type;

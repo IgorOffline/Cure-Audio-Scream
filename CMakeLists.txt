@@ -3,7 +3,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment ve
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 
 project(Scream
-    VERSION 0.1.2
+    VERSION 0.1.3
     DESCRIPTION ""
     HOMEPAGE_URL "https://github.com/Tremus/skibidiscream"
     LANGUAGES C)
@@ -115,6 +115,8 @@ set(PLUGIN_SOURCES
     src/plugin.c
     src/gui.c
 
+    src/libs/linked_arena.c
+    src/libs/texteditor.c
     src/libs/nanovg.c
     src/libs/nanovg_sokol.c
     )
