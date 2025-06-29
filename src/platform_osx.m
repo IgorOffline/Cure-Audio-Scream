@@ -13,8 +13,8 @@
 
 #include "common.h"
 
-#include "libs/sokol_gfx.h"
 #include <cplug_extensions/window_osx.m>
+#include <sokol_gfx.h>
 #include <stb_image.h>
 
 #include <stdarg.h>

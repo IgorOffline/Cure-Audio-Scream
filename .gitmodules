@@ -4,3 +4,6 @@
 [submodule "modules/CPLUG"]
 	path = modules/CPLUG
 	url = https://github.com/Tremus/CPLUG
+[submodule "modules/sokol_gfx_multiinstance"]
+	path = modules/sokol_gfx_multiinstance
+	url = https://github.com/Tremus/sokol_gfx_multiinstance

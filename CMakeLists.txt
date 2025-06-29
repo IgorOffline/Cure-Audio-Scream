@@ -124,6 +124,7 @@ set(PLUGIN_SOURCES
 set(PLUGIN_INCLUDE
     modules/xhl/include
     modules/CPLUG/src/
+    modules/sokol_gfx_multiinstance
 
     src/libs
     src/shaders/
