@@ -30,7 +30,7 @@ void im_slider(
     const char*    name)
 {
     xassert((*pValue) >= vmin && (*pValue) <= vmax);
-    uint32_t events        = imgui_get_events_rect(im, &rect);
+    uint32_t events        = imgui_get_events_rect(im, imgui_hash(name), &rect);
     float    slider_width  = rect.r - rect.x;
     float    slider_height = rect.b - rect.y;
     float    knob_radius   = slider_height * 0.5f;

@@ -788,8 +788,8 @@ int ted_get_text_idx(TextEditor* ted, float x)
 void ted_handle_mouse_down(TextEditor* ted)
 {
     GUI*     gui       = ted_shift_ptr(ted);
-    imgui_pt pos       = gui->imgui.mouse_down;
-    uint32_t modifiers = gui->imgui.mouse_down_mods;
+    imgui_pt pos       = gui->imgui.pos_mouse_down;
+    uint32_t modifiers = gui->imgui.frame.modifiers_mouse_down;
 
     ted_set_action(ted, TEXT_ACTION_MOVE);
     const int idx = ted_get_text_idx(ted, pos.x);
@@ -851,7 +851,7 @@ void ted_handle_mouse_drag(TextEditor* ted)
 {
     GUI* gui = ted_shift_ptr(ted);
 
-    float drag_x = gui->imgui.mouse_move.x;
+    float drag_x = gui->imgui.pos_mouse_move.x;
     ted_set_action(ted, TEXT_ACTION_MOVE);
     int idx = ted_get_text_idx(ted, drag_x);
     ted_set_ibeam_idx(ted, idx, true);

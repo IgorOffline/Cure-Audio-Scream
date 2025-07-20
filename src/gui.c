@@ -546,14 +546,12 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
 
     if (events & IMGUI_EVENT_MOUSE_ENTER)
         pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
-    if ((events & IMGUI_EVENT_MOUSE_EXIT) && im->mouse_over_id == 0)
-        pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
 
     if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
     {
-        if (im->left_click_counter == 2)
+        if (im->left_click_counter >= 2)
         {
-            im->left_click_counter = 0; // single and triple click not supported
+            im->left_click_counter = 0;
 
             value_d = value_f = cplug_getDefaultParameterValue(gui->plugin, param_id);
             param_set(gui->plugin, param_id, value_d);
@@ -577,12 +575,12 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     }
     if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
     {
-        float delta = im->mouse_touchpad.y / drag_range_px;
-        if (im->mouse_touchpad_mods & PW_MOD_INVERTED_SCROLL)
+        float delta = im->frame.delta_touchpad.y / drag_range_px;
+        if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
             delta = -delta;
-        if (im->mouse_touchpad_mods & PW_MOD_PLATFORM_KEY_CTRL)
+        if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
             delta *= 0.1f;
-        if (im->mouse_touchpad_mods & PW_MOD_KEY_SHIFT)
+        if (im->frame.modifiers_touchpad & PW_MOD_KEY_SHIFT)
             delta *= 0.1f;
 
         float next_value = xm_clampf(value_f + delta, 0, 1);
@@ -600,10 +598,10 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     }
     if (events & IMGUI_EVENT_MOUSE_WHEEL)
     {
-        double delta = im->mouse_wheel * 0.1;
-        if (im->mouse_wheel_mods & PW_MOD_PLATFORM_KEY_CTRL)
+        double delta = im->frame.delta_mouse_wheel * 0.1;
+        if (im->frame.modifiders_mouse_wheel & PW_MOD_PLATFORM_KEY_CTRL)
             delta *= 0.1;
-        if (im->mouse_wheel_mods & PW_MOD_KEY_SHIFT)
+        if (im->frame.modifiders_mouse_wheel & PW_MOD_KEY_SHIFT)
             delta *= 0.1;
 
         double v  = gui->plugin->main_params[param_id];
@@ -685,6 +683,8 @@ void pw_tick(void* _gui)
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
 
+    imgui_begin_frame(im);
+
     // Layout
     enum
     {
@@ -695,7 +695,7 @@ void pw_tick(void* _gui)
 #ifdef __APPLE__
     const float content_scale = dpi * 0.5;
 #else
-    const float content_scale = dpi;
+    const float    content_scale            = dpi;
 #endif
 
     const float scale_x = (float)gui_width / (float)GUI_INIT_WIDTH;
@@ -880,8 +880,9 @@ void pw_tick(void* _gui)
 
         for (int i = 0; i < ARRLEN(param_positions); i++)
         {
-            const ParamID param_id = param_positions[i].param_id;
-            const float   param_cx = param_positions[i].cx;
+            const ParamID  param_id = param_positions[i].param_id;
+            const float    param_cx = param_positions[i].cx;
+            const unsigned wid      = 'prm' + i;
 
             switch (param_id)
             {
@@ -905,7 +906,7 @@ void pw_tick(void* _gui)
                 xassert(param_id < ARRLEN(knobs_pos));
                 knobs_pos[param_id] = pt;
 
-                uint32_t events  = imgui_get_events_circle(im, pt, slider_radius);
+                uint32_t events  = imgui_get_events_circle(im, wid, pt, slider_radius);
                 double   value_d = handle_param_events(gui, i, events, 300);
 
                 // Inlet
@@ -1134,7 +1135,7 @@ void pw_tick(void* _gui)
                     const float icon_width = 10;
                     float       icon_r     = rect.r + icon_width + 4;
                     rect.r                 = icon_r;
-                    uint32_t events        = imgui_get_events_rect(im, &rect);
+                    uint32_t events        = imgui_get_events_rect(im, wid, &rect);
                     rect.r                 = rect_r;
 
                     double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, rect.b - rect.y);
@@ -1349,7 +1350,7 @@ void pw_tick(void* _gui)
                     float drag_b       = handle.b - w * 0.5f;
                     float drag_height  = drag_b - drag_y;
 
-                    uint32_t events  = imgui_get_events_rect(im, &rect);
+                    uint32_t events  = imgui_get_events_rect(im, wid, &rect);
                     double   value_d = handle_param_events(gui, PARAM_WET, events, drag_height);
 
                     // Draw BG notches
@@ -1478,12 +1479,11 @@ void pw_tick(void* _gui)
             rect.y = value_y;
             rect.b = value_y + param_font_size;
 
-            uint32_t events = imgui_get_events_rect(im, &rect);
+            unsigned wid    = 'txt' + i;
+            uint32_t events = imgui_get_events_rect(im, wid, &rect);
 
             if (events & IMGUI_EVENT_MOUSE_ENTER)
                 pw_set_mouse_cursor(gui->pw, PW_CURSOR_IBEAM);
-            if ((events & IMGUI_EVENT_MOUSE_EXIT) && im->mouse_over_id == 0)
-                pw_set_mouse_cursor(gui->pw, PW_CURSOR_ARROW);
 
             // Handle events
             if (gui->texteditor.active_param == i)
@@ -1506,7 +1506,7 @@ void pw_tick(void* _gui)
                 if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
                 {
                     xvec4f dimensions = {rect.x, rect.y, rect.r - rect.x, rect.b - rect.y};
-                    xvec2f pos        = {im->mouse_down.x, im->mouse_down.y};
+                    xvec2f pos        = {im->pos_mouse_down.x, im->pos_mouse_down.y};
                     ted_activate(&gui->texteditor, dimensions, pos, param_font_size, i);
                 }
             }
@@ -1627,6 +1627,29 @@ void pw_tick(void* _gui)
         nvgText(nvg, 8, gui_height - 8, text, text + len);
     }
 
+    int next_gui_width  = 0;
+    int next_gui_height = 0;
+    {
+        imgui_rect lmao;
+        lmao.x = (gui_width / 2) - 20;
+        lmao.y = gui_height - 40;
+        lmao.r = lmao.x + 40;
+        lmao.b = lmao.y + 40;
+
+        unsigned events = imgui_get_events_rect(im, 'size', &lmao);
+
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            next_gui_width  = gui_width + 20;
+            next_gui_height = gui_height + 20;
+        }
+
+        nvgBeginPath(nvg);
+        nvgRect(nvg, lmao.x, lmao.y, lmao.r - lmao.x, lmao.b - lmao.y);
+        nvgFillColour(nvg, nvgHexColour(0xff0000ff));
+        nvgFill(nvg);
+    }
+
     // End frame
     nvgEndFrame(gui->nvg);
 
@@ -1730,9 +1753,20 @@ void pw_tick(void* _gui)
         sg_draw(0, 6, 1);
     }
 
+    unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0,0,gui_width, gui_height});
+    if (bg_events & IMGUI_EVENT_MOUSE_ENTER)
+    {
+        pw_set_mouse_cursor(gui->pw, PW_CURSOR_DEFAULT);
+    }
+
     sg_end_pass();
     sg_commit();
     sg_set_global(NULL);
 
     imgui_end_frame(&gui->imgui);
+
+    if (next_gui_width && next_gui_height)
+    {
+        gui->plugin->cplug_ctx->requestResize(gui->plugin->cplug_ctx, next_gui_width, next_gui_height);
+    }
 }
