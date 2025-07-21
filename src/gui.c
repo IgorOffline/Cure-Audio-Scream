@@ -662,15 +662,26 @@ void pw_tick(void* _gui)
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
+
+    enum
+    {
+        HEIGHT_HEADER  = 32,
+        HEIGHT_FOOTER  = 20,
+        BORDER_PADDING = 8,
+
+        PARAMS_BOUNDARY_LEFT  = 32,
+        VERTICAL_SLIDER_WIDTH = 60,
+        METER_WIDTH           = 24,
+        METER_HEIGHT          = 146,
+        ROTARY_PARAM_DIAMETER = 160,
+
+        _MINIMUM_WIDTH = PARAMS_BOUNDARY_LEFT * 2 + VERTICAL_SLIDER_WIDTH * 2 + ROTARY_PARAM_DIAMETER * 3,
+    };
+    _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
+
+    // Recalculate layout metrics
     if (im->frame.events & (1 << PW_EVENT_RESIZE))
     {
-        enum
-        {
-            HEIGHT_HEADER  = 32,
-            HEIGHT_FOOTER  = 20,
-            BORDER_PADDING = 8,
-        };
-
         lm->width  = gui->plugin->width;
         lm->height = gui->plugin->height;
 
@@ -692,6 +703,41 @@ void pw_tick(void* _gui)
         lm->content_y      = floorf(lm->height_header + BORDER_PADDING);
         lm->content_b      = floorf(lm->section_top_height - lm->height_footer - BORDER_PADDING * 2);
         lm->content_height = lm->content_b - lm->content_y;
+
+        const float param_boundary_left  = lm->scale_x * PARAMS_BOUNDARY_LEFT;
+        const float param_boundary_right = lm->width - lm->scale_x * PARAMS_BOUNDARY_LEFT;
+        const float PARAMS_WIDTH         = param_boundary_right - param_boundary_left;
+
+        lm->param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
+
+        const float veritcal_slider_width = snapf(VERTICAL_SLIDER_WIDTH * lm->param_scale, 2);
+        const float knob_diameter         = snapf(ROTARY_PARAM_DIAMETER * lm->param_scale, 2);
+
+        const float total_param_width = veritcal_slider_width * 2 + knob_diameter * 3;
+        const float param_padding     = (PARAMS_WIDTH - total_param_width) / 4;
+
+        _Static_assert(
+            ARRLEN(lm->param_positions_cx) == 5,
+            "You've changed the number of params and we assumed there were only 5");
+        lm->param_positions_cx[PARAM_INPUT_GAIN] = param_boundary_left + veritcal_slider_width * 0.5f;
+        lm->param_positions_cx[PARAM_CUTOFF] =
+            param_boundary_left + veritcal_slider_width + param_padding + knob_diameter * 0.5f;
+        lm->param_positions_cx[PARAM_SCREAM] =
+            param_boundary_left + veritcal_slider_width + param_padding * 2 + knob_diameter * 1.5f;
+        lm->param_positions_cx[PARAM_RESONANCE] =
+            param_boundary_left + veritcal_slider_width + param_padding * 3 + knob_diameter * 2.5f;
+        lm->param_positions_cx[PARAM_WET] = param_boundary_right - veritcal_slider_width * 0.5f;
+
+        lm->knob_radius = knob_diameter * 0.5f;
+
+        _Static_assert(
+            ARRLEN(lm->knobs_pos) == 3,
+            "You've changed the number of rotary params and we assumed there were only 3");
+        for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
+        {
+            lm->knobs_pos[i].x = lm->param_positions_cx[i];
+            lm->knobs_pos[i].y = roundf(lm->content_y + lm->content_height * 0.5f);
+        }
     }
 
     // Begin frame
@@ -844,56 +890,11 @@ void pw_tick(void* _gui)
     }
 
     // Params
-    imgui_pt knobs_pos[3] = {0};
-    float    knob_radius  = 0;
     {
-        enum
+        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
-            PARAMS_BOUNDARY_LEFT  = 32,
-            VERTICAL_SLIDER_WIDTH = 60,
-            METER_WIDTH           = 24,
-            METER_HEIGHT          = 146,
-            ROTARY_PARAM_DIAMETER = 160,
-
-            _MINIMUM_WIDTH = PARAMS_BOUNDARY_LEFT * 2 + VERTICAL_SLIDER_WIDTH * 2 + ROTARY_PARAM_DIAMETER * 3,
-        };
-        _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
-
-        const float param_boundary_left  = lm->scale_x * PARAMS_BOUNDARY_LEFT;
-        const float param_boundary_right = lm->width - lm->scale_x * PARAMS_BOUNDARY_LEFT;
-        const float PARAMS_WIDTH         = param_boundary_right - param_boundary_left;
-
-        const float param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
-
-        // For snapping to certain pixel boundaries
-#define snapf(val, interval) (roundf((val) / (interval)) * (interval))
-
-        const float veritcal_slider_width = snapf(VERTICAL_SLIDER_WIDTH * param_scale, 2);
-        const float rotary_param_diameter = snapf(ROTARY_PARAM_DIAMETER * param_scale, 2);
-
-        const float total_param_width = veritcal_slider_width * 2 + rotary_param_diameter * 3;
-        const float param_padding     = (PARAMS_WIDTH - total_param_width) / 4;
-
-        const struct
-        {
-            ParamID param_id;
-            float   cx;
-        } param_positions[] = {
-            {PARAM_CUTOFF, param_boundary_left + veritcal_slider_width + param_padding + rotary_param_diameter * 0.5f},
-            {PARAM_SCREAM,
-             param_boundary_left + veritcal_slider_width + param_padding * 2 + rotary_param_diameter * 1.5f},
-            {PARAM_RESONANCE,
-             param_boundary_left + veritcal_slider_width + param_padding * 3 + rotary_param_diameter * 2.5f},
-            {PARAM_INPUT_GAIN, param_boundary_left + veritcal_slider_width * 0.5f},
-            {PARAM_WET, param_boundary_right - veritcal_slider_width * 0.5f},
-        };
-
-        knob_radius = rotary_param_diameter * 0.5f;
-
-        for (int i = 0; i < ARRLEN(param_positions); i++)
-        {
-            const ParamID  param_id = param_positions[i].param_id;
-            const float    param_cx = param_positions[i].cx;
+            const ParamID  param_id = i;
+            const float    param_cx = lm->param_positions_cx[i];
             const unsigned wid      = 'prm' + i;
 
             switch (param_id)
@@ -910,21 +911,16 @@ void pw_tick(void* _gui)
                     RADIUS_VALUE_ARC      = 140 / 2,
                     RADIUS_DASHED_PATTERN = 154 / 2,
                 };
-                imgui_pt pt;
-                pt.x                      = param_cx;
-                pt.y                      = roundf(lm->content_y + lm->content_height * 0.5f);
-                const float slider_radius = rotary_param_diameter * 0.5f;
+                xassert(param_id < ARRLEN(lm->knobs_pos));
+                imgui_pt pt = lm->knobs_pos[param_id];
 
-                xassert(param_id < ARRLEN(knobs_pos));
-                knobs_pos[param_id] = pt;
-
-                uint32_t events  = imgui_get_events_circle(im, wid, pt, slider_radius);
+                uint32_t events  = imgui_get_events_circle(im, wid, pt, lm->knob_radius);
                 double   value_d = handle_param_events(gui, i, events, 300);
 
                 // Inlet
                 {
                     // 3 stop radial gradient
-                    const float r100 = roundf(RADIUS_INLET * param_scale);
+                    const float r100 = roundf(RADIUS_INLET * lm->param_scale);
                     const float r90  = roundf(r100 * 0.9f);
                     const float r80  = roundf(r100 * 0.8f);
 
@@ -946,15 +942,15 @@ void pw_tick(void* _gui)
                 }
 
                 // Outer knob
-                const float radius_outer = roundf(RADIUS_OUTER * param_scale);
+                const float radius_outer = roundf(RADIUS_OUTER * lm->param_scale);
                 const float outer_y      = pt.y - radius_outer;
                 const float outer_h      = radius_outer * 2;
 
                 // Outer knob outer shadow
                 {
-                    const float y            = pt.y + 16 * param_scale;
-                    const float inner_radius = radius_outer - 8 * param_scale;
-                    const float outer_radius = radius_outer + 4 * param_scale;
+                    const float y            = pt.y + 16 * lm->param_scale;
+                    const float inner_radius = radius_outer - 8 * lm->param_scale;
+                    const float outer_radius = radius_outer + 4 * lm->param_scale;
 
                     static const NVGcolor icol = {0, 0, 0, 0.25f};
                     static const NVGcolor ocol = {0, 0, 0, 0};
@@ -990,7 +986,7 @@ void pw_tick(void* _gui)
                 }
 
                 // Inner
-                const float radius_inner = RADIUS_INNER * param_scale;
+                const float radius_inner = RADIUS_INNER * lm->param_scale;
                 const float inner_y      = pt.y - radius_inner;
                 const float inner_h      = radius_inner * 2;
                 const float inner_s0_y   = inner_y + inner_h * 0.16f;
@@ -1020,12 +1016,12 @@ void pw_tick(void* _gui)
                 float angle_x = cosf(angle_value);
                 float angle_y = sinf(angle_value);
 
-                float tick_radius_start = radius_inner - 10 * param_scale;
+                float tick_radius_start = radius_inner - 10 * lm->param_scale;
                 float tick_radius_end   = radius_inner * 0.4f;
 
                 const imgui_pt pt1 = {pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y};
                 const imgui_pt pt2 = {pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y};
-                nvgStrokeWidth(nvg, 6 * param_scale);
+                nvgStrokeWidth(nvg, 6 * lm->param_scale);
                 nvgLineCap(nvg, NVG_ROUND);
 
                 nvgBeginPath(nvg); // Skeumorphic inner shadow
@@ -1043,8 +1039,8 @@ void pw_tick(void* _gui)
                 nvgLineCap(nvg, NVG_BUTT);
 
                 // Value arc
-                const float arc_radius = roundf(RADIUS_VALUE_ARC * param_scale);
-                nvgStrokeWidth(nvg, roundf(param_scale * 4));
+                const float arc_radius = roundf(RADIUS_VALUE_ARC * lm->param_scale);
+                nvgStrokeWidth(nvg, roundf(lm->param_scale * 4));
                 nvgBeginPath(nvg);
                 nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
                 nvgStrokeColour(nvg, COLOUR_GREY_1);
@@ -1059,8 +1055,8 @@ void pw_tick(void* _gui)
             case PARAM_INPUT_GAIN:
             case PARAM_WET:
             {
-                const float meter_width  = snapf(METER_WIDTH * param_scale, 2);
-                const float meter_height = snapf(METER_HEIGHT * param_scale, 2);
+                const float meter_width  = snapf(METER_WIDTH * lm->param_scale, 2);
+                const float meter_height = snapf(METER_HEIGHT * lm->param_scale, 2);
 
                 imgui_rect rect;
 
@@ -1153,7 +1149,7 @@ void pw_tick(void* _gui)
                     double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, rect.b - rect.y);
 
                     nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4 * param_scale);
+                    nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4 * lm->param_scale);
                     nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
 
                     static const NVGcolour bg_grad_stop0 = nvgHexColour(0x2C2F35FF);
@@ -1208,7 +1204,7 @@ void pw_tick(void* _gui)
                     nvgBeginPath(nvg);
                     for (int ch = 0; ch < 2; ch++)
                     {
-                        nvgRoundedRect(nvg, ch_x[ch], ch_y, ch_w, ch_h, 2 * param_scale);
+                        nvgRoundedRect(nvg, ch_x[ch], ch_y, ch_w, ch_h, 2 * lm->param_scale);
                     }
 
                     static const NVGcolour ch_grad_stop0 = nvgHexColour(0x6C7483FF);
@@ -1243,7 +1239,7 @@ void pw_tick(void* _gui)
                         {
                             float norm        = xm_normf(peak_dB_1, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
                             float peak_height = norm * ch_h;
-                            nvgRoundedRect(nvg, ch_x[ch], ch_b - peak_height, ch_w, peak_height, 2 * param_scale);
+                            nvgRoundedRect(nvg, ch_x[ch], ch_b - peak_height, ch_w, peak_height, 2 * lm->param_scale);
                             has_peaks = true;
                         }
                     }
@@ -1274,7 +1270,7 @@ void pw_tick(void* _gui)
                     {
                         if (rt_peak_dB[ch] > RANGE_INPUT_GAIN_MIN)
                         {
-                            const float blur = 4 * param_scale;
+                            const float blur = 4 * lm->param_scale;
 
                             float gx = ch_x[ch] - blur;
                             float gy = rt_peak_y[ch] - blur;
@@ -1328,7 +1324,7 @@ void pw_tick(void* _gui)
                 {
                     // BG colour
                     nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * param_scale);
+                    nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * lm->param_scale);
                     nvgFillColour(nvg, COLOUR_BG_LIGHT);
                     nvgFill(nvg);
 
@@ -1337,7 +1333,7 @@ void pw_tick(void* _gui)
                     float       shadow_y = rect.y + 2;
                     NVGcolour   icol     = {0, 0, 0, 0};
                     NVGcolour   ocol     = {0, 0, 0, 0.15};
-                    const float blur1    = 4; // * param_scale; // Doesn't look great scaled
+                    const float blur1    = 4; // * lm->param_scale; // Doesn't look great scaled
                     NVGpaint    paint    = nvgBoxGradient(
                         nvg,
                         rect.x + blur1 * 0.5,
@@ -1349,7 +1345,7 @@ void pw_tick(void* _gui)
                         icol,
                         ocol);
                     nvgFillPaint(nvg, paint);
-                    nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * param_scale);
+                    nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * lm->param_scale);
                     nvgFill(nvg);
 
                     imgui_rect handle  = rect;
@@ -1399,21 +1395,21 @@ void pw_tick(void* _gui)
                     float handle_cy = xm_lerpf(value_d, drag_b, drag_y);
                     handle.y        = handle_cy - w * 0.5f;
 
-                    const float blur2 = 4 * param_scale;
+                    const float blur2 = 4 * lm->param_scale;
                     nvgBeginPath(nvg);
                     icol       = (NVGcolour){0, 0, 0, 0.3};
                     ocol       = (NVGcolour){0, 0, 0, 0};
                     float sh_x = handle.x + 1;
                     float sh_y = handle.y + 3;
 
-                    paint = nvgBoxGradient(0, sh_x, sh_y, w, w, 4 * param_scale, blur2, icol, ocol);
+                    paint = nvgBoxGradient(0, sh_x, sh_y, w, w, 4 * lm->param_scale, blur2, icol, ocol);
                     nvgFillPaint(nvg, paint);
-                    nvgRoundedRect(nvg, sh_x - blur2, sh_y - blur2, w + blur2 * 2, w + blur2 * 2, 4 * param_scale);
+                    nvgRoundedRect(nvg, sh_x - blur2, sh_y - blur2, w + blur2 * 2, w + blur2 * 2, 4 * lm->param_scale);
                     nvgFill(nvg);
 
                     // Handle BG
                     nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * param_scale);
+                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
                     NVGcolor stop1 = nvgHexColour(0xB5BFC8FF);
                     NVGcolor stop2 = nvgHexColour(0xD5DFEAFF);
                     paint = nvgLinearGradient(0, 0, handle_cy - w * 0.35, 0, handle_cy + w * 0.35, stop1, stop2);
@@ -1423,17 +1419,17 @@ void pw_tick(void* _gui)
                     // Top inner shadow
                     icol  = (NVGcolour){1, 1, 1, 0};
                     ocol  = (NVGcolour){1, 1, 1, 0.3};
-                    paint = nvgBoxGradient(0, handle.x, handle.y + 2, w, w, 4 * param_scale, 1, icol, ocol);
+                    paint = nvgBoxGradient(0, handle.x, handle.y + 2, w, w, 4 * lm->param_scale, 1, icol, ocol);
                     nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * param_scale);
+                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
                     nvgFillPaint(nvg, paint);
                     nvgFill(nvg);
                     // Bottom inner shadow
                     icol  = (NVGcolour){0, 0, 0, 0};
                     ocol  = (NVGcolour){0, 0, 0, 0.2};
-                    paint = nvgBoxGradient(0, handle.x, handle.y - 2, w, w, 4 * param_scale, 1, icol, ocol);
+                    paint = nvgBoxGradient(0, handle.x, handle.y - 2, w, w, 4 * lm->param_scale, 1, icol, ocol);
                     nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * param_scale);
+                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
                     nvgFillPaint(nvg, paint);
                     nvgFill(nvg);
 
@@ -1464,20 +1460,20 @@ void pw_tick(void* _gui)
         }
 
         nvgFillColour(nvg, COLOUR_TEXT);
-        const float param_font_size = 14 * content_scale * param_scale;
-        nvgFontSize(nvg, 14 * content_scale * param_scale);
+        const float param_font_size = 14 * content_scale * lm->param_scale;
+        nvgFontSize(nvg, 14 * content_scale * lm->param_scale);
 
         const float content_cy  = lm->content_y + lm->content_height * 0.5f;
-        const float text_offset = rotary_param_diameter * 0.5 + 40 * lm->scale_y;
+        const float text_offset = lm->knob_radius + 40 * lm->scale_y;
         const float value_y     = content_cy - text_offset;
         const float label_b     = content_cy + text_offset;
 
         static const char* NAMES[] = {"CUTOFF", "SCREAM", "RESONANCE", "INPUT", "WET"};
         _Static_assert(ARRLEN(NAMES) == NUM_PARAMS);
-        for (int i = 0; i < ARRLEN(param_positions); i++)
+        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
-            const ParamID param_id = param_positions[i].param_id;
-            const float   param_cx = param_positions[i].cx;
+            const ParamID param_id = i;
+            const float   param_cx = lm->param_positions_cx[i];
 
             nvgTextAlign(nvg, NVG_ALIGN_BC);
             nvgFillColour(nvg, COLOUR_TEXT);
@@ -1683,16 +1679,17 @@ void pw_tick(void* _gui)
             {-1.0f, -1.0f, -32767, -32767},
         };
         _Static_assert(ARRLEN(verts) == (3 * 4), "");
-        _Static_assert(ARRLEN(verts) / 4 == ARRLEN(knobs_pos), "");
+        _Static_assert(ARRLEN(verts) / 4 == ARRLEN(lm->knobs_pos), "");
         // clang-format on
 
-        xassert(knob_radius != 0);
-        for (int i = 0; i < ARRLEN(knobs_pos); i++)
+        float radius = lm->knob_radius;
+        xassert(radius != 0);
+        for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
         {
-            float left   = knobs_pos[i].x - knob_radius;
-            float right  = knobs_pos[i].x + knob_radius;
-            float top    = knobs_pos[i].y - knob_radius;
-            float bottom = knobs_pos[i].y + knob_radius;
+            float left   = lm->knobs_pos[i].x - radius;
+            float right  = lm->knobs_pos[i].x + radius;
+            float top    = lm->knobs_pos[i].y - radius;
+            float bottom = lm->knobs_pos[i].y + radius;
 
             left   = xm_mapf(left, 0, lm->width, -1, 1);
             right  = xm_mapf(right, 0, lm->width, -1, 1);

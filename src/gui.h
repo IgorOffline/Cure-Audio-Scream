@@ -31,6 +31,13 @@ typedef struct LayoutMetrics
     float content_y;
     float content_b;
     float content_height;
+
+    // Params
+    float param_positions_cx[NUM_PARAMS];
+    float param_scale;
+    float knob_radius;
+
+    imgui_pt knobs_pos[3]; // cx/cy
 } LayoutMetrics;
 
 typedef struct GUI
@@ -100,3 +107,6 @@ static const NVGcolour COLOUR_BG_DARK  = nvgHexColour(0x151B32FF);
 
 static const NVGcolour COLOUR_GREY_1 = nvgHexColour(0xB5BEC7FF);
 static const NVGcolour COLOUR_GREY_2 = nvgHexColour(0x636A78FF);
+
+// For snapping to certain pixel boundaries
+#define snapf(val, interval) (roundf((val) / (interval)) * (interval))
