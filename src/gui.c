@@ -612,6 +612,57 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     return value_d;
 }
 
+void draw_lfo_section(GUI* gui)
+{
+    NVGcontext*    nvg = gui->nvg;
+    imgui_context* im  = &gui->imgui;
+    LayoutMetrics* lm  = &gui->layout;
+
+    float bot_content_height = lm->content_b - lm->top_content_bottom;
+
+    const float display_y = lm->top_content_bottom + 8;
+    const float display_w = (lm->content_r - lm->content_x) - 2 * 8;
+    const float display_h = bot_content_height - 2 * 8;
+    nvgBeginPath(nvg);
+    nvgRoundedRect(nvg, lm->content_x + 8, display_y, display_w, display_h, 6);
+    nvgFillColour(nvg, COLOUR_BG_DARK);
+    nvgFill(nvg);
+
+    static const NVGcolour c_light_blue = nvgHexColour(0x97E6FCFF);
+
+    enum
+    {
+        LFO_TAB_HEIGHT = 28,
+        LFO_TAB_WIDTH  = 80,
+    };
+
+    imgui_rect lfo_tabs[2];
+    float      gui_cx = lm->width / 2;
+
+    lfo_tabs[0].r = gui_cx - 4;
+    lfo_tabs[0].x = lfo_tabs[0].r - LFO_TAB_WIDTH;
+    lfo_tabs[1].x = gui_cx + 4;
+    lfo_tabs[1].r = lfo_tabs[1].x + LFO_TAB_WIDTH;
+
+    lfo_tabs[0].y = display_y + 12;
+    lfo_tabs[1].y = display_y + 12;
+    lfo_tabs[0].b = lfo_tabs[0].y + LFO_TAB_HEIGHT;
+    lfo_tabs[1].b = lfo_tabs[1].y + LFO_TAB_HEIGHT;
+    for (int i = 0; i < ARRLEN(lfo_tabs); i++)
+    {
+        const imgui_rect* rect   = &lfo_tabs[i];
+        const unsigned    wid    = 'tlfo' + i;
+        const unsigned    events = imgui_get_events_rect(im, wid, rect);
+
+        nvgBeginPath(nvg);
+        nvgRoundedRect(nvg, rect->x, rect->y, rect->r - rect->x, rect->b - rect->y, 4);
+        nvgFillColour(nvg, c_light_blue);
+        nvgFill(nvg);
+
+        // TODO: draw text and icon
+    }
+}
+
 void pw_tick(void* _gui)
 {
     GUI* gui = _gui;
@@ -669,6 +720,8 @@ void pw_tick(void* _gui)
         HEIGHT_FOOTER  = 20,
         BORDER_PADDING = 8,
 
+        CONTENT_HEIGHT = GUI_INIT_HEIGHT - HEIGHT_HEADER - HEIGHT_FOOTER - 2 * BORDER_PADDING,
+
         PARAMS_BOUNDARY_LEFT  = 32,
         VERTICAL_SLIDER_WIDTH = 60,
         METER_WIDTH           = 24,
@@ -680,29 +733,37 @@ void pw_tick(void* _gui)
     _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
 
     // Recalculate layout metrics
-    if (im->frame.events & (1 << PW_EVENT_RESIZE))
+    if (im->frame.events & ((1 << PW_EVENT_RESIZE) | (1 << PW_EVENT_DPI_CHANGED)))
     {
         lm->width  = gui->plugin->width;
         lm->height = gui->plugin->height;
 
-        int top_height = lm->height;
+        int init_height = GUI_INIT_HEIGHT;
+        int top_height  = lm->height;
         if (gui->plugin->lfo_section_open)
-            top_height /= 2;
-
-        lm->section_top_height    = top_height;
-        lm->section_bottom_height = lm->height - top_height;
+        {
+            init_height = HEIGHT_HEADER + HEIGHT_FOOTER + 2 * CONTENT_HEIGHT + 2 * BORDER_PADDING;
+        }
 
         lm->scale_x = (float)lm->width / (float)GUI_INIT_WIDTH;
-        lm->scale_y = (float)lm->section_top_height / (float)GUI_INIT_HEIGHT;
+        lm->scale_y = (float)top_height / (float)init_height;
 
-        lm->height_header = HEIGHT_HEADER * content_scale * lm->scale_y;
-        lm->height_footer = HEIGHT_FOOTER * content_scale * lm->scale_y;
+        lm->height_header = floorf(HEIGHT_HEADER * content_scale * lm->scale_y);
+        lm->height_footer = floorf(HEIGHT_FOOTER * content_scale * lm->scale_y);
 
-        lm->content_x      = BORDER_PADDING;
-        lm->content_r      = lm->width - BORDER_PADDING;
-        lm->content_y      = floorf(lm->height_header + BORDER_PADDING);
-        lm->content_b      = floorf(lm->section_top_height - lm->height_footer - BORDER_PADDING * 2);
-        lm->content_height = lm->content_b - lm->content_y;
+        lm->content_x = BORDER_PADDING;
+        lm->content_r = lm->width - BORDER_PADDING;
+        lm->content_y = lm->height_header + BORDER_PADDING;
+        lm->content_b = lm->height - lm->height_footer - BORDER_PADDING;
+
+        const bool lfo_open = gui->plugin->lfo_section_open;
+
+        float content_height = lm->content_b - lm->content_y;
+        if (lfo_open)
+            lm->top_content_height = content_height * 0.5f;
+        else
+            lm->top_content_height = content_height;
+        lm->top_content_bottom = lm->content_y + lm->top_content_height;
 
         const float param_boundary_left  = lm->scale_x * PARAMS_BOUNDARY_LEFT;
         const float param_boundary_right = lm->width - lm->scale_x * PARAMS_BOUNDARY_LEFT;
@@ -736,7 +797,7 @@ void pw_tick(void* _gui)
         for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
         {
             lm->knobs_pos[i].x = lm->param_positions_cx[i];
-            lm->knobs_pos[i].y = roundf(lm->content_y + lm->content_height * 0.5f);
+            lm->knobs_pos[i].y = roundf(lm->content_y + lm->top_content_height * 0.5f);
         }
     }
 
@@ -816,8 +877,9 @@ void pw_tick(void* _gui)
 
     // Main content background
     {
+        float height = lm->content_b - lm->content_y;
         nvgBeginPath(nvg);
-        nvgRoundedRect(nvg, 8, lm->content_y, lm->width - 16, lm->content_height, 8);
+        nvgRoundedRect(nvg, 8, lm->content_y, lm->width - 16, height, 8);
         nvgFillColour(nvg, COLOUR_BG_LIGHT);
         nvgFill(nvg);
 
@@ -827,10 +889,9 @@ void pw_tick(void* _gui)
         float       grad_r      = lm->content_r + blur_radius * 0.5f;
         float       grad_w      = grad_r - grad_x;
 
-        NVGcolour icol = (NVGcolour){1, 1, 1, 0};
-        NVGcolour ocol = (NVGcolour){1, 1, 1, 0.75};
-        NVGpaint  paint =
-            nvgBoxGradient(nvg, grad_x, lm->content_y, grad_w, lm->content_height, 16, blur_radius, icol, ocol);
+        NVGcolour icol  = (NVGcolour){1, 1, 1, 0};
+        NVGcolour ocol  = (NVGcolour){1, 1, 1, 0.75};
+        NVGpaint  paint = nvgBoxGradient(nvg, grad_x, lm->content_y, grad_w, height, 16, blur_radius, icol, ocol);
 
         // Top inner shadow (light)
         nvgBeginPath(nvg);
@@ -1062,8 +1123,8 @@ void pw_tick(void* _gui)
 
                 rect.x = roundf(param_cx - meter_width * 0.5);
                 rect.r = roundf(param_cx + meter_width * 0.5);
-                rect.y = roundf(lm->section_top_height * 0.5 - meter_height * 0.5f);
-                rect.b = roundf(lm->section_top_height * 0.5 + meter_height * 0.5f);
+                rect.y = roundf(lm->knobs_pos[0].y - meter_height * 0.5f);
+                rect.b = roundf(lm->knobs_pos[0].y + meter_height * 0.5f);
 
                 // Shadows
                 {
@@ -1254,8 +1315,8 @@ void pw_tick(void* _gui)
                         xm_fast_gain_to_dB(gui->input_gain_peaks_fast[0]),
                         xm_fast_gain_to_dB(gui->input_gain_peaks_fast[1]),
                     };
-                    float rt_peak_h[2] = {lm->section_top_height, lm->section_top_height};
-                    float rt_peak_y[2] = {lm->section_top_height, lm->section_top_height};
+                    float rt_peak_h[2] = {lm->height, lm->height};
+                    float rt_peak_y[2] = {lm->height, lm->height};
 
                     for (int ch = 0; ch < 2; ch++)
                     {
@@ -1463,7 +1524,7 @@ void pw_tick(void* _gui)
         const float param_font_size = 14 * content_scale * lm->param_scale;
         nvgFontSize(nvg, 14 * content_scale * lm->param_scale);
 
-        const float content_cy  = lm->content_y + lm->content_height * 0.5f;
+        const float content_cy  = lm->content_y + lm->top_content_height * 0.5f;
         const float text_offset = lm->knob_radius + 40 * lm->scale_y;
         const float value_y     = content_cy - text_offset;
         const float label_b     = content_cy + text_offset;
@@ -1632,18 +1693,16 @@ void pw_tick(void* _gui)
 #endif
         len = snprintf(text, sizeof(text), "Scream %s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
         nvgTextAlign(nvg, NVG_ALIGN_BL);
-        nvgText(nvg, 8, lm->section_top_height - 8, text, text + len);
+        nvgText(nvg, 8, lm->height - 8, text, text + len);
     }
 
-    // int next_gui_width  = 0;
-    // int next_gui_height = 0;
     bool toggle_lfo_open = false;
     {
         imgui_rect lmao;
         lmao.x = (lm->width / 2) - 20;
-        lmao.y = lm->section_top_height - 40;
+        lmao.y = lm->top_content_bottom - 40;
         lmao.r = lmao.x + 40;
-        lmao.b = lmao.y + 40;
+        lmao.b = lm->top_content_bottom;
 
         unsigned events = imgui_get_events_rect(im, 'size', &lmao);
 
@@ -1654,6 +1713,11 @@ void pw_tick(void* _gui)
         nvgRect(nvg, lmao.x, lmao.y, lmao.r - lmao.x, lmao.b - lmao.y);
         nvgFillColour(nvg, nvgHexColour(0xff0000ff));
         nvgFill(nvg);
+    }
+
+    if (gui->plugin->lfo_section_open)
+    {
+        draw_lfo_section(gui);
     }
 
     // End frame
@@ -1776,12 +1840,14 @@ void pw_tick(void* _gui)
     {
         gui->plugin->lfo_section_open = !gui->plugin->lfo_section_open;
 
-        int height = lm->height;
+        int next_height = lm->height;
+        int content_height = lm->content_b - lm->content_y;
         if (gui->plugin->lfo_section_open)
-            height *= 2;
+            next_height += content_height;
         else
-            height /= 2;
+            next_height -= (content_height / 2);
+        xassert(next_height >= 0);
 
-        gui->plugin->cplug_ctx->requestResize(gui->plugin->cplug_ctx, lm->width, height);
+        gui->plugin->cplug_ctx->requestResize(gui->plugin->cplug_ctx, lm->width, next_height);
     }
 }

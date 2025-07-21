@@ -16,9 +16,6 @@ typedef struct LayoutMetrics
 {
     int width, height;
 
-    int section_top_height;
-    int section_bottom_height;
-
     float scale_x;
     float scale_y;
 
@@ -30,14 +27,15 @@ typedef struct LayoutMetrics
     float content_r;
     float content_y;
     float content_b;
-    float content_height;
+    float top_content_height;
+    float top_content_bottom;
 
     // Params
     float param_positions_cx[NUM_PARAMS];
     float param_scale;
-    float knob_radius;
 
     imgui_pt knobs_pos[3]; // cx/cy
+    float    knob_radius;
 } LayoutMetrics;
 
 typedef struct GUI

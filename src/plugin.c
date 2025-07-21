@@ -65,7 +65,9 @@ void* cplug_createPlugin(CplugHostContext* ctx)
     p->cplug_ctx     = ctx;
 
     p->width  = GUI_INIT_WIDTH;
-    p->height = GUI_INIT_HEIGHT;
+    p->height = GUI_INIT_HEIGHT * 2;
+
+    p->lfo_section_open = true;
 
     for (int i = 0; i < ARRLEN(p->main_params); i++)
         p->main_params[i] = cplug_getDefaultParameterValue(p, i);
