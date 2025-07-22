@@ -714,18 +714,34 @@ void draw_lfo_section(GUI* gui)
             col2 = c_light_blue;
         }
 
-        nvgBeginPath(nvg);
         if (is_active)
         {
-            NVGcolour glow_col = nvgHexColour(0x459DB5FF);
-            float     width    = rect->r - rect->x;
-            float     height   = rect->b - rect->y;
+            NVGcolour glow_icol = nvgHexColour(0x459DB5FF);
+            NVGcolour glow_ocol = glow_icol;
+            glow_ocol.a         = 0;
+            float width         = rect->r - rect->x;
+            float height        = rect->b - rect->y;
+            float glow_radius   = 12;
+            // glow
+            float gx = rect->x - glow_radius;
+            float gy = rect->y - glow_radius;
+            float gw = width + 2 * glow_radius;
+            float gh = height + 2 * glow_radius;
+            nvgBeginPath(nvg);
+            nvgRect(nvg, gx, gy, gw, gh);
+            NVGpaint paint = nvgBoxGradient(nvg, rect->x, rect->y, width, height, 4, glow_radius, glow_icol, glow_ocol);
+            nvgFillPaint(nvg, paint);
+            nvgFill(nvg);
+
+            // tab
+            nvgBeginPath(nvg);
             nvgRoundedRect(nvg, rect->x, rect->y, width, height, 4);
             nvgFillColour(nvg, col1);
             nvgFill(nvg);
         }
         else
         {
+            nvgBeginPath(nvg);
             nvgRoundedRect(nvg, rect->x + 0.5, rect->y + 0.5, rect->r - rect->x, rect->b - rect->y, 4);
             nvgStrokeColour(nvg, col2);
             nvgStrokeWidth(nvg, 1.1);
@@ -1075,7 +1091,7 @@ void pw_tick(void* _gui)
 #ifdef __APPLE__
     const float content_scale = dpi * 0.5;
 #else
-    const float    content_scale            = dpi;
+    const float content_scale = dpi;
 #endif
 
     NVGcontext*    nvg = gui->nvg;
