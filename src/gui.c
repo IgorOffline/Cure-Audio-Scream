@@ -2217,7 +2217,7 @@ void pw_tick(void* _gui)
         if (gui->plugin->lfo_section_open)
             next_height += content_height;
         else
-            next_height -= (content_height / 2);
+            next_height -= content_height - lm->top_content_height;
         xassert(next_height >= 0);
 
         gui->plugin->cplug_ctx->requestResize(gui->plugin->cplug_ctx, lm->width, next_height);
