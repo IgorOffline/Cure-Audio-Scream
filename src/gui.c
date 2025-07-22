@@ -654,6 +654,10 @@ void draw_lfo_section(GUI* gui)
         PATTERN_WIDTH                = 256,
         PATTERN_NUMBER_LABEL_PADDING = 32,
         PATTERN_SLIDER_WIDTH         = PATTERN_WIDTH - 2 * PATTERN_NUMBER_LABEL_PADDING,
+        PATTERN_TRIANGLE_HEIGHT      = 12,
+
+        DISPLAY_PADDING_TOP    = 48,
+        DISPLAY_PADDING_BOTTOM = 32,
     };
 
     imgui_rect lfo_tabs[2];
@@ -888,6 +892,11 @@ void draw_lfo_section(GUI* gui)
         unsigned wid    = 'lshp' + i;
         unsigned events = imgui_get_events_rect(im, wid, &rect);
 
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            println("TODO: handle changing draw LFO shapes: %d", i);
+        }
+
         // nvgBeginPath(nvg);
         // nvgFillColour(nvg, COLOUR_BG_LIGHT);
         // nvgRect(nvg, shape_x, shape_y, SHAPES_WIDTH, SHAPES_WIDTH);
@@ -953,20 +962,61 @@ void draw_lfo_section(GUI* gui)
     float pattern_x  = xm_maxf(pattern_r - PATTERN_WIDTH, shape_x);
     float pattern_cx = 0.5f * (pattern_x + pattern_r);
     float pattern_cy = shape_y + SHAPES_WIDTH * 0.5f;
-    nvgTextAlign(nvg, NVG_ALIGN_BC);
-    nvgFillColour(nvg, COLOUR_TEXT);
-    nvgText(nvg, pattern_cx, display_b - CONTENT_PADDING_Y, "PATTERN", NULL);
+    float pattern_b  = display_b - CONTENT_PADDING_Y;
+    {
+        const imgui_rect rect   = {pattern_x, shape_y, pattern_r, pattern_b};
+        const unsigned   events = imgui_get_events_rect(im, 'lptn', &rect);
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            println("TODO: handle changing patterns");
+        }
 
-    nvgTextAlign(nvg, NVG_ALIGN_CL);
-    nvgText(nvg, pattern_x, pattern_cy, "1", NULL);
-    nvgTextAlign(nvg, NVG_ALIGN_CR);
-    nvgText(nvg, pattern_r, pattern_cy, "8", NULL);
+        nvgTextAlign(nvg, NVG_ALIGN_BC);
+        nvgFillColour(nvg, COLOUR_TEXT);
+        nvgText(nvg, pattern_cx, pattern_b, "PATTERN", NULL);
+
+        nvgTextAlign(nvg, NVG_ALIGN_CL);
+        nvgText(nvg, pattern_x, pattern_cy, "1", NULL);
+        nvgTextAlign(nvg, NVG_ALIGN_CR);
+        nvgText(nvg, pattern_r, pattern_cy, "8", NULL);
+
+        float pattern_line_y = floorf(pattern_cy) + 0.5f;
+        float pattern_line_x = pattern_x + PATTERN_NUMBER_LABEL_PADDING;
+        float pattern_line_r = pattern_r - PATTERN_NUMBER_LABEL_PADDING;
+        nvgBeginPath(nvg);
+        nvgMoveTo(nvg, pattern_line_x, pattern_line_y);
+        nvgLineTo(nvg, pattern_line_r, pattern_line_y);
+        nvgStrokeColour(nvg, COLOUR_TEXT);
+        nvgStroke(nvg);
+
+        const int   pattern_num   = 1;
+        const float pattern_pos_x = xm_mapf(pattern_num, 1, 8, pattern_line_x, pattern_line_r);
+
+        float tri_b = ceilf(pattern_line_y - 4);
+        float tri_y = tri_b - PATTERN_TRIANGLE_HEIGHT;
+
+        nvgBeginPath(nvg);
+        nvgMoveTo(nvg, pattern_pos_x, tri_b);
+        nvgLineTo(nvg, pattern_pos_x - PATTERN_TRIANGLE_HEIGHT + 2, tri_y);
+        nvgLineTo(nvg, pattern_pos_x + PATTERN_TRIANGLE_HEIGHT - 2, tri_y);
+        nvgClosePath(nvg);
+        nvgFill(nvg);
+    }
+
+    // Display grid
+
+    float grid_y = display_y + CONTENT_PADDING_Y + LFO_TAB_HEIGHT + DISPLAY_PADDING_TOP;
+    float grid_b = shape_y - DISPLAY_PADDING_BOTTOM;
+    float grid_x = lm->content_x + CONTENT_PADDING_X + 8;
+    float grid_r = lm->content_r - CONTENT_PADDING_X - 8;
+
+    NVGcolour c_grid_1 = nvgHexColour(0x7E8795FF);
+    NVGcolour c_grid_2 = nvgHexColour(0x292D32FF);
+
     nvgBeginPath(nvg);
-
-    float pattern_line_y = floorf(pattern_cy) + 0.5f;
-    nvgMoveTo(nvg, pattern_x + PATTERN_NUMBER_LABEL_PADDING, pattern_line_y);
-    nvgLineTo(nvg, pattern_r - PATTERN_NUMBER_LABEL_PADDING, pattern_line_y);
-    nvgStrokeColour(nvg, COLOUR_TEXT);
+    nvgRect(nvg, grid_x + 0.5f, grid_y + 0.5f, grid_r - grid_x - 1, grid_b - grid_y - 1);
+    nvgStrokeWidth(nvg, 1);
+    nvgStrokeColour(nvg, c_grid_1);
     nvgStroke(nvg);
 }
 
