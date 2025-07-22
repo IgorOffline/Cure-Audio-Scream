@@ -66,12 +66,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleC
         -Wno-microsoft-enum-forward-reference
         )
 
-    if (WIN32)
-        list(APPEND PLUGIN_OPTIONS "-I${PROJECT_SOURCE_DIR}/src/common.h")
-    else()
-        list(APPEND PLUGIN_OPTIONS "-include${PROJECT_SOURCE_DIR}/src/common.h")
-    endif()
-
+    list(APPEND PLUGIN_OPTIONS "-include${PROJECT_SOURCE_DIR}/src/common.h")
 endif()
 # list(APPEND CMAKE_C_FLAGS -fsanitize=address)
 # list(APPEND CMAKE_CXX_FLAGS -fsanitize=address)
@@ -173,21 +168,21 @@ set(COMPILE_SHADER_CMD sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/shaders/nano
 
 ### COMPILE SHADERS ###
 # https://discourse.cmake.org/t/pre-ninja-bash-command/1418/5
-add_custom_command(
-    OUTPUT
-        ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
-        ${PROJECT_SOURCE_DIR}/src/shaders/nanovg_sokol.glsl.h
-        ${PROJECT_SOURCE_DIR}/src/shaders/knob.glsl.h
-    COMMAND
-        sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/shaders/nanovg_sokol.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/nanovg_sokol.glsl.h --slang ${SHADER_LANG}
-    COMMAND
-        sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/shaders/knob.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/knob.glsl.h --slang ${SHADER_LANG}
-)
-add_custom_target(shader_header
-    DEPENDS
-        ${PROJECT_SOURCE_DIR}/src/shaders/nanovg_sokol.glsl.h
-        ${PROJECT_SOURCE_DIR}/src/shaders/knob.glsl.h
-)
+# add_custom_command(
+#     OUTPUT
+#         ${CMAKE_CURRENT_BINARY_DIR}/shaders/shader.h.noexist
+#         ${PROJECT_SOURCE_DIR}/src/shaders/nanovg_sokol.glsl.h
+#         ${PROJECT_SOURCE_DIR}/src/shaders/knob.glsl.h
+#     COMMAND
+#         sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/shaders/nanovg_sokol.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/nanovg_sokol.glsl.h --slang ${SHADER_LANG}
+#     COMMAND
+#         sokol-shdc --input ${PROJECT_SOURCE_DIR}/src/shaders/knob.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/shaders/knob.glsl.h --slang ${SHADER_LANG}
+# )
+# add_custom_target(shader_header
+#     DEPENDS
+#         ${PROJECT_SOURCE_DIR}/src/shaders/nanovg_sokol.glsl.h
+#         ${PROJECT_SOURCE_DIR}/src/shaders/knob.glsl.h
+# )
 
 # ██████╗ ██╗     ██╗   ██╗ ██████╗ ██╗███╗   ██╗
 # ██╔══██╗██║     ██║   ██║██╔════╝ ██║████╗  ██║
@@ -286,7 +281,7 @@ target_link_libraries(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_LIBRARIES})
 target_include_directories(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_INCLUDE})
 target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_VST3 CPLUG_BUILD_CLAP CPLUG_BUILD_AUV2)
 target_compile_options(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_OPTIONS})
-add_dependencies(${PROJECT_NAME}_plugin shader_header)
+# add_dependencies(${PROJECT_NAME}_plugin shader_header)
 
 # ███████╗████████╗ █████╗ ███╗   ██╗██████╗  █████╗ ██╗      ██████╗ ███╗   ██╗███████╗
 # ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔══██╗██╔══██╗██║     ██╔═══██╗████╗  ██║██╔════╝
@@ -310,7 +305,7 @@ endif()
 target_include_directories(${PROJECT_NAME}_standalone PRIVATE ${PLUGIN_INCLUDE})
 target_compile_definitions(${PROJECT_NAME}_standalone PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_STANDALONE)
 target_compile_options(${PROJECT_NAME}_standalone PRIVATE ${PLUGIN_OPTIONS})
-add_dependencies(${PROJECT_NAME}_standalone shader_header)
+# add_dependencies(${PROJECT_NAME}_standalone shader_header)
 
 # ██╗  ██╗ ██████╗ ████████╗██████╗ ███████╗██╗      ██████╗  █████╗ ██████╗
 # ██║  ██║██╔═══██╗╚══██╔══╝██╔══██╗██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗
@@ -343,5 +338,5 @@ if (WIN32 AND CMAKE_BUILD_TYPE MATCHES Debug)
     # Forces plugin to be built before the host
     add_dependencies(${PROJECT_NAME}_hotreload ${HOTRELOAD_LIB_NAME})
 
-    add_dependencies(${HOTRELOAD_LIB_NAME} shader_header)
+    # add_dependencies(${HOTRELOAD_LIB_NAME} shader_header)
 endif()
