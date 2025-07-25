@@ -1117,11 +1117,10 @@ void nvgBeginFrame(NVGcontext* ctx, float devicePixelRatio)
     ctx->textTriCount   = 0;
 
     // Reset calls
-    SGNVGcontext* sg = (SGNVGcontext*)ctx->params.userPtr;
-    sg->nverts       = 0;
-    sg->nindexes     = 0;
-    sg->current_pass = NULL;
-    sg->first_pass   = NULL;
+    SGNVGcontext* sg  = (SGNVGcontext*)ctx->params.userPtr;
+    sg->nverts        = 0;
+    sg->nindexes      = 0;
+    sg->first_command = NULL;
 
     linked_arena_clear(sg->frame_arena);
 
@@ -1218,38 +1217,60 @@ void nvgEndFrame(NVGcontext* ctx)
     // upload index data
     sg_update_buffer(sg->indexBuf, &(sg_range){sg->indexes, sg->nindexes * sizeof(*sg->indexes)});
 
-    SGNVGpass* pass = sg->first_pass;
-    while (pass != NULL)
+    SGNVGcommand* cmd = sg->first_command;
+    while (cmd != NULL)
     {
-        sg_begin_pass(&pass->pass);
-
-        sg->view.viewSize[0] = pass->width;
-        sg->view.viewSize[1] = pass->height;
-
-        SGNVGcall* call = pass->calls;
-
-        for (int i = 0; i < pass->num_calls && call != NULL; i++)
+        switch (cmd->type)
         {
-            sg->blend.src_factor_rgb   = call->blendFunc.srcRGB;
-            sg->blend.dst_factor_rgb   = call->blendFunc.dstRGB;
-            sg->blend.src_factor_alpha = call->blendFunc.srcAlpha;
-            sg->blend.dst_factor_alpha = call->blendFunc.dstAlpha;
-            sg->pipelineCacheIndex     = sgnvg__getIndexFromCache(sg, sgnvg__getCombinedBlendNumber(sg->blend));
-            if (call->type == SGNVG_FILL)
-                sgnvg__fill(sg, call);
-            else if (call->type == SGNVG_CONVEXFILL)
-                sgnvg__convexFill(sg, call);
-            else if (call->type == SGNVG_STROKE)
-                sgnvg__stroke(sg, call);
-            else if (call->type == SGNVG_TRIANGLES)
-                sgnvg__triangles(sg, call);
+        case SGNVG_CMD_BEGIN_PASS:
+        {
+            SGNVGbeginPass* p = cmd->payload.beginPass;
 
-            call = call->next;
+            sg_begin_pass(&p->pass);
+
+            sg->view.viewSize[0] = p->width;
+            sg->view.viewSize[1] = p->height;
+
+            break;
+        }
+        case SGNVG_CMD_END_PASS:
+            sg_end_pass();
+            break;
+        case SGNVG_CMD_DRAW_NVG:
+        {
+            SGNVGdrawNVG* draws = cmd->payload.drawNVG;
+
+            SGNVGcall* call = draws->calls;
+
+            for (int i = 0; i < draws->num_calls && call != NULL; i++)
+            {
+                sg->blend.src_factor_rgb   = call->blendFunc.srcRGB;
+                sg->blend.dst_factor_rgb   = call->blendFunc.dstRGB;
+                sg->blend.src_factor_alpha = call->blendFunc.srcAlpha;
+                sg->blend.dst_factor_alpha = call->blendFunc.dstAlpha;
+                sg->pipelineCacheIndex     = sgnvg__getIndexFromCache(sg, sgnvg__getCombinedBlendNumber(sg->blend));
+                if (call->type == SGNVG_FILL)
+                    sgnvg__fill(sg, call);
+                else if (call->type == SGNVG_CONVEXFILL)
+                    sgnvg__convexFill(sg, call);
+                else if (call->type == SGNVG_STROKE)
+                    sgnvg__stroke(sg, call);
+                else if (call->type == SGNVG_TRIANGLES)
+                    sgnvg__triangles(sg, call);
+
+                call = call->next;
+            }
+            break;
+        }
+        case SGNVG_CMD_DRAW_CUSTOM:
+        {
+            SGNVGdrawCustom* custom = cmd->payload.custom;
+            custom->func(custom->data);
+            break;
+        }
         }
 
-        sg_end_pass();
-
-        pass = pass->next;
+        cmd = cmd->next;
     }
 }
 
@@ -1283,23 +1304,28 @@ static void sgnvg__addCall(SGNVGcontext* sg, SGNVGcall* call)
         sg->current_call->next = call;
     sg->current_call = call;
 
-    xassert(sg->current_pass != NULL);
-    if (sg->current_pass)
+    xassert(sg->current_nvg_draw != NULL);
+    if (sg->current_nvg_draw)
     {
-        sg->current_pass->num_calls++;
-        if (sg->current_pass->calls == NULL)
-            sg->current_pass->calls = call;
+        sg->current_nvg_draw->num_calls++;
+        if (sg->current_nvg_draw->calls == NULL)
+            sg->current_nvg_draw->calls = call;
     }
 }
 
-static void sgnvg__addPass(SGNVGcontext* sg, SGNVGpass* pass)
+static SGNVGcommand* sgnvg__allocCommand(SGNVGcontext* sg)
 {
-    if (sg->current_pass)
-        sg->current_pass->next = pass;
-    sg->current_pass = pass;
+    SGNVGcommand* cmd = linked_arena_alloc_clear(sg->frame_arena, sizeof(*cmd));
 
-    if (sg->first_pass == NULL)
-        sg->first_pass = pass;
+    if (sg->first_command == NULL)
+        sg->first_command = cmd;
+
+    if (sg->current_command)
+        sg->current_command->next = cmd;
+
+    sg->current_command = cmd;
+
+    return cmd;
 }
 
 static int sgnvg__allocVerts(SGNVGcontext* sg, int n)
@@ -1818,13 +1844,38 @@ sg_image nvsgImageHandleSokol(NVGcontext* ctx, int image)
     return tex->img;
 }
 
-void snvg_new_pass(NVGcontext* ctx, const sg_pass* p, int width, int height)
+void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass* pass, int width, int height)
 {
-    SGNVGcontext* sg   = ctx->params.userPtr;
-    SGNVGpass*    pass = linked_arena_alloc_clear(sg->frame_arena, sizeof(*sg));
-    pass->pass         = *p;
-    pass->width        = width;
-    pass->height       = height;
+    SGNVGcontext* sg = ctx->params.userPtr;
 
-    sgnvg__addPass(sg, pass);
+    SGNVGcommand*   cmd = sgnvg__allocCommand(sg);
+    SGNVGbeginPass* bp  = linked_arena_alloc_clear(sg->frame_arena, sizeof(*bp));
+
+    cmd->type              = SGNVG_CMD_BEGIN_PASS;
+    cmd->payload.beginPass = bp;
+
+    bp->pass   = *pass;
+    bp->width  = width;
+    bp->height = height;
+}
+
+void snvg_command_end_pass(NVGcontext* ctx)
+{
+    SGNVGcontext* sg = ctx->params.userPtr;
+
+    SGNVGcommand* cmd = sgnvg__allocCommand(sg);
+    cmd->type         = SGNVG_CMD_END_PASS;
+}
+
+void snvg_command_draw_nvg(NVGcontext* ctx)
+{
+    SGNVGcontext* sg = ctx->params.userPtr;
+
+    SGNVGcommand* cmd   = sgnvg__allocCommand(sg);
+    SGNVGdrawNVG* draws = linked_arena_alloc_clear(sg->frame_arena, sizeof(*draws));
+
+    cmd->type            = SGNVG_CMD_DRAW_NVG;
+    cmd->payload.drawNVG = draws;
+
+    sg->current_nvg_draw = draws;
 }

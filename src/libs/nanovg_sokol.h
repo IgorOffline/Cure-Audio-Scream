@@ -201,17 +201,48 @@ typedef struct SGNVGcall
     struct SGNVGcall* next;
 } SGNVGcall;
 
-typedef struct SGNVGpass
+typedef struct SGNVGbeginPass
 {
     sg_pass pass;
+    int     width, height;
+} SGNVGbeginPass;
 
-    int width, height;
-
-    int num_calls;
-
+typedef struct SGNVGdrawNVG
+{
+    int               num_calls;
     struct SGNVGcall* calls;
-    struct SGNVGpass* next;
-} SGNVGpass;
+} SGNVGdrawNVG;
+
+typedef void (*SGNVGcustomDrawFunc)(void* data);
+
+typedef struct SGNVGdrawCustom
+{
+    void*               data;
+    SGNVGcustomDrawFunc func;
+} SGNVGdrawCustom;
+
+enum SGNVGcommandType
+{
+    SGNVG_CMD_BEGIN_PASS,
+    SGNVG_CMD_END_PASS,
+    SGNVG_CMD_DRAW_NVG,
+    SGNVG_CMD_DRAW_CUSTOM,
+};
+
+typedef struct SGNVGcommand
+{
+    enum SGNVGcommandType type;
+    union
+    {
+        void* data;
+
+        SGNVGbeginPass*  beginPass;
+        SGNVGdrawNVG*    drawNVG;
+        SGNVGdrawCustom* custom;
+    } payload;
+
+    struct SGNVGcommand* next;
+} SGNVGcommand;
 
 typedef struct SGNVGcontext
 {
@@ -243,9 +274,10 @@ typedef struct SGNVGcontext
     // If these rules/guidelines are okay with you, go ahead
     LinkedArena* frame_arena;
 
-    SGNVGcall* current_call; // linked list current position
-    SGNVGpass* current_pass; // linked list current position
-    SGNVGpass* first_pass;   // linked list start
+    SGNVGcall*    current_call;     // linked list current position
+    SGNVGdrawNVG* current_nvg_draw; // linked list current position
+    SGNVGcommand* current_command;  // linked list current position
+    SGNVGcommand* first_command;    // linked list start
 
     // state
     int            pipelineCacheIndex;
@@ -254,7 +286,9 @@ typedef struct SGNVGcontext
     int dummyTex;
 } SGNVGcontext;
 
-void snvg_new_pass(NVGcontext* ctx, const sg_pass*, int width, int height);
+void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass*, int width, int height);
+void snvg_command_end_pass(NVGcontext* ctx);
+void snvg_command_draw_nvg(NVGcontext* ctx);
 
 #ifdef __cplusplus
 }

@@ -176,21 +176,21 @@ RenderTarget make_render_target(int width, int height)
         .usage.render_attachment = true,
         .width                   = width,
         .height                  = height,
-        .pixel_format = SG_PIXELFORMAT_BGRA8,
-        .sample_count = 1,
-        .label        = "render target colour image"});
+        .pixel_format            = SG_PIXELFORMAT_BGRA8,
+        .sample_count            = 1,
+        .label                   = "render target colour image"});
 
-    sg_image img_depth  = sg_make_image(&(sg_image_desc){
-         .usage.render_attachment = true,
-         .width                   = width,
-         .height                  = height,
-         .pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL,
-         .sample_count = 1,
-         .label        = "render target depth image"});
-    rt.attachment = sg_make_attachments(&(sg_attachments_desc){
-        .colors[0].image     = img_colour,
-        .depth_stencil.image = img_depth,
-        .label               = "render target attachment"});
+    sg_image img_depth = sg_make_image(&(sg_image_desc){
+        .usage.render_attachment = true,
+        .width                   = width,
+        .height                  = height,
+        .pixel_format            = SG_PIXELFORMAT_DEPTH_STENCIL,
+        .sample_count            = 1,
+        .label                   = "render target depth image"});
+    rt.attachment      = sg_make_attachments(&(sg_attachments_desc){
+             .colors[0].image     = img_colour,
+             .depth_stencil.image = img_depth,
+             .label               = "render target attachment"});
 
     return rt;
 }
@@ -1306,7 +1306,7 @@ void pw_tick(void* _gui)
         }
     }
 
-    snvg_new_pass(
+    snvg_command_begin_pass(
         nvg,
         &(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}}},
@@ -1315,13 +1315,15 @@ void pw_tick(void* _gui)
         },
         gui->render_target_test.width,
         gui->render_target_test.height);
+    snvg_command_draw_nvg(nvg);
+    snvg_command_end_pass(nvg);
 
     nvgBeginPath(nvg);
     nvgRect(nvg, 20, 20, 40, 60);
     nvgFillColour(nvg, (NVGcolour){1, 0, 0, 1});
     nvgFill(nvg);
 
-    snvg_new_pass(
+    snvg_command_begin_pass(
         gui->nvg,
         &(sg_pass){
             .action    = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1.0f}}},
@@ -1330,6 +1332,7 @@ void pw_tick(void* _gui)
         },
         gui->layout.width,
         gui->layout.height);
+    snvg_command_draw_nvg(nvg);
 
     // Background
     {
@@ -2228,16 +2231,15 @@ void pw_tick(void* _gui)
         draw_lfo_section(gui);
     }
 
-    // End frame
-    nvgEndFrame(gui->nvg);
+    // sg_begin_pass(&(sg_pass){
+    //     .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
+    //     .swapchain = gui->swapchain,
+    //     .label     = "swapchain / custom shaders",
+    // });
 
-    sg_begin_pass(&(sg_pass){
-        .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-        .swapchain = gui->swapchain,
-        .label     = "swapchain / custom shaders",
-    });
-
+    // TODO: make this work with new 'custom command' API
     // Knob shader
+    /*
     {
         // clang-format off
         vertex_t verts[] = {
@@ -2337,6 +2339,7 @@ void pw_tick(void* _gui)
         sg_apply_bindings(&bind);
         sg_draw(0, 6, 1);
     }
+    */
 
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
     if (bg_events & IMGUI_EVENT_MOUSE_ENTER)
@@ -2344,7 +2347,8 @@ void pw_tick(void* _gui)
         pw_set_mouse_cursor(gui->pw, PW_CURSOR_DEFAULT);
     }
 
-    sg_end_pass();
+    snvg_command_end_pass(nvg);
+    nvgEndFrame(gui->nvg);
     sg_commit();
     sg_set_global(NULL);
 
@@ -2354,7 +2358,7 @@ void pw_tick(void* _gui)
     {
         gui->plugin->lfo_section_open = !gui->plugin->lfo_section_open;
 
-        int next_height = lm->height;
+        int next_height    = lm->height;
         int content_height = lm->content_b - lm->content_y;
         if (gui->plugin->lfo_section_open)
             next_height += content_height;

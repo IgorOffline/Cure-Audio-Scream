@@ -42,12 +42,12 @@ void linked_arena_destroy(LinkedArena* arena)
     }
 }
 
-void* linked_arena_alloc(LinkedArena* arena, size_t size)
+void* linked_arena_alloc_aligned(LinkedArena* arena, size_t size, size_t alignment)
 {
     xassert(size > 0);
     void* ptr = NULL;
 
-    size = linked_arena_align(size, 16);
+    size = linked_arena_align(size, alignment);
 
     while (ptr == NULL)
     {
@@ -73,6 +73,8 @@ void* linked_arena_alloc(LinkedArena* arena, size_t size)
 
     return ptr;
 }
+
+void* linked_arena_alloc(LinkedArena* arena, size_t size) { return linked_arena_alloc_aligned(arena, size, 8); }
 
 void* linked_arena_alloc_clear(LinkedArena* arena, size_t size)
 {
