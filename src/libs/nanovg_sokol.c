@@ -1442,7 +1442,7 @@ void _nvgRenderFill(
     int                i, maxverts, offset, maxindexes, ioffset;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
-    SGNVG_ASSERT(sg->current_nvg_draw != NULL); // TODO: remove?
+    // SGNVG_ASSERT(sg->current_nvg_draw != NULL); // TODO: remove?
     if (sg->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 
@@ -1578,7 +1578,7 @@ void _nvgRenderStroke(
     int                i, maxverts, offset, maxindexes, ioffset;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
-    SGNVG_ASSERT(sg->current_nvg_draw != NULL); // TODO: remove?
+    // SGNVG_ASSERT(sg->current_nvg_draw != NULL); // TODO: remove?
     if (sg->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 
@@ -1683,7 +1683,7 @@ void _nvgRenderTriangles(
     SGNVGfragUniforms* frag = NULL;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
-    SGNVG_ASSERT(sg->current_nvg_draw != NULL); // TODO: remove?
+    // SGNVG_ASSERT(sg->current_nvg_draw != NULL); // TODO: remove?
     if (sg->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 

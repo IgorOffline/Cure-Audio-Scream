@@ -1141,6 +1141,112 @@ void draw_lfo_section(GUI* gui)
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 }
 
+void do_knob_and_logo_shader(void* uptr)
+{
+    GUI*           gui = uptr;
+    LayoutMetrics* lm  = &gui->layout;
+
+    {
+        // clang-format off
+        vertex_t verts[] = {
+            {-1.0f,  1.0f, -32767,  32767},
+            { 1.0f,  1.0f,  32767,  32767},
+            { 1.0f, -1.0f,  32767, -32767},
+            {-1.0f, -1.0f, -32767, -32767},
+
+            {-1.0f,  1.0f, -32767,  32767},
+            { 1.0f,  1.0f,  32767,  32767},
+            { 1.0f, -1.0f,  32767, -32767},
+            {-1.0f, -1.0f, -32767, -32767},
+
+            {-1.0f,  1.0f, -32767,  32767},
+            { 1.0f,  1.0f,  32767,  32767},
+            { 1.0f, -1.0f,  32767, -32767},
+            {-1.0f, -1.0f, -32767, -32767},
+        };
+        _Static_assert(ARRLEN(verts) == (3 * 4), "");
+        _Static_assert(ARRLEN(verts) / 4 == ARRLEN(lm->knobs_pos), "");
+        // clang-format on
+
+        float radius = lm->knob_radius;
+        xassert(radius != 0);
+        for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
+        {
+            float left   = lm->knobs_pos[i].x - radius;
+            float right  = lm->knobs_pos[i].x + radius;
+            float top    = lm->knobs_pos[i].y - radius;
+            float bottom = lm->knobs_pos[i].y + radius;
+
+            left   = xm_mapf(left, 0, lm->width, -1, 1);
+            right  = xm_mapf(right, 0, lm->width, -1, 1);
+            top    = xm_mapf(top, 0, lm->height, 1, -1);
+            bottom = xm_mapf(bottom, 0, lm->height, 1, -1);
+
+            int v_idx = i * 4;
+
+            verts[v_idx + 0].x = left;
+            verts[v_idx + 0].y = top;
+            verts[v_idx + 1].x = right;
+            verts[v_idx + 1].y = top;
+            verts[v_idx + 2].x = right;
+            verts[v_idx + 2].y = bottom;
+            verts[v_idx + 3].x = left;
+            verts[v_idx + 3].y = bottom;
+        }
+
+        sg_update_buffer(gui->knob_vbo, &SG_RANGE(verts));
+        sg_apply_pipeline(gui->knob_pip);
+
+        sg_bindings bind       = {0};
+        bind.vertex_buffers[0] = gui->knob_vbo;
+        bind.index_buffer      = gui->knob_ibo;
+        sg_apply_bindings(&bind);
+
+        xassert(sg_isvalid());
+
+        sg_draw(0, 6 * 3, 1);
+    }
+
+    // Logo shader
+    if (gui->img_logo_id.id)
+    {
+        float x, y, w, h, img_scale;
+
+        float padding = 4 * lm->scale_y;
+        h             = lm->height_header - padding;
+        img_scale     = h / (float)gui->img_logo_height;
+        w             = (float)gui->img_logo_width * img_scale;
+        x             = lm->width - 16 - w;
+        // x         = 16;
+        y = padding;
+
+        float l = xm_mapf(x, 0, lm->width, -1, 1);
+        float r = xm_mapf(x + w, 0, lm->width, -1, 1);
+        float t = xm_mapf(y, 0, lm->height, 1, -1);
+        float b = xm_mapf(y + h, 0, lm->height, 1, -1);
+
+        // clang-format off
+        vertex_t verts[] = {
+            {l, t, 0,     0},
+            {r, t, 32767, 0},
+            {r, b, 32767, 32767},
+            {l, b, 0,     32767},
+        };
+
+        sg_update_buffer(gui->img_vbo, &SG_RANGE(verts));
+        sg_apply_pipeline(gui->img_pip);
+
+        sg_bindings bind       = {0};
+        bind.vertex_buffers[0] = gui->img_vbo;
+        bind.index_buffer      = gui->img_ibo;
+        bind.images[IMG_texquad_tex]   = gui->img_logo_id;
+        bind.samplers[SMP_texquad_smp] = gui->img_smp;
+
+        sg_apply_bindings(&bind);
+        sg_draw(0, 6, 1);
+    }
+}
+
 void pw_tick(void* _gui)
 {
     GUI* gui = _gui;
@@ -2097,6 +2203,8 @@ void pw_tick(void* _gui)
         }
     }
 
+    snvg_command_custom(nvg, gui, do_knob_and_logo_shader);
+
     /*
     const float peak_gain = gui->plugin->gui_output_peak_gain;
     if (peak_gain > 1)
@@ -2138,6 +2246,30 @@ void pw_tick(void* _gui)
     }
 #endif
     */
+
+    bool toggle_lfo_open = false;
+    {
+        imgui_rect lmao;
+        lmao.x = (lm->width / 2) - 20;
+        lmao.y = lm->top_content_bottom - 40;
+        lmao.r = lmao.x + 40;
+        lmao.b = lm->top_content_bottom;
+
+        unsigned events = imgui_get_events_rect(im, 'size', &lmao);
+
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+            toggle_lfo_open = true;
+
+        nvgBeginPath(nvg);
+        nvgRect(nvg, lmao.x, lmao.y, lmao.r - lmao.x, lmao.b - lmao.y);
+        nvgFillColour(nvg, nvgHexColour(0xff0000ff));
+        nvgFill(nvg);
+    }
+
+    if (gui->plugin->lfo_section_open)
+    {
+        draw_lfo_section(gui);
+    }
 
     // Footer
     {
@@ -2206,140 +2338,6 @@ void pw_tick(void* _gui)
             nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
         }
     }
-
-    bool toggle_lfo_open = false;
-    {
-        imgui_rect lmao;
-        lmao.x = (lm->width / 2) - 20;
-        lmao.y = lm->top_content_bottom - 40;
-        lmao.r = lmao.x + 40;
-        lmao.b = lm->top_content_bottom;
-
-        unsigned events = imgui_get_events_rect(im, 'size', &lmao);
-
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            toggle_lfo_open = true;
-
-        nvgBeginPath(nvg);
-        nvgRect(nvg, lmao.x, lmao.y, lmao.r - lmao.x, lmao.b - lmao.y);
-        nvgFillColour(nvg, nvgHexColour(0xff0000ff));
-        nvgFill(nvg);
-    }
-
-    if (gui->plugin->lfo_section_open)
-    {
-        draw_lfo_section(gui);
-    }
-
-    // sg_begin_pass(&(sg_pass){
-    //     .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-    //     .swapchain = gui->swapchain,
-    //     .label     = "swapchain / custom shaders",
-    // });
-
-    // TODO: make this work with new 'custom command' API
-    // Knob shader
-    /*
-    {
-        // clang-format off
-        vertex_t verts[] = {
-            {-1.0f,  1.0f, -32767,  32767},
-            { 1.0f,  1.0f,  32767,  32767},
-            { 1.0f, -1.0f,  32767, -32767},
-            {-1.0f, -1.0f, -32767, -32767},
-
-            {-1.0f,  1.0f, -32767,  32767},
-            { 1.0f,  1.0f,  32767,  32767},
-            { 1.0f, -1.0f,  32767, -32767},
-            {-1.0f, -1.0f, -32767, -32767},
-
-            {-1.0f,  1.0f, -32767,  32767},
-            { 1.0f,  1.0f,  32767,  32767},
-            { 1.0f, -1.0f,  32767, -32767},
-            {-1.0f, -1.0f, -32767, -32767},
-        };
-        _Static_assert(ARRLEN(verts) == (3 * 4), "");
-        _Static_assert(ARRLEN(verts) / 4 == ARRLEN(lm->knobs_pos), "");
-        // clang-format on
-
-        float radius = lm->knob_radius;
-        xassert(radius != 0);
-        for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
-        {
-            float left   = lm->knobs_pos[i].x - radius;
-            float right  = lm->knobs_pos[i].x + radius;
-            float top    = lm->knobs_pos[i].y - radius;
-            float bottom = lm->knobs_pos[i].y + radius;
-
-            left   = xm_mapf(left, 0, lm->width, -1, 1);
-            right  = xm_mapf(right, 0, lm->width, -1, 1);
-            top    = xm_mapf(top, 0, lm->height, 1, -1);
-            bottom = xm_mapf(bottom, 0, lm->height, 1, -1);
-
-            int v_idx = i * 4;
-
-            verts[v_idx + 0].x = left;
-            verts[v_idx + 0].y = top;
-            verts[v_idx + 1].x = right;
-            verts[v_idx + 1].y = top;
-            verts[v_idx + 2].x = right;
-            verts[v_idx + 2].y = bottom;
-            verts[v_idx + 3].x = left;
-            verts[v_idx + 3].y = bottom;
-        }
-
-        sg_update_buffer(gui->knob_vbo, &SG_RANGE(verts));
-        sg_apply_pipeline(gui->knob_pip);
-
-        sg_bindings bind       = {0};
-        bind.vertex_buffers[0] = gui->knob_vbo;
-        bind.index_buffer      = gui->knob_ibo;
-        sg_apply_bindings(&bind);
-
-        xassert(sg_isvalid());
-
-        sg_draw(0, 6 * 3, 1);
-    }
-
-    // Logo shader
-    if (gui->img_logo_id.id)
-    {
-        float x, y, w, h, img_scale;
-
-        float padding = 4 * lm->scale_y;
-        h             = lm->height_header - padding;
-        img_scale     = h / (float)gui->img_logo_height;
-        w             = (float)gui->img_logo_width * img_scale;
-        x             = lm->width - 16 - w;
-        // x         = 16;
-        y = padding;
-
-        float l = xm_mapf(x, 0, lm->width, -1, 1);
-        float r = xm_mapf(x + w, 0, lm->width, -1, 1);
-        float t = xm_mapf(y, 0, lm->height, 1, -1);
-        float b = xm_mapf(y + h, 0, lm->height, 1, -1);
-
-        // clang-format off
-        vertex_t verts[] = {
-            {l, t, 0,     0},
-            {r, t, 32767, 0},
-            {r, b, 32767, 32767},
-            {l, b, 0,     32767},
-        };
-
-        sg_update_buffer(gui->img_vbo, &SG_RANGE(verts));
-        sg_apply_pipeline(gui->img_pip);
-
-        sg_bindings bind       = {0};
-        bind.vertex_buffers[0] = gui->img_vbo;
-        bind.index_buffer      = gui->img_ibo;
-        bind.images[IMG_texquad_tex]   = gui->img_logo_id;
-        bind.samplers[SMP_texquad_smp] = gui->img_smp;
-
-        sg_apply_bindings(&bind);
-        sg_draw(0, 6, 1);
-    }
-    */
 
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
     if (bg_events & IMGUI_EVENT_MOUSE_ENTER)
