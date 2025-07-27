@@ -768,8 +768,8 @@ int nvgCreateImageRGBA(NVGcontext* ctx, int w, int h, int imageFlags, const unsi
 // Updates image data specified by image handle.
 void nvgUpdateImage(NVGcontext* ctx, int image, const unsigned char* data);
 
-// Returns the dimensions of a created image.
-void nvgImageSize(NVGcontext* ctx, int image, int* w, int* h);
+// Gets the dimensions of a created image. Returns true on success
+bool nvgGetImageSize(NVGcontext* ctx, int image, int* w, int* h);
 
 // Deletes created image.
 void nvgDeleteImage(NVGcontext* ctx, int image);
@@ -1044,37 +1044,8 @@ int nvgTextBreakLines(
 
 // Backend functions. These should be considered 'private' and it's not recommended to call them directly (unless you
 // know what you're doing)
-int  _nvgRenderCreate(NVGcontext* ctx);
-int  _nvgRenderCreateTexture(NVGcontext* ctx, int type, int w, int h, int imageFlags, const unsigned char* data);
-int  _nvgRenderDeleteTexture(NVGcontext* ctx, int image);
-int  _nvgRenderUpdateTexture(NVGcontext* ctx, int image, int x, int y, int w, int h, const unsigned char* data);
-int  _nvgRenderGetTextureSize(NVGcontext* ctx, int image, int* w, int* h);
-void _nvgRenderFill(
-    NVGcontext*                ctx,
-    NVGpaint*                  paint,
-    NVGcompositeOperationState compositeOperation,
-    NVGscissor*                scissor,
-    float                      fringe,
-    const float*               bounds,
-    const NVGpath*             paths,
-    int                        npaths);
-void _nvgRenderStroke(
-    NVGcontext*                ctx,
-    NVGpaint*                  paint,
-    NVGcompositeOperationState compositeOperation,
-    NVGscissor*                scissor,
-    float                      fringe,
-    float                      strokeWidth,
-    const NVGpath*             paths,
-    int                        npaths);
-void _nvgRenderTriangles(
-    NVGcontext*                ctx,
-    NVGpaint*                  paint,
-    NVGcompositeOperationState compositeOperation,
-    NVGscissor*                scissor,
-    const NVGvertex*           verts,
-    int                        nverts,
-    float                      fringe);
+int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int imageFlags, const unsigned char* data);
+int nvgUpdateTexture(NVGcontext* ctx, int image, int x, int y, int w, int h, const unsigned char* data);
 
 int snvgCreateImageFromHandleSokol(
     NVGcontext* ctx,

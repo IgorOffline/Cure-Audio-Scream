@@ -269,6 +269,8 @@ void main(void) {
 
 #define NVG_COUNTOF(arr) (sizeof(arr) / sizeof(0 [arr]))
 
+void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts);
+
 static float nvg__sqrtf(float a) { return sqrtf(a); }
 static float nvg__modf(float a, float b) { return fmodf(a, b); }
 static float nvg__sinf(float a) { return sinf(a); }
@@ -822,19 +824,33 @@ int nvgCreateImageMem(NVGcontext* ctx, int imageFlags, unsigned char* data, int 
 
 int nvgCreateImageRGBA(NVGcontext* ctx, int w, int h, int imageFlags, const unsigned char* data)
 {
-    return _nvgRenderCreateTexture(ctx, NVG_TEXTURE_RGBA, w, h, imageFlags, data);
+    return nvgCreateTexture(ctx, NVG_TEXTURE_RGBA, w, h, imageFlags, data);
 }
 
 void nvgUpdateImage(NVGcontext* ctx, int image, const unsigned char* data)
 {
     int w, h;
-    _nvgRenderGetTextureSize(ctx, image, &w, &h);
-    _nvgRenderUpdateTexture(ctx, image, 0, 0, w, h, data);
+    nvgGetImageSize(ctx, image, &w, &h);
+    nvgUpdateTexture(ctx, image, 0, 0, w, h, data);
 }
 
-void nvgImageSize(NVGcontext* ctx, int image, int* w, int* h) { _nvgRenderGetTextureSize(ctx, image, w, h); }
-
-void nvgDeleteImage(NVGcontext* ctx, int image) { _nvgRenderDeleteTexture(ctx, image); }
+void nvgDeleteImage(NVGcontext* ctx, int image)
+{
+    int i;
+    for (i = 0; i < ctx->ntextures; i++)
+    {
+        SGNVGtexture* tex = &ctx->textures[i];
+        if (tex->id == image)
+        {
+            if (tex->img.id != 0 && (tex->flags & NVG_IMAGE_NODELETE) == 0)
+                sg_destroy_image(tex->img);
+            SGNVG_FREE(tex->imgData);
+            memset(tex, 0, sizeof(*tex));
+            return;
+        }
+    }
+    SGNVG_ASSERT(0);
+}
 
 NVGpaint nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolor icol, NVGcolor ocol)
 {
@@ -2482,98 +2498,6 @@ void nvgDebugDumpPathCache(NVGcontext* ctx)
     }
 }
 
-void nvgFill(NVGcontext* ctx)
-{
-    NVGstate*      state = nvg__getState(ctx);
-    const NVGpath* path;
-    NVGpaint       fillPaint = state->fill;
-    int            i;
-
-    nvg__flattenPaths(ctx);
-    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
-        nvg__expandFill(ctx, ctx->fringeWidth, NVG_MITER, 2.4f);
-    else
-        nvg__expandFill(ctx, 0.0f, NVG_MITER, 2.4f);
-
-    // Apply global alpha
-    fillPaint.innerColor.a *= state->alpha;
-    fillPaint.outerColor.a *= state->alpha;
-
-    _nvgRenderFill(
-        ctx,
-        &fillPaint,
-        state->compositeOperation,
-        &state->scissor,
-        ctx->fringeWidth,
-        ctx->cache->bounds,
-        ctx->cache->paths,
-        ctx->cache->npaths);
-
-    // Count triangles
-    for (i = 0; i < ctx->cache->npaths; i++)
-    {
-        path                = &ctx->cache->paths[i];
-        ctx->fillTriCount  += path->nfill - 2;
-        ctx->fillTriCount  += path->nstroke - 2;
-        ctx->drawCallCount += 2;
-    }
-}
-
-void nvgStroke(NVGcontext* ctx)
-{
-    NVGstate*      state       = nvg__getState(ctx);
-    float          scale       = nvg__getAverageScale(state->xform);
-    float          strokeWidth = nvg__clampf(state->strokeWidth * scale, 0.0f, 200.0f);
-    NVGpaint       strokePaint = state->stroke;
-    const NVGpath* path;
-    int            i;
-
-    if (strokeWidth < ctx->fringeWidth)
-    {
-        // If the stroke width is less than pixel size, use alpha to emulate coverage.
-        // Since coverage is area, scale by alpha*alpha.
-        float alpha               = nvg__clampf(strokeWidth / ctx->fringeWidth, 0.0f, 1.0f);
-        strokePaint.innerColor.a *= alpha * alpha;
-        strokePaint.outerColor.a *= alpha * alpha;
-        strokeWidth               = ctx->fringeWidth;
-    }
-
-    // Apply global alpha
-    strokePaint.innerColor.a *= state->alpha;
-    strokePaint.outerColor.a *= state->alpha;
-
-    nvg__flattenPaths(ctx);
-
-    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
-        nvg__expandStroke(
-            ctx,
-            strokeWidth * 0.5f,
-            ctx->fringeWidth,
-            state->lineCap,
-            state->lineJoin,
-            state->miterLimit);
-    else
-        nvg__expandStroke(ctx, strokeWidth * 0.5f, 0.0f, state->lineCap, state->lineJoin, state->miterLimit);
-
-    _nvgRenderStroke(
-        ctx,
-        &strokePaint,
-        state->compositeOperation,
-        &state->scissor,
-        ctx->fringeWidth,
-        strokeWidth,
-        ctx->cache->paths,
-        ctx->cache->npaths);
-
-    // Count triangles
-    for (i = 0; i < ctx->cache->npaths; i++)
-    {
-        path                 = &ctx->cache->paths[i];
-        ctx->strokeTriCount += path->nstroke - 2;
-        ctx->drawCallCount++;
-    }
-}
-
 // Add fonts
 int nvgCreateFont(NVGcontext* ctx, const char* name, const char* filename)
 {
@@ -2693,7 +2617,7 @@ static void nvg__flushTextTexture(NVGcontext* ctx)
             int                  y    = dirty[1];
             int                  w    = dirty[2] - dirty[0];
             int                  h    = dirty[3] - dirty[1];
-            _nvgRenderUpdateTexture(ctx, fontImage, x, y, w, h, data);
+            nvgUpdateTexture(ctx, fontImage, x, y, w, h, data);
         }
     }
 }
@@ -2706,39 +2630,21 @@ static int nvg__allocTextAtlas(NVGcontext* ctx)
         return 0;
     // if next fontImage already have a texture
     if (ctx->fontImages[ctx->fontImageIdx + 1] != 0)
-        nvgImageSize(ctx, ctx->fontImages[ctx->fontImageIdx + 1], &iw, &ih);
+        nvgGetImageSize(ctx, ctx->fontImages[ctx->fontImageIdx + 1], &iw, &ih);
     else
     { // calculate the new font image size and create it.
-        nvgImageSize(ctx, ctx->fontImages[ctx->fontImageIdx], &iw, &ih);
+        nvgGetImageSize(ctx, ctx->fontImages[ctx->fontImageIdx], &iw, &ih);
         if (iw > ih)
             ih *= 2;
         else
             iw *= 2;
         if (iw > NVG_MAX_FONTIMAGE_SIZE || ih > NVG_MAX_FONTIMAGE_SIZE)
             iw = ih = NVG_MAX_FONTIMAGE_SIZE;
-        ctx->fontImages[ctx->fontImageIdx + 1] = _nvgRenderCreateTexture(ctx, NVG_TEXTURE_ALPHA, iw, ih, 0, NULL);
+        ctx->fontImages[ctx->fontImageIdx + 1] = nvgCreateTexture(ctx, NVG_TEXTURE_ALPHA, iw, ih, 0, NULL);
     }
     ++ctx->fontImageIdx;
     fonsResetAtlas(ctx->fs, iw, ih);
     return 1;
-}
-
-static void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts)
-{
-    NVGstate* state = nvg__getState(ctx);
-    NVGpaint  paint = state->fill;
-
-    // Render triangles.
-    paint.image = ctx->fontImages[ctx->fontImageIdx];
-
-    // Apply global alpha
-    paint.innerColor.a *= state->alpha;
-    paint.outerColor.a *= state->alpha;
-
-    _nvgRenderTriangles(ctx, &paint, state->compositeOperation, &state->scissor, verts, nverts, ctx->fringeWidth);
-
-    ctx->drawCallCount++;
-    ctx->textTriCount += nverts / 3;
 }
 
 static int nvg__isTransformFlipped(const float* xform)
@@ -3302,8 +3208,6 @@ void nvgTextMetrics(NVGcontext* ctx, float* ascender, float* descender, float* l
         *lineh *= invscale;
 }
 
-static int sgnvg__maxi(int a, int b) { return a > b ? a : b; }
-
 #ifdef SOKOL_GLES2
 static unsigned int sgnvg__nearestPow2(unsigned int num)
 {
@@ -3336,7 +3240,7 @@ static SGNVGtexture* sgnvg__allocTexture(NVGcontext* ctx)
         if (ctx->ntextures + 1 > ctx->ctextures)
         {
             SGNVGtexture* textures;
-            int           ctextures = sgnvg__maxi(ctx->ntextures + 1, 4) + ctx->ctextures / 2; // 1.5x Overallocate
+            int           ctextures = nvg__maxi(ctx->ntextures + 1, 4) + ctx->ctextures / 2; // 1.5x Overallocate
             textures                = (SGNVGtexture*)SGNVG_REALLOC(ctx->textures, sizeof(SGNVGtexture) * ctextures);
             if (textures == NULL)
                 return NULL;
@@ -3358,25 +3262,6 @@ static SGNVGtexture* sgnvg__findTexture(NVGcontext* ctx, int id)
         if (ctx->textures[i].id == id)
             return &ctx->textures[i];
     return NULL;
-}
-
-static int sgnvg__deleteTexture(NVGcontext* ctx, int id)
-{
-    int i;
-    for (i = 0; i < ctx->ntextures; i++)
-    {
-        SGNVGtexture* tex = &ctx->textures[i];
-        if (tex->id == id)
-        {
-            if (tex->img.id != 0 && (tex->flags & NVG_IMAGE_NODELETE) == 0)
-                sg_destroy_image(tex->img);
-            SGNVG_FREE(tex->imgData);
-            memset(tex, 0, sizeof(*tex));
-            return 1;
-        }
-    }
-    SGNVG_ASSERT(0);
-    return 0;
 }
 
 static uint16_t sgnvg__getCombinedBlendNumber(sg_blend_state blend)
@@ -3686,7 +3571,7 @@ static void sgnvg__preparePipelineUniforms(
     });
 }
 
-int _nvgRenderCreateTexture(NVGcontext* ctx, int type, int w, int h, int imageFlags, const unsigned char* data)
+int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int imageFlags, const unsigned char* data)
 {
     SGNVGtexture* tex = sgnvg__allocTexture(ctx);
 
@@ -3757,9 +3642,7 @@ int _nvgRenderCreateTexture(NVGcontext* ctx, int type, int w, int h, int imageFl
     return tex->id;
 }
 
-int _nvgRenderDeleteTexture(NVGcontext* ctx, int image) { return sgnvg__deleteTexture(ctx, image); }
-
-int _nvgRenderUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, int h, const unsigned char* data)
+int nvgUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, int h, const unsigned char* data)
 {
     SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
 
@@ -3794,7 +3677,7 @@ int _nvgRenderUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, i
     return 1;
 }
 
-int _nvgRenderGetTextureSize(NVGcontext* ctx, int image, int* w, int* h)
+bool nvgGetImageSize(NVGcontext* ctx, int image, int* w, int* h)
 {
     SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
     if (tex == NULL)
@@ -3916,8 +3799,6 @@ static int sgnvg__convertPaint(
 
     return 1;
 }
-
-static void nvg_impl_beginDraw(void* uptr, float width, float height, float devicePixelRatio) {}
 
 static void sgnvg__fill(NVGcontext* ctx, SGNVGcall* call)
 {
@@ -4073,7 +3954,7 @@ void nvgEndFrame(NVGcontext* ctx)
         // delete images that smaller than current one
         if (fontImage == 0)
             return;
-        nvgImageSize(ctx, fontImage, &iw, &ih);
+        nvgGetImageSize(ctx, fontImage, &iw, &ih);
         for (i = j = 0; i < ctx->fontImageIdx; i++)
         {
             if (ctx->fontImages[i] != 0)
@@ -4081,7 +3962,7 @@ void nvgEndFrame(NVGcontext* ctx)
                 int nw, nh;
                 int image          = ctx->fontImages[i];
                 ctx->fontImages[i] = 0;
-                nvgImageSize(ctx, image, &nw, &nh);
+                nvgGetImageSize(ctx, image, &nw, &nh);
                 if (nw < iw || nh < ih)
                     nvgDeleteImage(ctx, image);
                 else
@@ -4223,8 +4104,8 @@ static int sgnvg__maxIndexCount(const NVGpath* paths, int npaths)
     int i, count = 0;
     for (i = 0; i < npaths; i++)
     {
-        count += sgnvg__maxi(paths[i].nfill - 2, 0) * 3;   // triangle fan
-        count += sgnvg__maxi(paths[i].nstroke - 2, 0) * 3; // triangle strip
+        count += nvg__maxi(paths[i].nfill - 2, 0) * 3;   // triangle fan
+        count += nvg__maxi(paths[i].nstroke - 2, 0) * 3; // triangle strip
     }
     return count;
 }
@@ -4265,7 +4146,7 @@ static int sgnvg__allocVerts(NVGcontext* ctx, int n)
     if (ctx->nverts + n > ctx->cverts)
     {
         SGNVGattribute* verts;
-        int             cverts = sgnvg__maxi(ctx->nverts + n, 4096) + ctx->cverts / 2; // 1.5x Overallocate
+        int             cverts = nvg__maxi(ctx->nverts + n, 4096) + ctx->cverts / 2; // 1.5x Overallocate
         verts                  = (SGNVGattribute*)SGNVG_REALLOC(ctx->verts, sizeof(SGNVGattribute) * cverts);
         if (verts == NULL)
             return -1;
@@ -4283,7 +4164,7 @@ static int sgnvg__allocIndexes(NVGcontext* ctx, int n)
     if (ctx->nindexes + n > ctx->cindexes)
     {
         uint32_t* indexes;
-        int       cindexes = sgnvg__maxi(ctx->nindexes + n, 4096) + ctx->cindexes / 2; // 1.5x Overallocate
+        int       cindexes = nvg__maxi(ctx->nindexes + n, 4096) + ctx->cindexes / 2; // 1.5x Overallocate
         indexes            = (uint32_t*)SGNVG_REALLOC(ctx->indexes, sizeof(uint32_t) * cindexes);
         if (indexes == NULL)
             return -1;
@@ -4336,20 +4217,35 @@ static void sgnvg__generateTriangleStripIndexes(uint32_t* indexes, int offset, i
     }
 }
 
-void _nvgRenderFill(
-    NVGcontext*                ctx,
-    NVGpaint*                  paint,
-    NVGcompositeOperationState compositeOperation,
-    NVGscissor*                scissor,
-    float                      fringe,
-    const float*               bounds,
-    const NVGpath*             paths,
-    int                        npaths)
+void nvgFill(NVGcontext* ctx)
 {
+    NVGstate*      state = nvg__getState(ctx);
+    const NVGpath* path;
+    NVGpaint       fillPaint = state->fill;
+    int            i;
+
+    nvg__flattenPaths(ctx);
+    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
+        nvg__expandFill(ctx, ctx->fringeWidth, NVG_MITER, 2.4f);
+    else
+        nvg__expandFill(ctx, 0.0f, NVG_MITER, 2.4f);
+
+    // Apply global alpha
+    fillPaint.innerColor.a *= state->alpha;
+    fillPaint.outerColor.a *= state->alpha;
+
+    NVGpaint*                  paint              = &fillPaint;
+    NVGcompositeOperationState compositeOperation = state->compositeOperation;
+    NVGscissor*                scissor            = &state->scissor;
+    float                      fringe             = ctx->fringeWidth;
+    const float*               bounds             = ctx->cache->bounds;
+    const NVGpath*             paths              = ctx->cache->paths;
+    int                        npaths             = ctx->cache->npaths;
+
     SGNVGcall*         call = NULL;
     SGNVGattribute*    quad = NULL;
     SGNVGfragUniforms* frag = NULL;
-    int                i, maxverts, offset, maxindexes, ioffset;
+    int                maxverts, offset, maxindexes, ioffset;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
     // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
@@ -4365,7 +4261,7 @@ void _nvgRenderFill(
     call->triangleCount = 4;
     call->paths         = linked_arena_alloc_clear(ctx->frame_arena, npaths * sizeof(*call->paths));
     if (call->paths == NULL)
-        goto error;
+        return;
     call->num_paths = npaths;
     call->image     = paint->image;
     call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
@@ -4380,16 +4276,16 @@ void _nvgRenderFill(
     maxverts = sgnvg__maxVertCount(paths, npaths) + call->triangleCount;
     offset   = sgnvg__allocVerts(ctx, maxverts);
     if (offset == -1)
-        goto error;
-    maxindexes = sgnvg__maxIndexCount(paths, npaths) + sgnvg__maxi(call->triangleCount - 2, 0) * 3;
+        return;
+    maxindexes = sgnvg__maxIndexCount(paths, npaths) + nvg__maxi(call->triangleCount - 2, 0) * 3;
     ioffset    = sgnvg__allocIndexes(ctx, maxindexes);
     if (ioffset == -1)
-        goto error;
+        return;
 
     for (i = 0; i < npaths; i++)
     {
-        SGNVGpath*     copy = &call->paths[i];
-        const NVGpath* path = &paths[i];
+        SGNVGpath* copy = &call->paths[i];
+        path            = &paths[i];
         if (path->nfill > 0)
         {
             // fill: triangle fan
@@ -4427,7 +4323,7 @@ void _nvgRenderFill(
 
         frag = linked_arena_alloc_clear(ctx->frame_arena, 2 * sizeof(*frag));
         if (frag == NULL)
-            goto error;
+            return;
 
         call->uniforms = frag;
 
@@ -4441,7 +4337,7 @@ void _nvgRenderFill(
     {
         frag = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frag));
         if (frag == NULL)
-            goto error;
+            return;
         call->uniforms = frag;
         // Fill shader
         sgnvg__convertPaint(ctx, frag, paint, scissor, fringe, fringe, -1.0f);
@@ -4449,28 +4345,61 @@ void _nvgRenderFill(
 
     sgnvg__addCall(ctx, call);
 
-    return;
-
-error:
-    // We get here if call alloc was ok, but something else is not.
-    // Roll back the last call to prevent drawing it.
-    // if (ctx->ncalls > 0)
-    //     ctx->ncalls--;
+    // Count triangles
+    for (i = 0; i < ctx->cache->npaths; i++)
+    {
+        path                = &ctx->cache->paths[i];
+        ctx->fillTriCount  += path->nfill - 2;
+        ctx->fillTriCount  += path->nstroke - 2;
+        ctx->drawCallCount += 2;
+    }
 }
 
-void _nvgRenderStroke(
-    NVGcontext*                ctx,
-    NVGpaint*                  paint,
-    NVGcompositeOperationState compositeOperation,
-    NVGscissor*                scissor,
-    float                      fringe,
-    float                      strokeWidth,
-    const NVGpath*             paths,
-    int                        npaths)
+void nvgStroke(NVGcontext* ctx)
 {
+    NVGstate* state       = nvg__getState(ctx);
+    float     scale       = nvg__getAverageScale(state->xform);
+    float     strokeWidth = nvg__clampf(state->strokeWidth * scale, 0.0f, 200.0f);
+    NVGpaint  strokePaint = state->stroke;
+    int       i;
+
+    if (strokeWidth < ctx->fringeWidth)
+    {
+        // If the stroke width is less than pixel size, use alpha to emulate coverage.
+        // Since coverage is area, scale by alpha*alpha.
+        float alpha               = nvg__clampf(strokeWidth / ctx->fringeWidth, 0.0f, 1.0f);
+        strokePaint.innerColor.a *= alpha * alpha;
+        strokePaint.outerColor.a *= alpha * alpha;
+        strokeWidth               = ctx->fringeWidth;
+    }
+
+    // Apply global alpha
+    strokePaint.innerColor.a *= state->alpha;
+    strokePaint.outerColor.a *= state->alpha;
+
+    nvg__flattenPaths(ctx);
+
+    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
+        nvg__expandStroke(
+            ctx,
+            strokeWidth * 0.5f,
+            ctx->fringeWidth,
+            state->lineCap,
+            state->lineJoin,
+            state->miterLimit);
+    else
+        nvg__expandStroke(ctx, strokeWidth * 0.5f, 0.0f, state->lineCap, state->lineJoin, state->miterLimit);
+
+    NVGpaint*                  paint              = &strokePaint;
+    NVGcompositeOperationState compositeOperation = state->compositeOperation;
+    NVGscissor*                scissor            = &state->scissor;
+    float                      fringe             = ctx->fringeWidth;
+    const NVGpath*             paths              = ctx->cache->paths;
+    int                        npaths             = ctx->cache->npaths;
+
     SGNVGcall*         call  = NULL;
     SGNVGfragUniforms* frags = NULL;
-    int                i, maxverts, offset, maxindexes, ioffset;
+    int                maxverts, offset, maxindexes, ioffset;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
     // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
@@ -4485,7 +4414,7 @@ void _nvgRenderStroke(
     call->type  = SGNVG_STROKE;
     call->paths = linked_arena_alloc_clear(ctx->frame_arena, npaths * sizeof(*call->paths));
     if (call->paths == NULL)
-        goto error;
+        return;
     call->num_paths = npaths;
     call->image     = paint->image;
     call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
@@ -4494,11 +4423,11 @@ void _nvgRenderStroke(
     maxverts = sgnvg__maxVertCount(paths, npaths);
     offset   = sgnvg__allocVerts(ctx, maxverts);
     if (offset == -1)
-        goto error;
+        return;
     maxindexes = sgnvg__maxIndexCount(paths, npaths);
     ioffset    = sgnvg__allocIndexes(ctx, maxindexes);
     if (ioffset == -1)
-        goto error;
+        return;
 
     for (i = 0; i < npaths; i++)
     {
@@ -4523,7 +4452,7 @@ void _nvgRenderStroke(
         frags = linked_arena_alloc_clear(ctx->frame_arena, 2 * sizeof(*frags));
 
         if (frags == NULL)
-            goto error;
+            return;
 
         call->uniforms = frags;
 
@@ -4535,31 +4464,34 @@ void _nvgRenderStroke(
         // Fill shader
         frags = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frags));
         if (frags == NULL)
-            goto error;
+            return;
         call->uniforms = frags;
         sgnvg__convertPaint(ctx, call->uniforms, paint, scissor, strokeWidth, fringe, -1.0f);
     }
 
     sgnvg__addCall(ctx, call);
 
-    return;
-
-error:
-    // We get here if call alloc was ok, but something else is not.
-    // Roll back the last call to prevent drawing it.
-    // if (ctx->ncalls > 0)
-    //     ctx->ncalls--;
+    // Count triangles
+    for (i = 0; i < ctx->cache->npaths; i++)
+    {
+        const NVGpath* path  = &ctx->cache->paths[i];
+        ctx->strokeTriCount += path->nstroke - 2;
+        ctx->drawCallCount++;
+    }
 }
 
-void _nvgRenderTriangles(
-    NVGcontext*                ctx,
-    NVGpaint*                  paint,
-    NVGcompositeOperationState compositeOperation,
-    NVGscissor*                scissor,
-    const NVGvertex*           verts,
-    int                        nverts,
-    float                      fringe)
+void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts)
 {
+    NVGstate* state = nvg__getState(ctx);
+    NVGpaint  paint = state->fill;
+
+    // Render triangles.
+    paint.image = ctx->fontImages[ctx->fontImageIdx];
+
+    // Apply global alpha
+    paint.innerColor.a *= state->alpha;
+    paint.outerColor.a *= state->alpha;
+
     SGNVGcall*         call = NULL;
     SGNVGfragUniforms* frag = NULL;
 
@@ -4574,8 +4506,8 @@ void _nvgRenderTriangles(
         return;
 
     call->type      = SGNVG_TRIANGLES;
-    call->image     = paint->image;
-    call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
+    call->image     = paint.image;
+    call->blendFunc = sgnvg__blendCompositeOperation(state->compositeOperation);
 
     int offset, ioffset;
     offset = sgnvg__allocVerts(ctx, nverts);
@@ -4597,13 +4529,14 @@ void _nvgRenderTriangles(
     if (frag == NULL)
         return;
     call->uniforms = frag;
-    sgnvg__convertPaint(ctx, frag, paint, scissor, 1.0f, fringe, -1.0f);
+    sgnvg__convertPaint(ctx, frag, &paint, &state->scissor, 1.0f, ctx->fringeWidth, -1.0f);
     frag->type = NSVG_SHADER_IMG;
 
     // Success
     sgnvg__addCall(ctx, call);
 
-    return;
+    ctx->drawCallCount++;
+    ctx->textTriCount += nverts / 3;
 }
 
 int snvgCreateImageFromHandleSokol(
@@ -4731,7 +4664,7 @@ NVGcontext* nvgCreateContext(int flags)
 
     // Some platforms does not allow to have samples to unset textures.
     // Create empty one which is bound when there's no texture specified.
-    ctx->dummyTex = _nvgRenderCreateTexture(ctx, NVG_TEXTURE_ALPHA, 1, 1, 0, NULL);
+    ctx->dummyTex = nvgCreateTexture(ctx, NVG_TEXTURE_ALPHA, 1, 1, 0, NULL);
 
     nvgReset(ctx);
     nvg__setDevicePixelRatio(ctx, 1.0f);
@@ -4755,7 +4688,7 @@ NVGcontext* nvgCreateContext(int flags)
         goto error;
 
     // Create font texture
-    ctx->fontImages[0] = _nvgRenderCreateTexture(ctx, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
+    ctx->fontImages[0] = nvgCreateTexture(ctx, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
     if (ctx->fontImages[0] == 0)
         goto error;
 
@@ -4812,7 +4745,7 @@ void nvgDestroyContext(NVGcontext* ctx)
         sg_uninit_buffer(ctx->indexBuf);
     sg_dealloc_buffer(ctx->indexBuf);
 
-    _nvgRenderDeleteTexture(ctx, ctx->dummyTex);
+    nvgDeleteImage(ctx, ctx->dummyTex);
     for (i = 0; i < ctx->ntextures; i++)
     {
         bool img_exists    = ctx->textures[i].img.id != 0;
