@@ -434,8 +434,7 @@ void nvgReset(NVGcontext* ctx)
     NVGstate* state = nvg__getState(ctx);
     memset(state, 0, sizeof(*state));
 
-    nvg__setPaintColour(&state->fill, nvgRGBA(255, 255, 255, 255));
-    nvg__setPaintColour(&state->stroke, nvgRGBA(0, 0, 0, 255));
+    nvg__setPaintColour(&state->paint, nvgRGBA(0, 0, 0, 255));
     state->compositeOperation = nvg__compositeOperationState(NVG_SOURCE_OVER);
     state->shapeAntiAlias     = 1;
     state->strokeWidth        = 1.0f;
@@ -763,30 +762,17 @@ void nvgCurrentTransform(NVGcontext* ctx, float* xform)
     memcpy(xform, state->xform, sizeof(float) * 6);
 }
 
-void nvgStrokeColour(NVGcontext* ctx, NVGcolour colour)
+void nvgSetColour(NVGcontext* ctx, NVGcolour colour)
 {
     NVGstate* state = nvg__getState(ctx);
-    nvg__setPaintColour(&state->stroke, colour);
+    nvg__setPaintColour(&state->paint, colour);
 }
 
-void nvgStrokePaint(NVGcontext* ctx, NVGpaint paint)
+void nvgSetPaint(NVGcontext* ctx, NVGpaint paint)
 {
     NVGstate* state = nvg__getState(ctx);
-    state->stroke   = paint;
-    nvgTransformMultiply(state->stroke.xform, state->xform);
-}
-
-void nvgFillColour(NVGcontext* ctx, NVGcolour colour)
-{
-    NVGstate* state = nvg__getState(ctx);
-    nvg__setPaintColour(&state->fill, colour);
-}
-
-void nvgFillPaint(NVGcontext* ctx, NVGpaint paint)
-{
-    NVGstate* state = nvg__getState(ctx);
-    state->fill     = paint;
-    nvgTransformMultiply(state->fill.xform, state->xform);
+    state->paint    = paint;
+    nvgTransformMultiply(state->paint.xform, state->xform);
 }
 
 #ifndef NVG_NO_STB
@@ -4222,7 +4208,7 @@ void nvgFill(NVGcontext* ctx)
 {
     NVGstate*      state = nvg__getState(ctx);
     const NVGpath* path;
-    NVGpaint       fillPaint = state->fill;
+    NVGpaint       paint = state->paint;
     int            i;
 
     nvg__flattenPaths(ctx);
@@ -4232,10 +4218,9 @@ void nvgFill(NVGcontext* ctx)
         nvg__expandFill(ctx, 0.0f, NVG_MITER, 2.4f);
 
     // Apply global alpha
-    fillPaint.innerColour.a *= state->alpha;
-    fillPaint.outerColour.a *= state->alpha;
+    paint.innerColour.a *= state->alpha;
+    paint.outerColour.a *= state->alpha;
 
-    NVGpaint*                  paint              = &fillPaint;
     NVGcompositeOperationState compositeOperation = state->compositeOperation;
     NVGscissor*                scissor            = &state->scissor;
     float                      fringe             = ctx->fringeWidth;
@@ -4264,7 +4249,7 @@ void nvgFill(NVGcontext* ctx)
     if (call->paths == NULL)
         return;
     call->num_paths = npaths;
-    call->image     = paint->image;
+    call->image     = paint.image;
     call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
 
     if (npaths == 1 && paths[0].convex)
@@ -4332,7 +4317,7 @@ void nvgFill(NVGcontext* ctx)
         call->uniforms->strokeThr = -1.0f;
         call->uniforms->type      = NSVG_SHADER_SIMPLE;
         // Fill shader
-        sgnvg__convertPaint(ctx, call->uniforms + 1, paint, scissor, fringe, fringe, -1.0f);
+        sgnvg__convertPaint(ctx, call->uniforms + 1, &paint, scissor, fringe, fringe, -1.0f);
     }
     else
     {
@@ -4341,7 +4326,7 @@ void nvgFill(NVGcontext* ctx)
             return;
         call->uniforms = frag;
         // Fill shader
-        sgnvg__convertPaint(ctx, frag, paint, scissor, fringe, fringe, -1.0f);
+        sgnvg__convertPaint(ctx, frag, &paint, scissor, fringe, fringe, -1.0f);
     }
 
     sgnvg__addCall(ctx, call);
@@ -4361,22 +4346,22 @@ void nvgStroke(NVGcontext* ctx)
     NVGstate* state       = nvg__getState(ctx);
     float     scale       = nvg__getAverageScale(state->xform);
     float     strokeWidth = nvg__clampf(state->strokeWidth * scale, 0.0f, 200.0f);
-    NVGpaint  strokePaint = state->stroke;
+    NVGpaint  paint       = state->paint;
     int       i;
 
     if (strokeWidth < ctx->fringeWidth)
     {
         // If the stroke width is less than pixel size, use alpha to emulate coverage.
         // Since coverage is area, scale by alpha*alpha.
-        float alpha                = nvg__clampf(strokeWidth / ctx->fringeWidth, 0.0f, 1.0f);
-        strokePaint.innerColour.a *= alpha * alpha;
-        strokePaint.outerColour.a *= alpha * alpha;
-        strokeWidth                = ctx->fringeWidth;
+        float alpha          = nvg__clampf(strokeWidth / ctx->fringeWidth, 0.0f, 1.0f);
+        paint.innerColour.a *= alpha * alpha;
+        paint.outerColour.a *= alpha * alpha;
+        strokeWidth          = ctx->fringeWidth;
     }
 
     // Apply global alpha
-    strokePaint.innerColour.a *= state->alpha;
-    strokePaint.outerColour.a *= state->alpha;
+    paint.innerColour.a *= state->alpha;
+    paint.outerColour.a *= state->alpha;
 
     nvg__flattenPaths(ctx);
 
@@ -4391,7 +4376,6 @@ void nvgStroke(NVGcontext* ctx)
     else
         nvg__expandStroke(ctx, strokeWidth * 0.5f, 0.0f, state->lineCap, state->lineJoin, state->miterLimit);
 
-    NVGpaint*                  paint              = &strokePaint;
     NVGcompositeOperationState compositeOperation = state->compositeOperation;
     NVGscissor*                scissor            = &state->scissor;
     float                      fringe             = ctx->fringeWidth;
@@ -4417,7 +4401,7 @@ void nvgStroke(NVGcontext* ctx)
     if (call->paths == NULL)
         return;
     call->num_paths = npaths;
-    call->image     = paint->image;
+    call->image     = paint.image;
     call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
 
     // Allocate vertices for all the paths.
@@ -4457,8 +4441,8 @@ void nvgStroke(NVGcontext* ctx)
 
         call->uniforms = frags;
 
-        sgnvg__convertPaint(ctx, call->uniforms, paint, scissor, strokeWidth, fringe, -1.0f);
-        sgnvg__convertPaint(ctx, call->uniforms + 1, paint, scissor, strokeWidth, fringe, 1.0f - 0.5f / 255.0f);
+        sgnvg__convertPaint(ctx, call->uniforms, &paint, scissor, strokeWidth, fringe, -1.0f);
+        sgnvg__convertPaint(ctx, call->uniforms + 1, &paint, scissor, strokeWidth, fringe, 1.0f - 0.5f / 255.0f);
     }
     else
     {
@@ -4467,7 +4451,7 @@ void nvgStroke(NVGcontext* ctx)
         if (frags == NULL)
             return;
         call->uniforms = frags;
-        sgnvg__convertPaint(ctx, call->uniforms, paint, scissor, strokeWidth, fringe, -1.0f);
+        sgnvg__convertPaint(ctx, call->uniforms, &paint, scissor, strokeWidth, fringe, -1.0f);
     }
 
     sgnvg__addCall(ctx, call);
@@ -4484,7 +4468,7 @@ void nvgStroke(NVGcontext* ctx)
 void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts)
 {
     NVGstate* state = nvg__getState(ctx);
-    NVGpaint  paint = state->fill;
+    NVGpaint  paint = state->paint;
 
     // Render triangles.
     paint.image = ctx->fontImages[ctx->fontImageIdx];

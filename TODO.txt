@@ -7,4 +7,6 @@
 - Create SDF shader that can draw rectangles, rounded ractangles, and text (rect with image) with linear gradients
   If possible, have it also support circles & arcs.
   Use this to replace most of what NVG is trying to do
-  This would make NVG only really useful for complex polygon fills & stroke expansion 
+  This would make NVG only really useful for complex polygon fills & stroke expansion
+
+- Create API for batch drawing shapes ie. functions that accept arrays of data with the same fill colours

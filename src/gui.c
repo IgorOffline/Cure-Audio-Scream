@@ -705,7 +705,7 @@ void draw_lfo_section(GUI* gui)
 
     nvgBeginPath(nvg);
     nvgRoundedRect(nvg, lm->content_x + 8, display_y, display_w, display_h, 6);
-    nvgFillColour(nvg, c_display_bg);
+    nvgSetColour(nvg, c_display_bg);
     nvgFill(nvg);
 
     // LFO tabs
@@ -768,20 +768,20 @@ void draw_lfo_section(GUI* gui)
                 nvgRect(nvg, gx, gy, gw, gh);
                 NVGpaint paint =
                     nvgBoxGradient(nvg, rect->x, rect->y, width, height, 4, glow_radius, glow_icol, glow_ocol);
-                nvgFillPaint(nvg, paint);
+                nvgSetPaint(nvg, paint);
                 nvgFill(nvg);
 
                 // tab
                 nvgBeginPath(nvg);
                 nvgRoundedRect(nvg, rect->x, rect->y, width, height, 4);
-                nvgFillColour(nvg, col1);
+                nvgSetColour(nvg, col1);
                 nvgFill(nvg);
             }
             else
             {
                 nvgBeginPath(nvg);
                 nvgRoundedRect(nvg, rect->x + 0.5, rect->y + 0.5, rect->r - rect->x, rect->b - rect->y, 4);
-                nvgStrokeColour(nvg, col2);
+                nvgSetColour(nvg, col2);
                 nvgStrokeWidth(nvg, 1.1);
                 nvgStroke(nvg);
             }
@@ -797,8 +797,7 @@ void draw_lfo_section(GUI* gui)
             // nvgLineCap(nvg, NVG_ROUND); // Doesn't look great when lines are so small and thin
             nvgLineCap(nvg, NVG_BUTT);
             nvgStrokeWidth(nvg, 1);
-            nvgStrokeColour(nvg, col2);
-            nvgFillColour(nvg, col2);
+            nvgSetColour(nvg, col2);
 
             nvgBeginPath(nvg);
             // Top left arrow head
@@ -855,7 +854,7 @@ void draw_lfo_section(GUI* gui)
         NVGglyphPosition glyphs[label_length_len];
 
         nvgFontSize(nvg, 14);
-        nvgFillColour(nvg, COLOUR_TEXT);
+        nvgSetColour(nvg, COLOUR_TEXT);
         nvgTextAlign(nvg, NVG_ALIGN_CL);
 
         nvgTextGlyphPositions(nvg, 0, 0, label_grid, label_grid + label_grid_len, glyphs, label_length_len);
@@ -919,10 +918,10 @@ void draw_lfo_section(GUI* gui)
             }
             nvgBeginPath(nvg);
             nvgRoundedRect(nvg, rect->x, btn_y, rect->r - rect->x, rect->b - rect->y, 2);
-            nvgFillColour(nvg, COLOUR_GREY_3);
+            nvgSetColour(nvg, COLOUR_GREY_3);
             nvgFill(nvg);
 
-            nvgFillColour(nvg, COLOUR_GREY_1);
+            nvgSetColour(nvg, COLOUR_GREY_1);
             int txt_idx = i & 1;
             nvgTextAlign(nvg, NVG_ALIGN_CC);
             nvgText(nvg, btn_cx, text_cy, btn_labels[txt_idx], NULL);
@@ -964,7 +963,7 @@ void draw_lfo_section(GUI* gui)
         }
 
         // nvgBeginPath(nvg);
-        // nvgFillColour(nvg, COLOUR_BG_LIGHT);
+        // nvgSetColour(nvg, COLOUR_BG_LIGHT);
         // nvgRect(nvg, shape_x, shape_y, SHAPES_WIDTH, SHAPES_WIDTH);
         // nvgFill(nvg);
 
@@ -1020,7 +1019,7 @@ void draw_lfo_section(GUI* gui)
         shape_inner_x += SHAPES_WIDTH;
         shape_inner_r += SHAPES_WIDTH;
     }
-    nvgStrokeColour(nvg, nvgHexColour(0xffffffff));
+    nvgSetColour(nvg, nvgHexColour(0xffffffff));
     nvgStrokeWidth(nvg, 1.2f);
     nvgStroke(nvg);
 
@@ -1038,7 +1037,7 @@ void draw_lfo_section(GUI* gui)
         }
 
         nvgTextAlign(nvg, NVG_ALIGN_BC);
-        nvgFillColour(nvg, COLOUR_TEXT);
+        nvgSetColour(nvg, COLOUR_TEXT);
         nvgText(nvg, pattern_cx, pattern_b, "PATTERN", NULL);
 
         nvgTextAlign(nvg, NVG_ALIGN_CL);
@@ -1052,7 +1051,7 @@ void draw_lfo_section(GUI* gui)
         nvgBeginPath(nvg);
         nvgMoveTo(nvg, pattern_line_x, pattern_line_y);
         nvgLineTo(nvg, pattern_line_r, pattern_line_y);
-        nvgStrokeColour(nvg, COLOUR_TEXT);
+        nvgSetColour(nvg, COLOUR_TEXT);
         nvgStroke(nvg);
 
         const int   pattern_num   = 1;
@@ -1083,7 +1082,7 @@ void draw_lfo_section(GUI* gui)
         nvgBeginPath(nvg);
         nvgRect(nvg, grid_x + 0.5f, grid_y + 0.5f, grid_r - grid_x - 1, grid_b - grid_y - 1);
         nvgStrokeWidth(nvg, 1);
-        nvgStrokeColour(nvg, c_grid_1);
+        nvgSetColour(nvg, c_grid_1);
         nvgStroke(nvg);
     }
 
@@ -1131,7 +1130,7 @@ void draw_lfo_section(GUI* gui)
             nvgLineTo(nvg, it->x, it->y);
         nvgLineTo(nvg, grid_r, grid_y);
 
-        nvgStrokeColour(nvg, c_light_blue);
+        nvgSetColour(nvg, c_light_blue);
         nvgStrokeWidth(nvg, 2);
         nvgStroke(nvg);
 
@@ -1426,7 +1425,7 @@ void pw_tick(void* _gui)
 
     nvgBeginPath(nvg);
     nvgRect(nvg, 20, 20, 40, 60);
-    nvgFillColour(nvg, (NVGcolour){1, 0, 0, 1});
+    nvgSetColour(nvg, (NVGcolour){1, 0, 0, 1});
     nvgFill(nvg);
 
     snvg_command_begin_pass(
@@ -1446,14 +1445,14 @@ void pw_tick(void* _gui)
         nvgRect(nvg, 0, 0, lm->width, lm->height);
         static const NVGcolour stop0 = nvgHexColour(0x151B33FF);
         static const NVGcolour stop1 = nvgHexColour(0x090E1FFF);
-        nvgFillPaint(nvg, nvgLinearGradient(nvg, 0, 0, 0, lm->height, stop0, stop1));
+        nvgSetPaint(nvg, nvgLinearGradient(nvg, 0, 0, 0, lm->height, stop0, stop1));
         nvgFill(nvg);
     }
 
     // Header
     {
         nvgFontSize(nvg, lm->content_scale * 24);
-        nvgFillColour(nvg, COLOUR_BG_LIGHT);
+        nvgSetColour(nvg, COLOUR_BG_LIGHT);
         nvgTextAlign(nvg, NVG_ALIGN_CC);
         nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
 
@@ -1469,14 +1468,14 @@ void pw_tick(void* _gui)
         // y = 4;
         // nvgBeginPath(nvg);
         // nvgRect(nvg, x, y, w, h);
-        // nvgFillPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_img_id, 1));
-        // nvgFillColour(nvg, (NVGcolour){1, 1, 1, 1});
+        // nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_img_id, 1));
+        // nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
         // nvgRect(nvg, 0, 0, 50, 50);
-        // nvgFillPaint(nvg, nvgImagePattern(nvg, 0, 0, 50, 50, 0, gui->logo_img_id, 1));
+        // nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, 50, 50, 0, gui->logo_img_id, 1));
         // nvgFill(nvg);
 
         // Doesn't look great rendered by nanovg...
-        // nvgFillColour(nvg, (NVGcolour){1, 1, 1, 1});
+        // nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
         // draw_cure_audio_logo_fixed_svg(nvg, (28.0f / 241.0f), lm->width - 16 - 20, 2);
     }
 
@@ -1485,7 +1484,7 @@ void pw_tick(void* _gui)
         float height = lm->content_b - lm->content_y;
         nvgBeginPath(nvg);
         nvgRoundedRect(nvg, 8, lm->content_y, lm->width - 16, height, 8);
-        nvgFillColour(nvg, COLOUR_BG_LIGHT);
+        nvgSetColour(nvg, COLOUR_BG_LIGHT);
         nvgFill(nvg);
 
         // Inner shadows
@@ -1501,7 +1500,7 @@ void pw_tick(void* _gui)
         // Top inner shadow (light)
         nvgBeginPath(nvg);
         nvgRoundedRectVarying(nvg, 8, lm->content_y, lm->width - 16, blur_radius * 2, 8, 8, 0, 0);
-        nvgFillPaint(nvg, paint);
+        nvgSetPaint(nvg, paint);
         nvgFill(nvg);
 
         // Bottom inner shadow (dark)
@@ -1509,7 +1508,7 @@ void pw_tick(void* _gui)
         paint.outerColour = (NVGcolour){0, 0, 0, 0.75f};
         nvgBeginPath(nvg);
         nvgRoundedRectVarying(nvg, 8, lm->content_b - blur_radius * 2, lm->width - 16, blur_radius * 2, 0, 0, 8, 8);
-        nvgFillPaint(nvg, paint);
+        nvgSetPaint(nvg, paint);
         nvgFill(nvg);
 
         // Dots
@@ -1543,7 +1542,7 @@ void pw_tick(void* _gui)
         {
             nvgCircle(nvg, points[i].x, points[i].y, DOT_RADIUS);
         }
-        nvgFillColour(nvg, (NVGcolour){1, 1, 1, 1});
+        nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
 
         nvgFill(nvg);
         nvgBeginPath(nvg);
@@ -1551,7 +1550,7 @@ void pw_tick(void* _gui)
         {
             nvgCircle(nvg, points[i].x, points[i].y - 1, DOT_RADIUS);
         }
-        nvgFillColour(nvg, nvgHexColour(0x111629FF));
+        nvgSetColour(nvg, nvgHexColour(0x111629FF));
         nvgFill(nvg);
     }
 
@@ -1597,13 +1596,13 @@ void pw_tick(void* _gui)
                     NVGpaint grad_100_90 = nvgRadialGradient(nvg, pt.x, pt.y, r90, r100, stop90, stop100);
                     nvgBeginPath(nvg);
                     nvgCircle(nvg, pt.x, pt.y, r100);
-                    nvgFillPaint(nvg, grad_100_90);
+                    nvgSetPaint(nvg, grad_100_90);
                     nvgFill(nvg);
 
                     NVGpaint grad_90_80 = nvgRadialGradient(nvg, pt.x, pt.y, r80, r90, stop80, stop90);
                     nvgBeginPath(nvg);
                     nvgCircle(nvg, pt.x, pt.y, r90);
-                    nvgFillPaint(nvg, grad_90_80);
+                    nvgSetPaint(nvg, grad_90_80);
                     nvgFill(nvg);
                 }
 
@@ -1623,7 +1622,7 @@ void pw_tick(void* _gui)
                     NVGpaint grad = nvgRadialGradient(nvg, pt.x, y, inner_radius, outer_radius, icol, ocol);
                     nvgBeginPath(nvg);
                     nvgCircle(nvg, pt.x, y, outer_radius);
-                    nvgFillPaint(nvg, grad);
+                    nvgSetPaint(nvg, grad);
                     nvgFill(nvg);
                 }
 
@@ -1636,7 +1635,7 @@ void pw_tick(void* _gui)
                     NVGpaint    out_lingrad = nvgLinearGradient(nvg, 0, top, 0, bottom, stop0, stop1);
                     nvgBeginPath(nvg);
                     nvgCircle(nvg, pt.x, pt.y, radius_outer);
-                    nvgFillPaint(nvg, out_lingrad);
+                    nvgSetPaint(nvg, out_lingrad);
                     nvgFill(nvg);
                 }
 
@@ -1647,7 +1646,7 @@ void pw_tick(void* _gui)
                     NVGpaint grad = nvgRadialGradient(nvg, pt.x, pt.y + 1, radius_outer - 1, radius_outer, icol, ocol);
                     nvgBeginPath(nvg);
                     nvgCircle(nvg, pt.x, pt.y, radius_outer);
-                    nvgFillPaint(nvg, grad);
+                    nvgSetPaint(nvg, grad);
                     nvgFill(nvg);
                 }
 
@@ -1664,7 +1663,7 @@ void pw_tick(void* _gui)
 
                 nvgBeginPath(nvg);
                 nvgCircle(nvg, pt.x, pt.y, radius_inner);
-                nvgFillPaint(nvg, inner_grad);
+                nvgSetPaint(nvg, inner_grad);
                 nvgFill(nvg);
 
 // Slider Tick/Notch
@@ -1693,13 +1692,13 @@ void pw_tick(void* _gui)
                 nvgBeginPath(nvg); // Skeumorphic inner shadow
                 nvgMoveTo(nvg, pt1.x, pt1.y);
                 nvgLineTo(nvg, pt2.x, pt2.y);
-                nvgStrokeColour(nvg, (NVGcolour){1, 1, 1, 1});
+                nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
                 nvgStroke(nvg);
 
                 nvgBeginPath(nvg);
                 nvgMoveTo(nvg, pt1.x, pt1.y - 1);
                 nvgLineTo(nvg, pt2.x, pt2.y - 1);
-                nvgStrokeColour(nvg, nvgHexColour(0x242E56FF));
+                nvgSetColour(nvg, nvgHexColour(0x242E56FF));
                 nvgStroke(nvg);
 
                 nvgLineCap(nvg, NVG_BUTT);
@@ -1709,12 +1708,12 @@ void pw_tick(void* _gui)
                 nvgStrokeWidth(nvg, roundf(lm->param_scale * 4));
                 nvgBeginPath(nvg);
                 nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
-                nvgStrokeColour(nvg, COLOUR_GREY_1);
+                nvgSetColour(nvg, COLOUR_GREY_1);
                 nvgStroke(nvg);
 
                 nvgBeginPath(nvg);
                 nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, angle_value, NVG_CW);
-                nvgStrokeColour(nvg, COLOUR_GREY_2);
+                nvgSetColour(nvg, COLOUR_GREY_2);
                 nvgStroke(nvg);
                 break;
             }
@@ -1766,7 +1765,7 @@ void pw_tick(void* _gui)
                     h              = shadow_rect.b - shadow_rect.y;
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, shadow_rect.x, shadow_rect.y, w, h, blur);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgFill(nvg);
 
                     // Bottom
@@ -1799,7 +1798,7 @@ void pw_tick(void* _gui)
                     h              = shadow_rect.b - shadow_rect.y;
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, shadow_rect.x, shadow_rect.y, w, h, blur);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgFill(nvg);
                 }
 
@@ -1816,13 +1815,13 @@ void pw_tick(void* _gui)
 
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4 * lm->param_scale);
-                    nvgFillColour(nvg, nvgHexColour(0x2C2F35FF));
+                    nvgSetColour(nvg, nvgHexColour(0x2C2F35FF));
 
                     static const NVGcolour bg_grad_stop0 = nvgHexColour(0x2C2F35FF);
                     static const NVGcolour bg_grad_stop1 = nvgHexColour(0x585E6AFF);
                     const NVGpaint         bg_paint =
                         nvgLinearGradient(nvg, 0, rect.y, 0, rect.b, bg_grad_stop0, bg_grad_stop1);
-                    nvgFillPaint(nvg, bg_paint);
+                    nvgSetPaint(nvg, bg_paint);
                     nvgFill(nvg);
 
                     // Value icon
@@ -1840,7 +1839,7 @@ void pw_tick(void* _gui)
 
                         nvgBeginPath(nvg);
                         nvgCircle(nvg, shadow_cx, icon_y + 2, shadow_radius);
-                        nvgFillPaint(nvg, paint);
+                        nvgSetPaint(nvg, paint);
                         nvgFill(nvg);
 
                         nvgBeginPath(nvg);
@@ -1848,7 +1847,7 @@ void pw_tick(void* _gui)
                         nvgLineTo(nvg, icon_r, icon_y - 8);
                         nvgLineTo(nvg, icon_r, icon_y + 8);
                         nvgClosePath(nvg);
-                        nvgFillColour(nvg, COLOUR_GREY_2);
+                        nvgSetColour(nvg, COLOUR_GREY_2);
                         nvgFill(nvg);
                     }
 
@@ -1877,7 +1876,7 @@ void pw_tick(void* _gui)
                     static const NVGcolour ch_grad_stop1 = nvgHexColour(0x7C8493FF);
 
                     const NVGpaint ch_bg_grad = nvgLinearGradient(nvg, 0, ch_y, 0, ch_b, ch_grad_stop0, ch_grad_stop1);
-                    nvgFillPaint(nvg, ch_bg_grad);
+                    nvgSetPaint(nvg, ch_bg_grad);
                     nvgFill(nvg);
 
                     const double release_time_slow =
@@ -1911,7 +1910,7 @@ void pw_tick(void* _gui)
                     }
                     if (has_peaks)
                     {
-                        nvgFillColour(nvg, nvgHexColour(0x459DB5FF));
+                        nvgSetColour(nvg, nvgHexColour(0x459DB5FF));
                         nvgFill(nvg);
                     }
 
@@ -1959,7 +1958,7 @@ void pw_tick(void* _gui)
 
                             nvgBeginPath(nvg);
                             nvgRoundedRect(nvg, gx, gy, gw, gh, blur);
-                            nvgFillPaint(nvg, paint);
+                            nvgSetPaint(nvg, paint);
                             nvgFill(nvg);
                         }
                     }
@@ -1970,7 +1969,7 @@ void pw_tick(void* _gui)
                         if (rt_peak_dB[ch] > RANGE_INPUT_GAIN_MIN)
                         {
                             nvgBeginPath(nvg);
-                            nvgFillColour(nvg, nvgHexColour(0xACDEECFF));
+                            nvgSetColour(nvg, nvgHexColour(0xACDEECFF));
                             nvgRoundedRect(nvg, ch_x[ch], rt_peak_y[ch], ch_w, rt_peak_h[ch], 2);
                             nvgFill(nvg);
                         }
@@ -1982,7 +1981,7 @@ void pw_tick(void* _gui)
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, rect.x, zero_dB_y);
                     nvgLineTo(nvg, rect.r, zero_dB_y);
-                    nvgStrokePaint(nvg, bg_paint);
+                    nvgSetPaint(nvg, bg_paint);
                     nvgStrokeWidth(nvg, 1);
                     nvgStroke(nvg);
                 }
@@ -1991,7 +1990,7 @@ void pw_tick(void* _gui)
                     // BG colour
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * lm->param_scale);
-                    nvgFillColour(nvg, COLOUR_BG_LIGHT);
+                    nvgSetColour(nvg, COLOUR_BG_LIGHT);
                     nvgFill(nvg);
 
                     // Inner shadow
@@ -2010,7 +2009,7 @@ void pw_tick(void* _gui)
                         blur1,
                         icol,
                         ocol);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * lm->param_scale);
                     nvgFill(nvg);
 
@@ -2053,7 +2052,7 @@ void pw_tick(void* _gui)
                     nvgMoveTo(nvg, notch_x, bot_y);
                     nvgLineTo(nvg, notch_r, bot_y);
 
-                    nvgStrokeColour(nvg, COLOUR_GREY_1);
+                    nvgSetColour(nvg, COLOUR_GREY_1);
                     nvgStrokeWidth(nvg, 1);
                     nvgStroke(nvg);
 
@@ -2069,7 +2068,7 @@ void pw_tick(void* _gui)
                     float sh_y = handle.y + 3;
 
                     paint = nvgBoxGradient(0, sh_x, sh_y, w, w, 4 * lm->param_scale, blur2, icol, ocol);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgRoundedRect(nvg, sh_x - blur2, sh_y - blur2, w + blur2 * 2, w + blur2 * 2, 4 * lm->param_scale);
                     nvgFill(nvg);
 
@@ -2079,7 +2078,7 @@ void pw_tick(void* _gui)
                     NVGcolour stop1 = nvgHexColour(0xB5BFC8FF);
                     NVGcolour stop2 = nvgHexColour(0xD5DFEAFF);
                     paint = nvgLinearGradient(0, 0, handle_cy - w * 0.35, 0, handle_cy + w * 0.35, stop1, stop2);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgFill(nvg);
 
                     // Top inner shadow
@@ -2088,7 +2087,7 @@ void pw_tick(void* _gui)
                     paint = nvgBoxGradient(0, handle.x, handle.y + 2, w, w, 4 * lm->param_scale, 1, icol, ocol);
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgFill(nvg);
                     // Bottom inner shadow
                     icol  = (NVGcolour){0, 0, 0, 0};
@@ -2096,7 +2095,7 @@ void pw_tick(void* _gui)
                     paint = nvgBoxGradient(0, handle.x, handle.y - 2, w, w, 4 * lm->param_scale, 1, icol, ocol);
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
-                    nvgFillPaint(nvg, paint);
+                    nvgSetPaint(nvg, paint);
                     nvgFill(nvg);
 
                     // Handle notch
@@ -2106,18 +2105,18 @@ void pw_tick(void* _gui)
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, notch_x, snapped_y);
                     nvgLineTo(nvg, notch_r, snapped_y);
-                    nvgStrokeColour(nvg, nvgHexColour(0x242E56FF));
+                    nvgSetColour(nvg, nvgHexColour(0x242E56FF));
                     nvgStroke(nvg);
                     nvgStrokeWidth(nvg, 1);
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, notch_x, snapped_y - 2);
                     nvgLineTo(nvg, notch_r, snapped_y - 2);
-                    nvgStrokeColour(nvg, nvgHexColour(0x9199A0FF));
+                    nvgSetColour(nvg, nvgHexColour(0x9199A0FF));
                     nvgStroke(nvg);
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, notch_x, snapped_y + 2);
                     nvgLineTo(nvg, notch_r, snapped_y + 2);
-                    nvgStrokeColour(nvg, nvgHexColour(0xDCE2E9FF));
+                    nvgSetColour(nvg, nvgHexColour(0xDCE2E9FF));
                     nvgStroke(nvg);
                 }
                 break;
@@ -2125,7 +2124,7 @@ void pw_tick(void* _gui)
             }
         }
 
-        nvgFillColour(nvg, COLOUR_TEXT);
+        nvgSetColour(nvg, COLOUR_TEXT);
         const float param_font_size = 14 * lm->content_scale;
         nvgFontSize(nvg, param_font_size);
 
@@ -2142,7 +2141,7 @@ void pw_tick(void* _gui)
             const float   param_cx = lm->param_positions_cx[i];
 
             nvgTextAlign(nvg, NVG_ALIGN_BC);
-            nvgFillColour(nvg, COLOUR_TEXT);
+            nvgSetColour(nvg, COLOUR_TEXT);
             nvgText(nvg, param_cx, label_b, NAMES[param_id], NULL);
 
             extern double main_get_param(Plugin * p, ParamID id);
@@ -2196,7 +2195,7 @@ void pw_tick(void* _gui)
                 double value = main_get_param(gui->plugin, param_id);
                 cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
 
-                nvgFillColour(nvg, COLOUR_TEXT);
+                nvgSetColour(nvg, COLOUR_TEXT);
                 nvgTextAlign(nvg, NVG_ALIGN_TC);
                 nvgText(nvg, param_cx, value_y, label, NULL);
             }
@@ -2210,7 +2209,7 @@ void pw_tick(void* _gui)
     if (peak_gain > 1)
     {
         nvgTextAlign(nvg, NVG_ALIGN_BR);
-        nvgFillColour(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
+        nvgSetColour(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
         float dB = xm_fast_gain_to_dB(peak_gain);
         char  label[48];
         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
@@ -2262,7 +2261,7 @@ void pw_tick(void* _gui)
 
         nvgBeginPath(nvg);
         nvgRect(nvg, lmao.x, lmao.y, lmao.r - lmao.x, lmao.b - lmao.y);
-        nvgFillColour(nvg, nvgHexColour(0xff0000ff));
+        nvgSetColour(nvg, nvgHexColour(0xff0000ff));
         nvgFill(nvg);
     }
 
@@ -2294,7 +2293,7 @@ void pw_tick(void* _gui)
         nvgFontSize(nvg, 12 * lm->content_scale);
         NVGcolour footer_col = COLOUR_BG_LIGHT;
         footer_col.a         = 0.5f;
-        nvgFillColour(nvg, footer_col);
+        nvgSetColour(nvg, footer_col);
         char text[64] = {0};
         int  len      = snprintf(
             text,
