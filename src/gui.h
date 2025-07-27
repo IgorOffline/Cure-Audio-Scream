@@ -76,15 +76,10 @@ typedef struct GUI
     sg_buffer   knob_vbo;
     sg_buffer   knob_ibo;
 
-    // TODO: fix whatever is wrong with NanoVG sokol so we can use that for drawing the logo...
-    sg_pipeline img_pip;
-    sg_buffer   img_vbo;
-    sg_buffer   img_ibo;
-    sg_sampler  img_smp;
-
-    sg_image img_logo_id;
-    int      img_logo_width;
-    int      img_logo_height;
+    sg_sampler logo_smp;
+    sg_image   logo_id;
+    int        logo_width;
+    int        logo_height;
 
     uint64_t frame_start_time;
     uint64_t frame_end_time;

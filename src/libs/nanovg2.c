@@ -4401,13 +4401,13 @@ void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts)
 }
 
 int snvgCreateImageFromHandleSokol(
-    NVGcontext* ctx,
-    sg_image    imageSokol,
-    sg_sampler  samplerSokol,
-    int         type,
-    int         w,
-    int         h,
-    int         flags)
+    NVGcontext*     ctx,
+    sg_image        imageSokol,
+    sg_sampler      samplerSokol,
+    enum NVGtexture type,
+    int             w,
+    int             h,
+    int             flags)
 {
     SGNVGtexture* tex = sgnvg__allocTexture(ctx);
 
@@ -4422,12 +4422,6 @@ int snvgCreateImageFromHandleSokol(
     tex->height = h;
 
     return tex->img.id;
-}
-
-sg_image snvgImageHandleSokol(NVGcontext* ctx, int image)
-{
-    SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
-    return tex->img;
 }
 
 void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass* pass, int width, int height)

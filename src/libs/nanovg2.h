@@ -1024,14 +1024,13 @@ int nvgTextBreakLines(
     int         maxRows);
 
 int snvgCreateImageFromHandleSokol(
-    NVGcontext* ctx,
-    sg_image    imageSokol,
-    sg_sampler  samplerSokol,
-    int         type,
-    int         w,
-    int         h,
-    int         flags);
-struct sg_image snvgImageHandleSokol(NVGcontext* ctx, int image);
+    NVGcontext*     ctx,
+    sg_image        imageSokol,
+    sg_sampler      samplerSokol,
+    enum NVGtexture type,
+    int             w,
+    int             h,
+    int             flags);
 
 void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass*, int width, int height);
 void snvg_command_end_pass(NVGcontext* ctx);

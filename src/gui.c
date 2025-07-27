@@ -24,7 +24,6 @@
 #include <string.h>
 
 #include <knob.glsl.h>
-#include <texquad.glsl.h>
 
 #include "gui.h"
 
@@ -317,46 +316,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     // Logo shader
     {
-        static const uint16_t indices[] = {0, 1, 2, 0, 2, 3};
-
-        gui->img_vbo = sg_make_buffer(&(sg_buffer_desc){
-            .usage.vertex_buffer = true,
-            .usage.stream_update = true,
-            .size                = sizeof(vertex_t) * 4,
-            .label               = "logo-vertices"});
-
-        gui->img_ibo = sg_make_buffer(
-            &(sg_buffer_desc){.usage.index_buffer = true, .data = SG_RANGE(indices), .label = "logo-indices"});
-
-        sg_shader shd = sg_make_shader(texquad_shader_desc(sg_query_backend()));
-        gui->img_pip  = sg_make_pipeline(&(sg_pipeline_desc){
-             .shader     = shd,
-             .index_type = SG_INDEXTYPE_UINT16,
-             .layout =
-                {.attrs =
-                      {[ATTR_texquad_position].format  = SG_VERTEXFORMAT_FLOAT2,
-                       [ATTR_texquad_texcoord0].format = SG_VERTEXFORMAT_SHORT2N}},
-             .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                  .blend =
-                      {
-                          .enabled          = true,
-                          .src_factor_rgb   = SG_BLENDFACTOR_ONE,
-                          .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                          .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                          .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                     }},
-             .label = "logo-pipeline"});
-
-        // a sampler object
-        gui->img_smp = sg_make_sampler(&(sg_sampler_desc){
-            .min_filter    = SG_FILTER_LINEAR,
-            .mag_filter    = SG_FILTER_LINEAR,
-            .mipmap_filter = SG_FILTER_LINEAR,
-            .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
-            .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
-        });
-
         void*  file_data     = NULL;
         size_t file_data_len = 0;
         bool   ok            = false;
@@ -377,12 +336,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
             xassert(comp == 4);
             if (img_buf)
             {
-                // TODO: mip maps
-                // gui->logo_img_id = nvgCreateImageRGBA(gui->nvg, x, y, NVG_IMAGE_GENERATE_MIPMAPS, img_buf);
-                // gui->logo_img_id = nvgCreateImageRGBA(gui->nvg, x, y, 0, img_buf);
-                // xassert(gui->logo_img_id);
-
-                gui->img_logo_id = sg_make_image_with_mipmaps(&(sg_image_desc){
+                gui->logo_id = sg_make_image_with_mipmaps(&(sg_image_desc){
                     .width        = x,
                     .height       = y,
                     .num_mipmaps  = 5,
@@ -395,8 +349,26 @@ void* pw_create_gui(void* _plugin, void* _pw)
                     }});
                 stbi_image_free(img_buf);
 
-                gui->img_logo_width  = x;
-                gui->img_logo_height = y;
+                gui->logo_width  = x;
+                gui->logo_height = y;
+
+                // a sampler object
+                gui->logo_smp = sg_make_sampler(&(sg_sampler_desc){
+                    .min_filter    = SG_FILTER_LINEAR,
+                    .mag_filter    = SG_FILTER_LINEAR,
+                    .mipmap_filter = SG_FILTER_LINEAR,
+                    .wrap_u        = SG_WRAP_CLAMP_TO_EDGE,
+                    .wrap_v        = SG_WRAP_CLAMP_TO_EDGE,
+                });
+
+                snvgCreateImageFromHandleSokol(
+                    gui->nvg,
+                    gui->logo_id,
+                    gui->logo_smp,
+                    NVG_TEXTURE_RGBA,
+                    gui->logo_width,
+                    gui->logo_height,
+                    0);
             }
 
             XFILES_FREE(file_data);
@@ -1139,110 +1111,69 @@ void draw_lfo_section(GUI* gui)
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 }
 
-void do_knob_and_logo_shader(void* uptr)
+void do_knob_shader(void* uptr)
 {
     GUI*           gui = uptr;
     LayoutMetrics* lm  = &gui->layout;
 
+    // clang-format off
+    vertex_t verts[] = {
+        {-1.0f,  1.0f, -32767,  32767},
+        { 1.0f,  1.0f,  32767,  32767},
+        { 1.0f, -1.0f,  32767, -32767},
+        {-1.0f, -1.0f, -32767, -32767},
+
+        {-1.0f,  1.0f, -32767,  32767},
+        { 1.0f,  1.0f,  32767,  32767},
+        { 1.0f, -1.0f,  32767, -32767},
+        {-1.0f, -1.0f, -32767, -32767},
+
+        {-1.0f,  1.0f, -32767,  32767},
+        { 1.0f,  1.0f,  32767,  32767},
+        { 1.0f, -1.0f,  32767, -32767},
+        {-1.0f, -1.0f, -32767, -32767},
+    };
+    _Static_assert(ARRLEN(verts) == (3 * 4), "");
+    _Static_assert(ARRLEN(verts) / 4 == ARRLEN(lm->knobs_pos), "");
+    // clang-format on
+
+    float radius = lm->knob_radius;
+    xassert(radius != 0);
+    for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
     {
-        // clang-format off
-        vertex_t verts[] = {
-            {-1.0f,  1.0f, -32767,  32767},
-            { 1.0f,  1.0f,  32767,  32767},
-            { 1.0f, -1.0f,  32767, -32767},
-            {-1.0f, -1.0f, -32767, -32767},
+        float left   = lm->knobs_pos[i].x - radius;
+        float right  = lm->knobs_pos[i].x + radius;
+        float top    = lm->knobs_pos[i].y - radius;
+        float bottom = lm->knobs_pos[i].y + radius;
 
-            {-1.0f,  1.0f, -32767,  32767},
-            { 1.0f,  1.0f,  32767,  32767},
-            { 1.0f, -1.0f,  32767, -32767},
-            {-1.0f, -1.0f, -32767, -32767},
+        left   = xm_mapf(left, 0, lm->width, -1, 1);
+        right  = xm_mapf(right, 0, lm->width, -1, 1);
+        top    = xm_mapf(top, 0, lm->height, 1, -1);
+        bottom = xm_mapf(bottom, 0, lm->height, 1, -1);
 
-            {-1.0f,  1.0f, -32767,  32767},
-            { 1.0f,  1.0f,  32767,  32767},
-            { 1.0f, -1.0f,  32767, -32767},
-            {-1.0f, -1.0f, -32767, -32767},
-        };
-        _Static_assert(ARRLEN(verts) == (3 * 4), "");
-        _Static_assert(ARRLEN(verts) / 4 == ARRLEN(lm->knobs_pos), "");
-        // clang-format on
+        int v_idx = i * 4;
 
-        float radius = lm->knob_radius;
-        xassert(radius != 0);
-        for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
-        {
-            float left   = lm->knobs_pos[i].x - radius;
-            float right  = lm->knobs_pos[i].x + radius;
-            float top    = lm->knobs_pos[i].y - radius;
-            float bottom = lm->knobs_pos[i].y + radius;
-
-            left   = xm_mapf(left, 0, lm->width, -1, 1);
-            right  = xm_mapf(right, 0, lm->width, -1, 1);
-            top    = xm_mapf(top, 0, lm->height, 1, -1);
-            bottom = xm_mapf(bottom, 0, lm->height, 1, -1);
-
-            int v_idx = i * 4;
-
-            verts[v_idx + 0].x = left;
-            verts[v_idx + 0].y = top;
-            verts[v_idx + 1].x = right;
-            verts[v_idx + 1].y = top;
-            verts[v_idx + 2].x = right;
-            verts[v_idx + 2].y = bottom;
-            verts[v_idx + 3].x = left;
-            verts[v_idx + 3].y = bottom;
-        }
-
-        sg_update_buffer(gui->knob_vbo, &SG_RANGE(verts));
-        sg_apply_pipeline(gui->knob_pip);
-
-        sg_bindings bind       = {0};
-        bind.vertex_buffers[0] = gui->knob_vbo;
-        bind.index_buffer      = gui->knob_ibo;
-        sg_apply_bindings(&bind);
-
-        xassert(sg_isvalid());
-
-        sg_draw(0, 6 * 3, 1);
+        verts[v_idx + 0].x = left;
+        verts[v_idx + 0].y = top;
+        verts[v_idx + 1].x = right;
+        verts[v_idx + 1].y = top;
+        verts[v_idx + 2].x = right;
+        verts[v_idx + 2].y = bottom;
+        verts[v_idx + 3].x = left;
+        verts[v_idx + 3].y = bottom;
     }
 
-    // Logo shader
-    if (gui->img_logo_id.id)
-    {
-        float x, y, w, h, img_scale;
+    sg_update_buffer(gui->knob_vbo, &SG_RANGE(verts));
+    sg_apply_pipeline(gui->knob_pip);
 
-        float padding = 4 * lm->scale_y;
-        h             = lm->height_header - padding;
-        img_scale     = h / (float)gui->img_logo_height;
-        w             = (float)gui->img_logo_width * img_scale;
-        x             = lm->width - 16 - w;
-        // x         = 16;
-        y = padding;
+    sg_bindings bind       = {0};
+    bind.vertex_buffers[0] = gui->knob_vbo;
+    bind.index_buffer      = gui->knob_ibo;
+    sg_apply_bindings(&bind);
 
-        float l = xm_mapf(x, 0, lm->width, -1, 1);
-        float r = xm_mapf(x + w, 0, lm->width, -1, 1);
-        float t = xm_mapf(y, 0, lm->height, 1, -1);
-        float b = xm_mapf(y + h, 0, lm->height, 1, -1);
+    xassert(sg_isvalid());
 
-        // clang-format off
-        vertex_t verts[] = {
-            {l, t, 0,     0},
-            {r, t, 32767, 0},
-            {r, b, 32767, 32767},
-            {l, b, 0,     32767},
-        };
-
-        sg_update_buffer(gui->img_vbo, &SG_RANGE(verts));
-        sg_apply_pipeline(gui->img_pip);
-
-        sg_bindings bind       = {0};
-        bind.vertex_buffers[0] = gui->img_vbo;
-        bind.index_buffer      = gui->img_ibo;
-        bind.images[IMG_texquad_tex]   = gui->img_logo_id;
-        bind.samplers[SMP_texquad_smp] = gui->img_smp;
-
-        sg_apply_bindings(&bind);
-        sg_draw(0, 6, 1);
-    }
+    sg_draw(0, 6 * 3, 1);
 }
 
 void pw_tick(void* _gui)
@@ -1456,27 +1387,17 @@ void pw_tick(void* _gui)
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
         nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
 
-        // Sokol nanovg isn't rendering this for some reason :(
         // Logo
-        // float x, y, w, h, img_scale;
-
-        // h         = height_header - 4;
-        // img_scale = h / (float)gui->img_logo_height;
-        // w         = (float)gui->img_logo_width * img_scale;
-        // x = lm->width - 16 - w;
-        // x = 16;
-        // y = 4;
-        // nvgBeginPath(nvg);
-        // nvgRect(nvg, x, y, w, h);
-        // nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_img_id, 1));
-        // nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
-        // nvgRect(nvg, 0, 0, 50, 50);
-        // nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, 50, 50, 0, gui->logo_img_id, 1));
-        // nvgFill(nvg);
-
-        // Doesn't look great rendered by nanovg...
-        // nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
-        // draw_cure_audio_logo_fixed_svg(nvg, (28.0f / 241.0f), lm->width - 16 - 20, 2);
+        float x, y, w, h, img_scale;
+        y         = 4;
+        h         = lm->height_header - 4;
+        img_scale = h / (float)gui->logo_height;
+        w         = (float)gui->logo_width * img_scale;
+        x         = lm->width - 16 - w;
+        nvgBeginPath(nvg);
+        nvgRect(nvg, x, y, w, h);
+        nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_id.id, 1));
+        nvgFill(nvg);
     }
 
     // Main content background
@@ -2202,7 +2123,7 @@ void pw_tick(void* _gui)
         }
     }
 
-    snvg_command_custom(nvg, gui, do_knob_and_logo_shader);
+    snvg_command_custom(nvg, gui, do_knob_shader);
 
     /*
     const float peak_gain = gui->plugin->gui_output_peak_gain;
