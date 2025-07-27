@@ -144,7 +144,7 @@ NVGglyphPosition* ted_get_text_layout(TextEditor* ted, const char* text, size_t 
 
     GUI* gui = ted_shift_ptr(ted);
 
-    nvgFontSize(gui->nvg, gui->scale * ted->font_size);
+    nvgFontSize(gui->nvg, ted->font_size);
     nvgTextAlign(gui->nvg, NVG_ALIGN_TL);
     int num_glyphs = nvgTextGlyphPositions(gui->nvg, 0, 0, text, text + text_len, glyphs, text_len);
     xassert(num_glyphs <= text_len);

@@ -19,6 +19,9 @@ typedef struct LayoutMetrics
     float scale_x;
     float scale_y;
 
+    float content_scale;
+    float devicePixelRatio; // Some nonsense value for NVG which I still don't totally understand
+
     float height_header;
     float height_footer;
 

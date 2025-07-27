@@ -43,6 +43,7 @@
 // - Fixed memory leaks
 // - Created 'command' list for supporting multiple render passes and custom shaders
 // - Merged with nanovg
+// - Create 'drity' flag for textures to only update them on new data
 
 #ifndef NANOVG_H
 #define NANOVG_H
@@ -181,12 +182,16 @@ typedef struct NVGtextRow
 
 enum NVGimageFlags
 {
-    NVG_IMAGE_GENERATE_MIPMAPS = 1 << 0, // Generate mipmaps during creation of the image.
-    NVG_IMAGE_REPEATX          = 1 << 1, // Repeat image in X direction.
-    NVG_IMAGE_REPEATY          = 1 << 2, // Repeat image in Y direction.
-    NVG_IMAGE_FLIPY            = 1 << 3, // Flips (inverses) image in Y direction when rendered.
-    NVG_IMAGE_PREMULTIPLIED    = 1 << 4, // Image data has premultiplied alpha.
-    NVG_IMAGE_NEAREST          = 1 << 5, // Image interpolation is Nearest instead Linear
+    NVG_IMAGE_DIRTY = 1 << 0, // Force update image on GPU
+
+    NVG_IMAGE_GENERATE_MIPMAPS = 1 << 1, // Generate mipmaps during creation of the image.
+    NVG_IMAGE_REPEATX          = 1 << 2, // Repeat image in X direction.
+    NVG_IMAGE_REPEATY          = 1 << 3, // Repeat image in Y direction.
+    NVG_IMAGE_FLIPY            = 1 << 4, // Flips (inverses) image in Y direction when rendered.
+    NVG_IMAGE_PREMULTIPLIED    = 1 << 5, // Image data has premultiplied alpha.
+    NVG_IMAGE_NEAREST          = 1 << 6, // Image interpolation is Nearest instead Linear
+
+    NVG_IMAGE_NODELETE = 1 << 7, // Do not delete Sokol image.
 };
 
 //
@@ -295,12 +300,6 @@ enum NVGcreateFlags
     NVG_STENCIL_STROKES = 1 << 1,
     // Flag indicating that additional debug checks are done.
     NVG_DEBUG = 1 << 2,
-};
-
-// These are additional flags on top of NVGimageFlags.
-enum NVGimageFlagsGL
-{
-    NVG_IMAGE_NODELETE = 1 << 16, // Do not delete Sokol image.
 };
 
 enum SGNVGshaderType
@@ -774,6 +773,11 @@ bool nvgGetImageSize(NVGcontext* ctx, int image, int* w, int* h);
 // Deletes created image.
 void nvgDeleteImage(NVGcontext* ctx, int image);
 
+// Returns handle to the image.
+int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int imageFlags, const unsigned char* data);
+
+int nvgUpdateTexture(NVGcontext* ctx, int image, int x, int y, int w, int h, const unsigned char* data);
+
 //
 // Paints
 //
@@ -1041,11 +1045,6 @@ int nvgTextBreakLines(
     float       breakRowWidth,
     NVGtextRow* rows,
     int         maxRows);
-
-// Backend functions. These should be considered 'private' and it's not recommended to call them directly (unless you
-// know what you're doing)
-int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int imageFlags, const unsigned char* data);
-int nvgUpdateTexture(NVGcontext* ctx, int image, int x, int y, int w, int h, const unsigned char* data);
 
 int snvgCreateImageFromHandleSokol(
     NVGcontext* ctx,

@@ -3672,6 +3672,8 @@ int nvgUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, int h, c
             src += srcLineInBytes;
             dst += dstLineInBytes;
         }
+
+        tex->flags |= NVG_IMAGE_DIRTY;
     }
 
     return 1;
@@ -3979,16 +3981,15 @@ void nvgEndFrame(NVGcontext* ctx)
     {
         if (ctx->textures[i].id != 0)
         {
-            // sgnvg__flushTexture(&ctx->textures[i]);
-
             SGNVGtexture* tex = &ctx->textures[i];
 
-            sg_update_image(
-                tex->img,
-                &(sg_image_data){
-                    .subimage[0][0] =
-                        {tex->imgData, tex->width * tex->height * (tex->type == NVG_TEXTURE_RGBA ? 4 : 1)},
-                });
+            if (tex->flags & NVG_IMAGE_DIRTY)
+            {
+                tex->flags   ^= NVG_IMAGE_DIRTY;
+                int channels  = tex->type == NVG_TEXTURE_RGBA ? 4 : 1;
+                int nbytes    = tex->width * tex->height * channels;
+                sg_update_image(tex->img, &(sg_image_data){.subimage[0][0] = {tex->imgData, nbytes}});
+            }
         }
     }
 

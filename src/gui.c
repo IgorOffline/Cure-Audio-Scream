@@ -1290,22 +1290,11 @@ void pw_tick(void* _gui)
     gui->frame_start_time = xtime_now_ns();
     // #endif
 
-    const float dpi = pw_get_dpi(gui->pw);
-#ifdef __APPLE__
-    const float content_scale    = dpi * 0.5;
-    const float devicePixelRatio = dpi; // required for text to render properly...
-#else
-    const float content_scale    = dpi;
-    const float devicePixelRatio = 1;
-#endif
-
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
 
     sg_set_global(gui->sg);
-    imgui_begin_frame(im);
-    nvgBeginFrame(nvg, devicePixelRatio);
 
     enum
     {
@@ -1341,8 +1330,17 @@ void pw_tick(void* _gui)
         lm->scale_x = (float)lm->width / (float)GUI_INIT_WIDTH;
         lm->scale_y = (float)top_height / (float)init_height;
 
-        lm->height_header = floorf(HEIGHT_HEADER * content_scale * lm->scale_y);
-        lm->height_footer = floorf(HEIGHT_FOOTER * content_scale * lm->scale_y);
+        const float dpi = pw_get_dpi(gui->pw);
+#ifdef __APPLE__
+        lm->content_scale    = dpi * 0.5;
+        lm->devicePixelRatio = dpi; // required for text to render properly...
+#else
+        lm->content_scale    = dpi;
+        lm->devicePixelRatio = 1;
+#endif
+
+        lm->height_header = floorf(HEIGHT_HEADER * lm->content_scale);
+        lm->height_footer = floorf(HEIGHT_FOOTER * lm->content_scale);
 
         lm->content_x = BORDER_PADDING;
         lm->content_r = lm->width - BORDER_PADDING;
@@ -1411,6 +1409,9 @@ void pw_tick(void* _gui)
 #endif
     };
 
+    imgui_begin_frame(im);
+    nvgBeginFrame(nvg, lm->devicePixelRatio);
+
     snvg_command_begin_pass(
         nvg,
         &(sg_pass){
@@ -1451,7 +1452,7 @@ void pw_tick(void* _gui)
 
     // Header
     {
-        nvgFontSize(nvg, content_scale * lm->scale_y * 24);
+        nvgFontSize(nvg, lm->content_scale * 24);
         nvgFillColour(nvg, COLOUR_BG_LIGHT);
         nvgTextAlign(nvg, NVG_ALIGN_CC);
         nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
@@ -2125,8 +2126,8 @@ void pw_tick(void* _gui)
         }
 
         nvgFillColour(nvg, COLOUR_TEXT);
-        const float param_font_size = 14 * content_scale * lm->param_scale;
-        nvgFontSize(nvg, 14 * content_scale * lm->param_scale);
+        const float param_font_size = 14 * lm->content_scale;
+        nvgFontSize(nvg, param_font_size);
 
         const float content_cy  = lm->content_y + lm->top_content_height * 0.5f;
         const float text_offset = lm->knob_radius + 40 * lm->scale_y;
@@ -2290,7 +2291,7 @@ void pw_tick(void* _gui)
         gui->frame_end_time      = frame_time_end;
         double actual_fps        = 1000.0 / ((diff_last_frame >> 10) * 1024e-6);
 
-        nvgFontSize(nvg, 12 * content_scale);
+        nvgFontSize(nvg, 12 * lm->content_scale);
         NVGcolour footer_col = COLOUR_BG_LIGHT;
         footer_col.a         = 0.5f;
         nvgFillColour(nvg, footer_col);
