@@ -16,8 +16,40 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
+// Taken from https://github.com/void256/nanovg_sokol.h
+// see https://github.com/floooh/sokol/issues/633 for history
+//
+// @darkuranium
+// - initial version
+//
+// @zeromake
+// - sampler support
+// - additional changes
+//
+// @void256 24.10.2024
+// - inline shaders
+// - fix partial texture updates (and with it text rendering)
+// - optional debug trace logging
+//
+// @void256 25.10.2024
+// - embedded original .glsl files and awk command to extract them to single files
+// - clean up sgnvg__renderUpdateTexture and fix issues when x0 is not 0
+//
+// @void256 26.10.2024
+// - don't call sg_update_image() when creating texture in sgnvg__renderCreateTexture()
+// - renamed debug trace logging macros and added "SGNVG_" prefix there as well
+//
+// @Tremus 2025
+// - Fixed memory leaks
+// - Created 'command' list for supporting multiple render passes and custom shaders
+// - Merged with nanovg
+
 #ifndef NANOVG_H
 #define NANOVG_H
+
+#include <sokol_gfx.h>
+
+#include "linked_arena.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -191,12 +223,6 @@ typedef struct NVGpath
     int           convex;
 } NVGpath;
 
-typedef struct NVGparams
-{
-    void* userPtr;
-    int   edgeAntiAlias;
-} NVGparams;
-
 enum NVGcommands
 {
     NVG_MOVETO   = 0,
@@ -258,16 +284,212 @@ typedef struct NVGpathCache
     float      bounds[4];
 } NVGpathCache;
 
+// Create flags
+
+enum NVGcreateFlags
+{
+    // Flag indicating if geometry based anti-aliasing is used (may not be needed when using MSAA).
+    NVG_ANTIALIAS = 1 << 0,
+    // Flag indicating if strokes should be drawn using stencil buffer. The rendering will be a little
+    // slower, but path overlaps (i.e. self-intersecting or sharp turns) will be drawn just once.
+    NVG_STENCIL_STROKES = 1 << 1,
+    // Flag indicating that additional debug checks are done.
+    NVG_DEBUG = 1 << 2,
+};
+
+// These are additional flags on top of NVGimageFlags.
+enum NVGimageFlagsGL
+{
+    NVG_IMAGE_NODELETE = 1 << 16, // Do not delete Sokol image.
+};
+
+enum SGNVGshaderType
+{
+    NSVG_SHADER_FILLGRAD,
+    NSVG_SHADER_FILLIMG,
+    NSVG_SHADER_SIMPLE,
+    NSVG_SHADER_IMG
+};
+
+typedef struct SGNVGtexture
+{
+    int        id;
+    sg_image   img;
+    sg_sampler smp;
+    int        width, height;
+    int        type;
+    int        flags;
+    uint8_t*   imgData;
+} SGNVGtexture;
+
+typedef struct SGNVGblend
+{
+    sg_blend_factor srcRGB;
+    sg_blend_factor dstRGB;
+    sg_blend_factor srcAlpha;
+    sg_blend_factor dstAlpha;
+} SGNVGblend;
+
+enum SGNVGcallType
+{
+    SGNVG_NONE = 0,
+    SGNVG_FILL,
+    SGNVG_CONVEXFILL,
+    SGNVG_STROKE,
+    SGNVG_TRIANGLES,
+};
+
+typedef struct SGNVGpath
+{
+    int fillOffset;
+    int fillCount;
+    int strokeOffset;
+    int strokeCount;
+} SGNVGpath;
+
+typedef struct SGNVGattribute
+{
+    float vertex[2];
+    float tcoord[2];
+} SGNVGattribute;
+
+typedef struct SGNVGvertUniforms
+{
+    float viewSize[4];
+} SGNVGvertUniforms;
+
+typedef struct SGNVGfragUniforms
+{
+#define NANOVG_SG_UNIFORMARRAY_SIZE 11
+    union
+    {
+        struct
+        {
+            float           scissorMat[12]; // matrices are actually 3 vec4s
+            float           paintMat[12];
+            struct NVGcolor innerCol;
+            struct NVGcolor outerCol;
+            float           scissorExt[2];
+            float           scissorScale[2];
+            float           extent[2];
+            float           radius;
+            float           feather;
+            float           strokeMult;
+            float           strokeThr;
+            float           texType;
+            float           type;
+        };
+        float uniformArray[NANOVG_SG_UNIFORMARRAY_SIZE][4];
+    };
+} SGNVGfragUniforms;
+
+// LRU cache; keep its size relatively small, as items are accessed via a linear search
+#define NANOVG_SG_PIPELINE_CACHE_SIZE 32
+
+typedef struct SGNVGpipelineCacheKey
+{
+    uint16_t blend;   // cached as `src_factor_rgb | (dst_factor_rgb << 4) | (src_factor_alpha << 8) | (dst_factor_alpha
+                      // << 12)`
+    uint16_t lastUse; // updated on each read
+} SGNVGpipelineCacheKey;
+
+enum SGNVGpipelineType
+{
+    // used by sgnvg__convexFill, sgnvg__stroke, sgnvg__triangles
+    SGNVG_PIP_BASE = 0,
+
+    // used by sgnvg__fill
+    SGNVG_PIP_FILL_STENCIL,
+    SGNVG_PIP_FILL_ANTIALIAS, // only used if sg->flags & NVG_ANTIALIAS
+    SGNVG_PIP_FILL_DRAW,
+
+    // used by sgnvg__stroke
+    SGNVG_PIP_STROKE_STENCIL_DRAW,      // only used if sg->flags & NVG_STENCIL_STROKES
+    SGNVG_PIP_STROKE_STENCIL_ANTIALIAS, // only used if sg->flags & NVG_STENCIL_STROKES
+    SGNVG_PIP_STROKE_STENCIL_CLEAR,     // only used if sg->flags & NVG_STENCIL_STROKES
+
+    SGNVG_PIP_NUM_
+};
+
+typedef struct SGNVGpipelineCache
+{
+    // keys are stored as a separate array for search performance
+    SGNVGpipelineCacheKey keys[NANOVG_SG_PIPELINE_CACHE_SIZE];
+    sg_pipeline           pipelines[NANOVG_SG_PIPELINE_CACHE_SIZE][SGNVG_PIP_NUM_];
+    uint8_t               pipelinesActive[NANOVG_SG_PIPELINE_CACHE_SIZE];
+    uint16_t              currentUse; // incremented on each overwrite
+} SGNVGpipelineCache;
+
+typedef struct SGNVGcall
+{
+    int type;
+    int image;
+    int triangleOffset;
+    int triangleCount;
+
+    SGNVGblend blendFunc;
+
+    int        num_paths;
+    SGNVGpath* paths;
+
+    // depending on SGNVGcall.type and NVG_STENCIL_STROKES, this may be 2 consecutive uniforms
+    SGNVGfragUniforms* uniforms;
+
+    struct SGNVGcall* next;
+} SGNVGcall;
+
+typedef struct SGNVGbeginPass
+{
+    sg_pass pass;
+    int     width, height;
+} SGNVGbeginPass;
+
+typedef struct SGNVGdrawNVG
+{
+    int               num_calls;
+    struct SGNVGcall* calls;
+} SGNVGdrawNVG;
+
+typedef void (*SGNVGcustomFunc)(void* uptr);
+
+typedef struct SGNVGcustom
+{
+    void*           uptr;
+    SGNVGcustomFunc func;
+} SGNVGcustom;
+
+enum SGNVGcommandType
+{
+    SGNVG_CMD_BEGIN_PASS,
+    SGNVG_CMD_END_PASS,
+    SGNVG_CMD_DRAW_NVG,
+    SGNVG_CMD_CUSTOM,
+};
+
+typedef struct SGNVGcommand
+{
+    enum SGNVGcommandType type;
+    union
+    {
+        void* data;
+
+        SGNVGbeginPass* beginPass;
+        SGNVGdrawNVG*   drawNVG;
+        SGNVGcustom*    custom;
+    } payload;
+
+    struct SGNVGcommand* next;
+} SGNVGcommand;
+
 typedef struct NVGcontext
 {
-    NVGparams params;
-
     float*        commands;
     int           ccommands;
     int           ncommands;
     float         commandx, commandy;
     NVGstate      state;
     int           nstates;
+    int           edgeAntiAlias;
     NVGpathCache* cache;
     float         tessTol;
     float         distTol;
@@ -282,13 +504,51 @@ typedef struct NVGcontext
     int fillTriCount;
     int strokeTriCount;
     int textTriCount;
+
+    // SGNVGcontext....
+
+    sg_shader          shader;
+    SGNVGtexture*      textures;
+    SGNVGvertUniforms  view;
+    int                ntextures;
+    int                ctextures;
+    int                textureId;
+    sg_buffer          vertBuf;
+    sg_buffer          indexBuf;
+    SGNVGpipelineCache pipelineCache;
+    int                fragSize;
+    int                flags;
+
+    // Per frame buffers
+    SGNVGattribute* verts;
+    int             cverts;
+    int             nverts;
+    int             cverts_gpu;
+    uint32_t*       indexes;
+    int             cindexes;
+    int             nindexes;
+    int             cindexes_gpu;
+
+    // Feel free to allocate anything you want with this at any time in a frame after nvgBeginFrame() is called
+    // Note all allocations are dropped when nvgBeginFrame() is called
+    // It is also unadvised to release anything you allocate with this.
+    // If these rules/guidelines are okay with you, go ahead
+    LinkedArena* frame_arena;
+
+    SGNVGcall*    current_call;     // linked list current position
+    SGNVGdrawNVG* current_nvg_draw; // linked list current position
+    SGNVGcommand* current_command;  // linked list current position
+    SGNVGcommand* first_command;    // linked list start
+
+    // state
+    int            pipelineCacheIndex;
+    sg_blend_state blend;
+
+    int dummyTex;
 } NVGcontext;
 
-// Constructor and destructor, called by the render back-end.
-NVGcontext* nvgCreateInternal(NVGparams* params);
-void        nvgDeleteInternal(NVGcontext* ctx);
-
-NVGparams* nvgInternalParams(NVGcontext* ctx);
+NVGcontext* nvgCreateContext(int flags);
+void        nvgDestroyContext(NVGcontext* ctx);
 
 // Debug function to dump cached path data.
 void nvgDebugDumpPathCache(NVGcontext* ctx);
@@ -815,7 +1075,21 @@ void _nvgRenderTriangles(
     const NVGvertex*           verts,
     int                        nverts,
     float                      fringe);
-void _nvgRenderDelete(NVGcontext* ctx);
+
+int snvgCreateImageFromHandleSokol(
+    NVGcontext* ctx,
+    sg_image    imageSokol,
+    sg_sampler  samplerSokol,
+    int         type,
+    int         w,
+    int         h,
+    int         flags);
+struct sg_image snvgImageHandleSokol(NVGcontext* ctx, int image);
+
+void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass*, int width, int height);
+void snvg_command_end_pass(NVGcontext* ctx);
+void snvg_command_draw_nvg(NVGcontext* ctx);
+void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func);
 
 #ifdef _MSC_VER
 #pragma warning(pop)

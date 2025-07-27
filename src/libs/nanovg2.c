@@ -16,12 +16,232 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
+/*
+    Embedded source code compiled with:
+
+    sokol-shdc --input shd.glsl --output shd.glsl.h --slang glsl410:glsl300es:hlsl4:metal_macos:metal_ios:metal_sim:wgsl
+--ifdef sokol-shdc --input shd.aa.glsl --output shd.aa.glsl.h --defines=EDGE_AA --slang
+glsl410:glsl300es:hlsl4:metal_macos:metal_ios:metal_sim:wgsl --ifdef
+
+    shd.glsl and shd.aa.glsl both @include the internal_shd.fs.glsl and internal_shd.vs.glsl
+
+    All four files are included below for convenience.
+
+    To extract the shader source code and get back the 4 files use the following
+    awk command:
+
+    awk '/^8< / {out_file=$2; print "// " out_file > out_file; next} /^>8/ {out_file=""; next} {if (out_file) print $0
+>> out_file}' nanovg_sokol.h
+
+8< internal_shd.fs.glsl
+
+precision highp float;
+#if defined(_HLSL5_) && !defined(USE_SOKOL)
+    uniform frag {
+        mat4 _scissorMat;
+        vec4 _scissorExt;
+        vec4 _scissorScale;
+        mat4 _paintMat;
+        vec4 _extent;
+        vec4 _radius;
+        vec4 _feather;
+        vec4 innerCol;
+        vec4 outerCol;
+        vec4 _strokeMult;
+        int texType;
+        int type;
+    };
+    #define scissorMat mat3(_scissorMat)
+    #define scissorExt _scissorExt.xy
+    #define scissorScale _scissorScale.xy
+    #define paintMat mat3(_paintMat)
+    #define extent _extent.xy
+    #define radius _radius.x
+    #define feather _feather.x
+    #define strokeMult _strokeMult.x
+    #define strokeThr _strokeMult.y
+#else
+    #ifdef USE_UNIFORMBUFFER
+        layout(std140,binding=1) uniform frag {
+            mat3 scissorMat;
+            mat3 paintMat;
+            vec4 innerCol;
+            vec4 outerCol;
+            vec2 scissorExt;
+            vec2 scissorScale;
+            vec2 extent;
+            float radius;
+            float feather;
+            float strokeMult;
+            float strokeThr;
+            int texType;
+            int type;
+        };
+    #else
+        layout(std140,binding=1) uniform frag {
+            vec4 dummy[11];
+        };
+        #define scissorMat mat3(dummy[0].xyz, dummy[1].xyz, dummy[2].xyz)
+        #define paintMat mat3(dummy[3].xyz, dummy[4].xyz, dummy[5].xyz)
+        #define innerCol dummy[6]
+        #define outerCol dummy[7]
+        #define scissorExt dummy[8].xy
+        #define scissorScale dummy[8].zw
+        #define extent dummy[9].xy
+        #define radius dummy[9].z
+        #define feather dummy[9].w
+        #define strokeMult dummy[10].x
+        #define strokeThr dummy[10].y
+        #define texType int(dummy[10].z)
+        #define type int(dummy[10].w)
+    #endif
+#endif
+
+layout(binding=2) uniform texture2D tex;
+layout(binding=3) uniform sampler smp;
+layout(location = 0) in vec2 ftcoord;
+layout(location = 1) in vec2 fpos;
+layout(location = 0) out vec4 outColor;
+
+float sdroundrect(vec2 pt, vec2 ext, float rad) {
+    vec2 ext2 = ext - vec2(rad,rad);
+    vec2 d = abs(pt) - ext2;
+    return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;
+}
+
+// Scissoring
+float scissorMask(vec2 p) {
+    vec2 sc = (abs((scissorMat * vec3(p,1.0)).xy) - scissorExt);
+    sc = vec2(0.5,0.5) - sc * scissorScale;
+    return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);
+}
+
+#ifdef EDGE_AA
+// Stroke - from [0..1] to clipped pyramid, where the slope is 1px.
+float strokeMask() {
+    return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);
+}
+#endif
+
+void main(void) {
+    vec4 result;
+
+#ifdef EDGE_AA
+    float strokeAlpha = strokeMask();
+// #ifdef _HLSL5_
+// #endif
+    if (strokeAlpha < strokeThr) discard;
+#else
+    float strokeAlpha = 1.0;
+#endif
+    float scissor = scissorMask(fpos);
+
+    if (scissor == 0) {
+        return;
+    }
+
+    if (type == 0) {    // Gradient
+        // Calculate gradient color using box gradient
+        vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
+        float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
+        vec4 color = mix(innerCol,outerCol,d);
+        // Combine alpha
+        color *= strokeAlpha * scissor;
+        result = color;
+    } else if (type == 1) {// Image
+        // Calculate color fron texture
+        vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
+        vec4 color = texture(sampler2D(tex, smp), pt);
+        if (texType == 1) color = vec4(color.xyz*color.w,color.w);
+        if (texType == 2) color = vec4(color.x);
+        // stencil support
+        if (texType == 3 && color.a == 1.0) discard;
+        // Apply color tint and alpha.
+        color *= innerCol;
+        // Combine alpha
+        color *= strokeAlpha * scissor;
+        result = color;
+    } else if (type == 2) {// Stencil fill
+        result = vec4(1,1,1,1);
+    } else if (type == 3) {// Textured tris
+        vec4 color = texture(sampler2D(tex, smp), ftcoord);
+        if (texType == 1) color = vec4(color.xyz*color.w,color.w);
+        if (texType == 2) color = vec4(color.x);
+        result = color * scissor * innerCol;
+    }
+    outColor = result;
+}
+>8
+
+8< internal_shd.vs.glsl
+
+layout (binding = 0) uniform viewSize {
+#if defined(_HLSL5_) && !defined(USE_SOKOL)
+    mat4 dummy;
+#endif
+    vec4 _viewSize;
+};
+layout (location = 0) in vec2 vertex;
+layout (location = 1) in vec2 tcoord;
+layout (location = 0) out vec2 ftcoord;
+layout (location = 1) out vec2 fpos;
+
+void main(void) {
+        ftcoord = tcoord;
+        fpos = vertex;
+    float x = 2.0 * vertex.x / _viewSize.x - 1.0;
+    float y = 1.0 - 2.0 * vertex.y / _viewSize.y;
+        gl_Position = vec4(
+        x,
+        y,
+        0,
+        1
+    );
+}
+>8
+
+8< shd.glsl
+
+@module nanovg
+
+@vs vs
+@include internal_shd.vs.glsl
+@end
+
+@fs fs
+@include internal_shd.fs.glsl
+@end
+
+@program ctx vs fs
+>8
+
+8< shd.aa.glsl
+
+@module nanovg_aa
+
+@vs vs_aa
+@include internal_shd.vs.glsl
+@end
+
+@fs fs_aa
+@include internal_shd.fs.glsl
+@end
+
+@program ctx vs_aa fs_aa
+
+>8
+
+*/
+
+#include "nanovg2.h"
+
 #include <math.h>
 #include <memory.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "nanovg2.h"
+#include <nanovg_sokol.glsl.h>
+
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
 
@@ -84,34 +304,34 @@ static void nvg__deletePathCache(NVGpathCache* c)
     if (c == NULL)
         return;
     if (c->points != NULL)
-        free(c->points);
+        SGNVG_FREE(c->points);
     if (c->paths != NULL)
-        free(c->paths);
+        SGNVG_FREE(c->paths);
     if (c->verts != NULL)
-        free(c->verts);
-    free(c);
+        SGNVG_FREE(c->verts);
+    SGNVG_FREE(c);
 }
 
 static NVGpathCache* nvg__allocPathCache(void)
 {
-    NVGpathCache* c = (NVGpathCache*)malloc(sizeof(NVGpathCache));
+    NVGpathCache* c = (NVGpathCache*)SGNVG_MALLOC(sizeof(NVGpathCache));
     if (c == NULL)
         goto error;
     memset(c, 0, sizeof(NVGpathCache));
 
-    c->points = (NVGpoint*)malloc(sizeof(NVGpoint) * NVG_INIT_POINTS_SIZE);
+    c->points = (NVGpoint*)SGNVG_MALLOC(sizeof(NVGpoint) * NVG_INIT_POINTS_SIZE);
     if (!c->points)
         goto error;
     c->npoints = 0;
     c->cpoints = NVG_INIT_POINTS_SIZE;
 
-    c->paths = (NVGpath*)malloc(sizeof(NVGpath) * NVG_INIT_PATHS_SIZE);
+    c->paths = (NVGpath*)SGNVG_MALLOC(sizeof(NVGpath) * NVG_INIT_PATHS_SIZE);
     if (!c->paths)
         goto error;
     c->npaths = 0;
     c->cpaths = NVG_INIT_PATHS_SIZE;
 
-    c->verts = (NVGvertex*)malloc(sizeof(NVGvertex) * NVG_INIT_VERTS_SIZE);
+    c->verts = (NVGvertex*)SGNVG_MALLOC(sizeof(NVGvertex) * NVG_INIT_VERTS_SIZE);
     if (!c->verts)
         goto error;
     c->nverts = 0;
@@ -232,92 +452,6 @@ void nvgReset(NVGcontext* ctx)
     state->fontBlur      = 0.0f;
     state->textAlign     = NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE;
     state->fontId        = 0;
-}
-
-NVGcontext* nvgCreateInternal(NVGparams* params)
-{
-    FONSparams  fontParams;
-    NVGcontext* ctx = (NVGcontext*)malloc(sizeof(NVGcontext));
-    int         i;
-    if (ctx == NULL)
-        goto error;
-    memset(ctx, 0, sizeof(NVGcontext));
-
-    ctx->params = *params;
-    for (i = 0; i < NVG_MAX_FONTIMAGES; i++)
-        ctx->fontImages[i] = 0;
-
-    ctx->commands = (float*)malloc(sizeof(float) * NVG_INIT_COMMANDS_SIZE);
-    if (!ctx->commands)
-        goto error;
-    ctx->ncommands = 0;
-    ctx->ccommands = NVG_INIT_COMMANDS_SIZE;
-
-    ctx->cache = nvg__allocPathCache();
-    if (ctx->cache == NULL)
-        goto error;
-
-    nvgReset(ctx);
-
-    nvg__setDevicePixelRatio(ctx, 1.0f);
-
-    if (_nvgRenderCreate(ctx) == 0)
-        goto error;
-
-    // Init font rendering
-    memset(&fontParams, 0, sizeof(fontParams));
-    fontParams.width        = NVG_INIT_FONTIMAGE_SIZE;
-    fontParams.height       = NVG_INIT_FONTIMAGE_SIZE;
-    fontParams.flags        = FONS_ZERO_TOPLEFT;
-    fontParams.renderCreate = NULL;
-    fontParams.renderUpdate = NULL;
-    fontParams.renderDraw   = NULL;
-    fontParams.renderDelete = NULL;
-    fontParams.userPtr      = NULL;
-    ctx->fs                 = fonsCreateInternal(&fontParams);
-    if (ctx->fs == NULL)
-        goto error;
-
-    // Create font texture
-    ctx->fontImages[0] = _nvgRenderCreateTexture(ctx, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
-    if (ctx->fontImages[0] == 0)
-        goto error;
-    ctx->fontImageIdx = 0;
-
-    return ctx;
-
-error:
-    nvgDeleteInternal(ctx);
-    return 0;
-}
-
-NVGparams* nvgInternalParams(NVGcontext* ctx) { return &ctx->params; }
-
-void nvgDeleteInternal(NVGcontext* ctx)
-{
-    int i;
-    if (ctx == NULL)
-        return;
-    if (ctx->commands != NULL)
-        free(ctx->commands);
-    if (ctx->cache != NULL)
-        nvg__deletePathCache(ctx->cache);
-
-    if (ctx->fs)
-        fonsDeleteInternal(ctx->fs);
-
-    for (i = 0; i < NVG_MAX_FONTIMAGES; i++)
-    {
-        if (ctx->fontImages[i] != 0)
-        {
-            nvgDeleteImage(ctx, ctx->fontImages[i]);
-            ctx->fontImages[i] = 0;
-        }
-    }
-
-    _nvgRenderDelete(ctx);
-
-    free(ctx);
 }
 
 NVGcolor nvgRGB(unsigned char r, unsigned char g, unsigned char b) { return nvgRGBA(r, g, b, 255); }
@@ -941,7 +1075,7 @@ static void nvg__appendCommands(NVGcontext* ctx, float* vals, int nvals)
     {
         float* commands;
         int    ccommands = ctx->ncommands + nvals + ctx->ccommands / 2;
-        commands         = (float*)realloc(ctx->commands, sizeof(float) * ccommands);
+        commands         = (float*)SGNVG_REALLOC(ctx->commands, sizeof(float) * ccommands);
         if (commands == NULL)
             return;
         ctx->commands  = commands;
@@ -1011,7 +1145,7 @@ static void nvg__addPath(NVGcontext* ctx)
     {
         NVGpath* paths;
         int      cpaths = ctx->cache->npaths + 1 + ctx->cache->cpaths / 2;
-        paths           = (NVGpath*)realloc(ctx->cache->paths, sizeof(NVGpath) * cpaths);
+        paths           = (NVGpath*)SGNVG_REALLOC(ctx->cache->paths, sizeof(NVGpath) * cpaths);
         if (paths == NULL)
             return;
         ctx->cache->paths  = paths;
@@ -1053,7 +1187,7 @@ static void nvg__addPoint(NVGcontext* ctx, float x, float y, int flags)
     {
         NVGpoint* points;
         int       cpoints = ctx->cache->npoints + 1 + ctx->cache->cpoints / 2;
-        points            = (NVGpoint*)realloc(ctx->cache->points, sizeof(NVGpoint) * cpoints);
+        points            = (NVGpoint*)SGNVG_REALLOC(ctx->cache->points, sizeof(NVGpoint) * cpoints);
         if (points == NULL)
             return;
         ctx->cache->points  = points;
@@ -1099,7 +1233,7 @@ static NVGvertex* nvg__allocTempVerts(NVGcontext* ctx, int nverts)
     {
         NVGvertex* verts;
         int cverts = (nverts + 0xff) & ~0xff; // Round up to prevent allocations when things change just slightly.
-        verts      = (NVGvertex*)realloc(ctx->cache->verts, sizeof(NVGvertex) * cverts);
+        verts      = (NVGvertex*)SGNVG_REALLOC(ctx->cache->verts, sizeof(NVGvertex) * cverts);
         if (verts == NULL)
             return NULL;
         ctx->cache->verts  = verts;
@@ -2356,7 +2490,7 @@ void nvgFill(NVGcontext* ctx)
     int            i;
 
     nvg__flattenPaths(ctx);
-    if (ctx->params.edgeAntiAlias && state->shapeAntiAlias)
+    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
         nvg__expandFill(ctx, ctx->fringeWidth, NVG_MITER, 2.4f);
     else
         nvg__expandFill(ctx, 0.0f, NVG_MITER, 2.4f);
@@ -2410,7 +2544,7 @@ void nvgStroke(NVGcontext* ctx)
 
     nvg__flattenPaths(ctx);
 
-    if (ctx->params.edgeAntiAlias && state->shapeAntiAlias)
+    if (ctx->edgeAntiAlias && state->shapeAntiAlias)
         nvg__expandStroke(
             ctx,
             strokeWidth * 0.5f,
@@ -3166,4 +3300,1544 @@ void nvgTextMetrics(NVGcontext* ctx, float* ascender, float* descender, float* l
         *descender *= invscale;
     if (lineh != NULL)
         *lineh *= invscale;
+}
+
+static int sgnvg__maxi(int a, int b) { return a > b ? a : b; }
+
+#ifdef SOKOL_GLES2
+static unsigned int sgnvg__nearestPow2(unsigned int num)
+{
+    unsigned n  = num > 0 ? num - 1 : 0;
+    n          |= n >> 1;
+    n          |= n >> 2;
+    n          |= n >> 4;
+    n          |= n >> 8;
+    n          |= n >> 16;
+    n++;
+    return n;
+}
+#endif
+
+static SGNVGtexture* sgnvg__allocTexture(NVGcontext* ctx)
+{
+    SGNVGtexture* tex = NULL;
+    int           i;
+
+    for (i = 0; i < ctx->ntextures; i++)
+    {
+        if (ctx->textures[i].id == 0)
+        {
+            tex = &ctx->textures[i];
+            break;
+        }
+    }
+    if (tex == NULL)
+    {
+        if (ctx->ntextures + 1 > ctx->ctextures)
+        {
+            SGNVGtexture* textures;
+            int           ctextures = sgnvg__maxi(ctx->ntextures + 1, 4) + ctx->ctextures / 2; // 1.5x Overallocate
+            textures                = (SGNVGtexture*)SGNVG_REALLOC(ctx->textures, sizeof(SGNVGtexture) * ctextures);
+            if (textures == NULL)
+                return NULL;
+            ctx->textures  = textures;
+            ctx->ctextures = ctextures;
+        }
+        tex = &ctx->textures[ctx->ntextures++];
+    }
+
+    memset(tex, 0, sizeof(*tex));
+    tex->id = ++ctx->textureId;
+    return tex;
+}
+
+static SGNVGtexture* sgnvg__findTexture(NVGcontext* ctx, int id)
+{
+    int i;
+    for (i = 0; i < ctx->ntextures; i++)
+        if (ctx->textures[i].id == id)
+            return &ctx->textures[i];
+    return NULL;
+}
+
+static int sgnvg__deleteTexture(NVGcontext* ctx, int id)
+{
+    int i;
+    for (i = 0; i < ctx->ntextures; i++)
+    {
+        SGNVGtexture* tex = &ctx->textures[i];
+        if (tex->id == id)
+        {
+            if (tex->img.id != 0 && (tex->flags & NVG_IMAGE_NODELETE) == 0)
+                sg_destroy_image(tex->img);
+            SGNVG_FREE(tex->imgData);
+            memset(tex, 0, sizeof(*tex));
+            return 1;
+        }
+    }
+    SGNVG_ASSERT(0);
+    return 0;
+}
+
+static uint16_t sgnvg__getCombinedBlendNumber(sg_blend_state blend)
+{
+#if __STDC_VERSION__ >= 201112L
+    _Static_assert(_SG_BLENDFACTOR_NUM <= 17, "too many blend factors for 16-bit blend number");
+#else
+    SGNVG_ASSERT(_SG_BLENDFACTOR_NUM <= 17); // can be a _Static_assert
+#endif
+    return blend.src_factor_rgb | (blend.dst_factor_rgb << 4) | (blend.src_factor_alpha << 8) |
+           (blend.dst_factor_alpha << 12);
+}
+
+static void sgnvg__initPipeline(
+    NVGcontext*             ctx,
+    sg_pipeline             pip,
+    const sg_stencil_state* stencil,
+    sg_color_mask           write_mask,
+    sg_cull_mode            cull_mode)
+{
+    sg_init_pipeline(
+        pip,
+        &(sg_pipeline_desc){
+            .shader = ctx->shader,
+            .layout =
+                {
+                    // .buffers[0] = {.stride = sizeof(SGNVGattribute)},
+                    .attrs =
+                        {
+                            [ATTR_nanovg_sg_vertex].format = SG_VERTEXFORMAT_FLOAT2,
+                            [ATTR_nanovg_sg_tcoord].format = SG_VERTEXFORMAT_FLOAT2,
+                        },
+                },
+            .stencil = *stencil,
+            .colors[0] =
+                {
+                    .write_mask = write_mask,
+                    .blend      = ctx->blend,
+                },
+            .primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+            .index_type     = SG_INDEXTYPE_UINT32,
+            .cull_mode      = cull_mode,
+            .face_winding   = SG_FACEWINDING_CCW,
+            .label          = "nanovg.pipeline",
+        });
+}
+
+static bool sgnvg__pipelineTypeIsInUse(NVGcontext* ctx, enum SGNVGpipelineType type)
+{
+    switch (type)
+    {
+    case SGNVG_PIP_BASE:
+    case SGNVG_PIP_FILL_STENCIL:
+    case SGNVG_PIP_FILL_DRAW:
+        return true;
+    case SGNVG_PIP_FILL_ANTIALIAS:
+        return !!(ctx->flags & NVG_ANTIALIAS);
+    case SGNVG_PIP_STROKE_STENCIL_DRAW:
+    case SGNVG_PIP_STROKE_STENCIL_ANTIALIAS:
+    case SGNVG_PIP_STROKE_STENCIL_CLEAR:
+        return !!(ctx->flags & NVG_STENCIL_STROKES);
+
+    case SGNVG_PIP_NUM_: // to avoid warnings
+        break;           /* fall through to assert */
+    }
+    SGNVG_ASSERT(0);
+    return false;
+}
+
+static int sgnvg__getIndexFromCache(NVGcontext* ctx, uint16_t blendNumber)
+{
+    uint16_t currentUse = ctx->pipelineCache.currentUse;
+
+    int maxAge      = 0;
+    int maxAgeIndex = 0;
+
+    // find the correct cache entry for `blend_number`
+    for (unsigned int i = 0; i < NANOVG_SG_PIPELINE_CACHE_SIZE; i++)
+    {
+        if (ctx->pipelineCache.keys[i].blend == blendNumber)
+        {
+            ctx->pipelineCache.keys[i].lastUse = ctx->pipelineCache.currentUse;
+            return i;
+        }
+        int age = (uint16_t)(currentUse - ctx->pipelineCache.keys[i].lastUse);
+        if (age > maxAge)
+        {
+            maxAge      = age;
+            maxAgeIndex = i;
+        }
+    }
+
+    // not found; reuse an old one
+    ctx->pipelineCache.currentUse                = ++currentUse;
+    ctx->pipelineCache.keys[maxAgeIndex].blend   = blendNumber;
+    ctx->pipelineCache.keys[maxAgeIndex].lastUse = currentUse;
+
+    sg_pipeline* pipelines       = ctx->pipelineCache.pipelines[maxAgeIndex];
+    uint8_t      pipelinesActive = ctx->pipelineCache.pipelinesActive[maxAgeIndex];
+    // we may have had data already initialized; deinit those
+    for (uint32_t type = SGNVG_PIP_BASE; type < SGNVG_PIP_NUM_; type++)
+        if (pipelinesActive & (1 << type))
+            sg_uninit_pipeline(pipelines[type]);
+    // mark all as inactive
+    ctx->pipelineCache.pipelinesActive[maxAgeIndex] = 0;
+    return maxAgeIndex;
+}
+
+static sg_pipeline sgnvg__getPipelineFromCache(NVGcontext* ctx, enum SGNVGpipelineType type)
+{
+    SGNVG_ASSERT(sgnvg__pipelineTypeIsInUse(ctx, type));
+
+    int         pipelineCacheIndex = ctx->pipelineCacheIndex;
+    sg_pipeline pipeline           = ctx->pipelineCache.pipelines[pipelineCacheIndex][type];
+    uint8_t     typeMask           = 1 << type;
+    if (!(ctx->pipelineCache.pipelinesActive[pipelineCacheIndex] & typeMask))
+    {
+        ctx->pipelineCache.pipelinesActive[pipelineCacheIndex] |= typeMask;
+        switch (type)
+        {
+        case SGNVG_PIP_BASE:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = false,
+                },
+                SG_COLORMASK_RGBA,
+                SG_CULLMODE_BACK);
+            break;
+
+        case SGNVG_PIP_FILL_STENCIL:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = true,
+                    .front =
+                        {.compare       = SG_COMPAREFUNC_ALWAYS,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_INCR_WRAP},
+                    .back =
+                        {.compare       = SG_COMPAREFUNC_ALWAYS,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_DECR_WRAP},
+                    .read_mask  = 0xFF,
+                    .write_mask = 0xFF,
+                    .ref        = 0,
+                },
+                SG_COLORMASK_NONE,
+                SG_CULLMODE_NONE);
+            break;
+        case SGNVG_PIP_FILL_ANTIALIAS:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = true,
+                    .front =
+                        {.compare       = SG_COMPAREFUNC_EQUAL,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_KEEP},
+                    .back =
+                        {.compare       = SG_COMPAREFUNC_EQUAL,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_KEEP},
+                    .read_mask  = 0xFF,
+                    .write_mask = 0xFF,
+                    .ref        = 0,
+                },
+                SG_COLORMASK_RGBA,
+                SG_CULLMODE_BACK);
+            break;
+        case SGNVG_PIP_FILL_DRAW:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = true,
+                    .front =
+                        {.compare       = SG_COMPAREFUNC_NOT_EQUAL,
+                         .fail_op       = SG_STENCILOP_ZERO,
+                         .depth_fail_op = SG_STENCILOP_ZERO,
+                         .pass_op       = SG_STENCILOP_ZERO},
+                    .back =
+                        {.compare       = SG_COMPAREFUNC_NOT_EQUAL,
+                         .fail_op       = SG_STENCILOP_ZERO,
+                         .depth_fail_op = SG_STENCILOP_ZERO,
+                         .pass_op       = SG_STENCILOP_ZERO},
+                    .read_mask  = 0xFF,
+                    .write_mask = 0xFF,
+                    .ref        = 0,
+                },
+                SG_COLORMASK_RGBA,
+                SG_CULLMODE_BACK);
+            break;
+
+        case SGNVG_PIP_STROKE_STENCIL_DRAW:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = true,
+                    .front =
+                        {.compare       = SG_COMPAREFUNC_EQUAL,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_INCR_CLAMP},
+                    .back =
+                        {.compare       = SG_COMPAREFUNC_EQUAL,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_INCR_CLAMP},
+                    .read_mask  = 0xFF,
+                    .write_mask = 0xFF,
+                    .ref        = 0,
+                },
+                SG_COLORMASK_RGBA,
+                SG_CULLMODE_BACK);
+            break;
+        case SGNVG_PIP_STROKE_STENCIL_ANTIALIAS:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = true,
+                    .front =
+                        {.compare       = SG_COMPAREFUNC_EQUAL,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_KEEP},
+                    .back =
+                        {.compare       = SG_COMPAREFUNC_EQUAL,
+                         .fail_op       = SG_STENCILOP_KEEP,
+                         .depth_fail_op = SG_STENCILOP_KEEP,
+                         .pass_op       = SG_STENCILOP_KEEP},
+                    .read_mask  = 0xFF,
+                    .write_mask = 0xFF,
+                    .ref        = 0,
+                },
+                SG_COLORMASK_RGBA,
+                SG_CULLMODE_BACK);
+            break;
+        case SGNVG_PIP_STROKE_STENCIL_CLEAR:
+            sgnvg__initPipeline(
+                ctx,
+                pipeline,
+                &(sg_stencil_state){
+                    .enabled = true,
+                    .front =
+                        {.compare       = SG_COMPAREFUNC_ALWAYS,
+                         .fail_op       = SG_STENCILOP_ZERO,
+                         .depth_fail_op = SG_STENCILOP_ZERO,
+                         .pass_op       = SG_STENCILOP_ZERO},
+                    .back =
+                        {.compare       = SG_COMPAREFUNC_ALWAYS,
+                         .fail_op       = SG_STENCILOP_ZERO,
+                         .depth_fail_op = SG_STENCILOP_ZERO,
+                         .pass_op       = SG_STENCILOP_ZERO},
+                    .read_mask  = 0xFF,
+                    .write_mask = 0xFF,
+                    .ref        = 0,
+                },
+                SG_COLORMASK_NONE,
+                SG_CULLMODE_BACK);
+            break;
+
+        default:
+            SGNVG_ASSERT(0);
+        }
+    }
+    return pipeline;
+}
+
+static void sgnvg__preparePipelineUniforms(
+    NVGcontext*            ctx,
+    SGNVGfragUniforms*     uniforms,
+    int                    image,
+    enum SGNVGpipelineType pipelineType)
+{
+    sg_pipeline   pip = sgnvg__getPipelineFromCache(ctx, pipelineType);
+    SGNVGtexture* tex = NULL;
+
+    sg_apply_pipeline(pip);
+
+    sg_apply_uniforms(UB_nanovg_viewSize, &(sg_range){&ctx->view, sizeof(ctx->view)});
+    sg_apply_uniforms(UB_nanovg_frag, &(sg_range){uniforms, sizeof(*uniforms)});
+
+    if (image != 0)
+    {
+        tex = sgnvg__findTexture(ctx, image);
+    }
+    // If no image is set, use empty texture
+    if (tex == NULL)
+    {
+        tex = sgnvg__findTexture(ctx, ctx->dummyTex);
+    }
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers[0]        = ctx->vertBuf,
+        .index_buffer             = ctx->indexBuf,
+        .images[IMG_nanovg_tex]   = tex ? tex->img : (sg_image){0},
+        .samplers[SMP_nanovg_smp] = tex ? tex->smp : (sg_sampler){0},
+    });
+}
+
+int _nvgRenderCreateTexture(NVGcontext* ctx, int type, int w, int h, int imageFlags, const unsigned char* data)
+{
+    SGNVGtexture* tex = sgnvg__allocTexture(ctx);
+
+    if (tex == NULL)
+        return 0;
+
+#ifdef SOKOL_GLES2
+    // Check for non-power of 2.
+    if (sgnvg__nearestPow2(w) != (unsigned int)w || sgnvg__nearestPow2(h) != (unsigned int)h)
+    {
+        // No repeat
+        if ((imageFlags & NVG_IMAGE_REPEATX) != 0 || (imageFlags & NVG_IMAGE_REPEATY) != 0)
+        {
+            printf("Repeat X/Y is not supported for non power-of-two textures (%d x %d)", w, h);
+            imageFlags &= ~(NVG_IMAGE_REPEATX | NVG_IMAGE_REPEATY);
+        }
+        // No mips.
+        if (imageFlags & NVG_IMAGE_GENERATE_MIPMAPS)
+        {
+            printf("Mip-maps is not support for non power-of-two textures (%d x %d)", w, h);
+            imageFlags &= ~NVG_IMAGE_GENERATE_MIPMAPS;
+        }
+    }
+#endif
+    SGNVG_ASSERT(!(imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && "TODO mipmaps");
+
+    // if we have mipmaps, we forbid updating
+    bool immutable = !!(imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data;
+
+    tex->width              = w;
+    tex->height             = h;
+    tex->type               = type;
+    tex->flags              = imageFlags;
+    sg_image_data imageData = {
+        // TODO mipmaps
+        .subimage[0][0] = {data, w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1)},
+    };
+    tex->img     = sg_make_image(&(sg_image_desc){
+            .type = SG_IMAGETYPE_2D,
+        //.render_target
+            .width                = w,
+            .height               = h,
+            .num_mipmaps          = 1, // TODO mipmaps
+            .usage.immutable      = immutable,
+            .usage.dynamic_update = !immutable,
+            .pixel_format         = type == NVG_TEXTURE_RGBA ? SG_PIXELFORMAT_RGBA8 : SG_PIXELFORMAT_R8,
+            .data                 = ((imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data) ? imageData
+                                                                                        : (sg_image_data){.subimage[0][0] = {NULL, 0}},
+            .label                = "nanovg.image[]",
+    });
+    tex->imgData = SGNVG_MALLOC(w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
+    if (data != NULL)
+    {
+        memcpy(tex->imgData, data, w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
+    }
+    tex->smp = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter    = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
+                             ? _SG_FILTER_DEFAULT
+                             : (imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR),
+        .mipmap_filter = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
+                             ? (imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR)
+                             : _SG_FILTER_DEFAULT,
+        .mag_filter    = imageFlags & NVG_IMAGE_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR,
+        .wrap_u        = imageFlags & NVG_IMAGE_REPEATX ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
+        .wrap_v        = imageFlags & NVG_IMAGE_REPEATY ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
+    });
+
+    return tex->id;
+}
+
+int _nvgRenderDeleteTexture(NVGcontext* ctx, int image) { return sgnvg__deleteTexture(ctx, image); }
+
+int _nvgRenderUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, int h, const unsigned char* data)
+{
+    SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
+
+    if (tex == NULL)
+        return 0;
+
+    if (tex->imgData)
+    {
+        // this is really weird but nanogl_gl.h is doing the same
+        // somehow we always get a whole row or so? o_O
+        x0 = 0;
+        w  = tex->width;
+
+        size_t bytePerPixel = 1;
+        if (tex->type == NVG_TEXTURE_RGBA)
+        {
+            bytePerPixel = 4;
+        }
+        size_t               srcLineInBytes = w * bytePerPixel;
+        size_t               dstLineInBytes = tex->width * bytePerPixel;
+        const unsigned char* src            = data + y0 * srcLineInBytes;
+        unsigned char*       dst            = tex->imgData + y0 * dstLineInBytes + x0 * bytePerPixel;
+
+        for (int y = 0; y < h; y++)
+        {
+            memcpy(dst, src, srcLineInBytes);
+            src += srcLineInBytes;
+            dst += dstLineInBytes;
+        }
+    }
+
+    return 1;
+}
+
+int _nvgRenderGetTextureSize(NVGcontext* ctx, int image, int* w, int* h)
+{
+    SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
+    if (tex == NULL)
+        return 0;
+    *w = tex->width;
+    *h = tex->height;
+    return 1;
+}
+
+static void sgnvg__xformToMat3x4(float* m3, float* t)
+{
+    m3[0]  = t[0];
+    m3[1]  = t[1];
+    m3[2]  = 0.0f;
+    m3[3]  = 0.0f;
+    m3[4]  = t[2];
+    m3[5]  = t[3];
+    m3[6]  = 0.0f;
+    m3[7]  = 0.0f;
+    m3[8]  = t[4];
+    m3[9]  = t[5];
+    m3[10] = 1.0f;
+    m3[11] = 0.0f;
+}
+
+static NVGcolor sgnvg__premulColor(NVGcolor c)
+{
+    c.r *= c.a;
+    c.g *= c.a;
+    c.b *= c.a;
+    return c;
+}
+
+static int sgnvg__convertPaint(
+    NVGcontext*        ctx,
+    SGNVGfragUniforms* frag,
+    NVGpaint*          paint,
+    NVGscissor*        scissor,
+    float              width,
+    float              fringe,
+    float              strokeThr)
+{
+    SGNVGtexture* tex = NULL;
+    float         invxform[6];
+
+    memset(frag, 0, sizeof(*frag));
+
+    frag->innerCol = sgnvg__premulColor(paint->innerColor);
+    frag->outerCol = sgnvg__premulColor(paint->outerColor);
+
+    if (scissor->extent[0] < -0.5f || scissor->extent[1] < -0.5f)
+    {
+        memset(frag->scissorMat, 0, sizeof(frag->scissorMat));
+        frag->scissorExt[0]   = 1.0f;
+        frag->scissorExt[1]   = 1.0f;
+        frag->scissorScale[0] = 1.0f;
+        frag->scissorScale[1] = 1.0f;
+    }
+    else
+    {
+        nvgTransformInverse(invxform, scissor->xform);
+        sgnvg__xformToMat3x4(frag->scissorMat, invxform);
+        frag->scissorExt[0] = scissor->extent[0];
+        frag->scissorExt[1] = scissor->extent[1];
+        frag->scissorScale[0] =
+            sqrtf(scissor->xform[0] * scissor->xform[0] + scissor->xform[2] * scissor->xform[2]) / fringe;
+        frag->scissorScale[1] =
+            sqrtf(scissor->xform[1] * scissor->xform[1] + scissor->xform[3] * scissor->xform[3]) / fringe;
+    }
+
+    memcpy(frag->extent, paint->extent, sizeof(frag->extent));
+    frag->strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
+    frag->strokeThr  = strokeThr;
+
+    if (paint->image != 0)
+    {
+        tex = sgnvg__findTexture(ctx, paint->image);
+        if (tex == NULL)
+            return 0;
+        if ((tex->flags & NVG_IMAGE_FLIPY) != 0)
+        {
+            float m1[6], m2[6];
+            nvgTransformTranslate(m1, 0.0f, frag->extent[1] * 0.5f);
+            nvgTransformMultiply(m1, paint->xform);
+            nvgTransformScale(m2, 1.0f, -1.0f);
+            nvgTransformMultiply(m2, m1);
+            nvgTransformTranslate(m1, 0.0f, -frag->extent[1] * 0.5f);
+            nvgTransformMultiply(m1, m2);
+            nvgTransformInverse(invxform, m1);
+        }
+        else
+        {
+            nvgTransformInverse(invxform, paint->xform);
+        }
+        frag->type = NSVG_SHADER_FILLIMG;
+
+#if NANOVG_GL_USE_UNIFORMBUFFER
+        if (tex->type == NVG_TEXTURE_RGBA)
+            frag->texType = (tex->flags & NVG_IMAGE_PREMULTIPLIED) ? 0 : 1;
+        else
+            frag->texType = 2;
+#else
+        if (tex->type == NVG_TEXTURE_RGBA)
+            frag->texType = (tex->flags & NVG_IMAGE_PREMULTIPLIED) ? 0.0f : 1.0f;
+        else
+            frag->texType = 2.0f;
+#endif
+        //		printf("frag->texType = %d", frag->texType);
+    }
+    else
+    {
+        frag->type    = NSVG_SHADER_FILLGRAD;
+        frag->radius  = paint->radius;
+        frag->feather = paint->feather;
+        nvgTransformInverse(invxform, paint->xform);
+    }
+
+    sgnvg__xformToMat3x4(frag->paintMat, invxform);
+
+    return 1;
+}
+
+static void nvg_impl_beginDraw(void* uptr, float width, float height, float devicePixelRatio) {}
+
+static void sgnvg__fill(NVGcontext* ctx, SGNVGcall* call)
+{
+    SGNVGpath* paths = call->paths;
+    int        i, npaths = call->num_paths;
+
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, 0, SGNVG_PIP_FILL_STENCIL);
+    for (i = 0; i < npaths; i++)
+        sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
+
+    // if (ctx->flags & NVG_ANTIALIAS) {
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, call->image, SGNVG_PIP_FILL_ANTIALIAS);
+    // Draw fringes
+    for (i = 0; i < npaths; i++)
+        sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
+    // }
+
+    // Draw fill
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, call->image, SGNVG_PIP_FILL_DRAW);
+    sg_draw(call->triangleOffset, call->triangleCount, 1);
+}
+
+static void sgnvg__convexFill(NVGcontext* ctx, SGNVGcall* call)
+{
+    SGNVGpath* paths = call->paths;
+    int        i, npaths = call->num_paths;
+
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->image, SGNVG_PIP_BASE);
+    for (i = 0; i < npaths; i++)
+    {
+        sg_draw(paths[i].fillOffset, paths[i].fillCount, 1);
+        // Draw fringes
+        if (paths[i].strokeCount > 0)
+        {
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
+        }
+    }
+}
+
+static void sgnvg__stroke(NVGcontext* ctx, SGNVGcall* call)
+{
+    SGNVGpath* paths  = call->paths;
+    int        npaths = call->num_paths, i;
+
+    if (ctx->flags & NVG_STENCIL_STROKES)
+    {
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms + 1, call->image, SGNVG_PIP_STROKE_STENCIL_DRAW);
+
+        for (i = 0; i < npaths; i++)
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
+
+        // Draw anti-aliased pixels.
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->image, SGNVG_PIP_STROKE_STENCIL_ANTIALIAS);
+        for (i = 0; i < npaths; i++)
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
+
+        // Clear stencil buffer.
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms, 0, SGNVG_PIP_STROKE_STENCIL_CLEAR);
+        for (i = 0; i < npaths; i++)
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
+    }
+    else
+    {
+        sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->image, SGNVG_PIP_BASE);
+        // Draw Strokes
+        for (i = 0; i < npaths; i++)
+            sg_draw(paths[i].strokeOffset, paths[i].strokeCount, 1);
+    }
+}
+
+static void sgnvg__triangles(NVGcontext* ctx, SGNVGcall* call)
+{
+    sgnvg__preparePipelineUniforms(ctx, call->uniforms, call->image, SGNVG_PIP_BASE);
+    sg_draw(call->triangleOffset, call->triangleCount, 1);
+}
+
+static sg_blend_factor sgnvg_convertBlendFuncFactor(int factor)
+{
+    if (factor == NVG_ZERO)
+        return SG_BLENDFACTOR_ZERO;
+    if (factor == NVG_ONE)
+        return SG_BLENDFACTOR_ONE;
+    if (factor == NVG_SRC_COLOR)
+        return SG_BLENDFACTOR_SRC_COLOR;
+    if (factor == NVG_ONE_MINUS_SRC_COLOR)
+        return SG_BLENDFACTOR_ONE_MINUS_SRC_COLOR;
+    if (factor == NVG_DST_COLOR)
+        return SG_BLENDFACTOR_DST_COLOR;
+    if (factor == NVG_ONE_MINUS_DST_COLOR)
+        return SG_BLENDFACTOR_ONE_MINUS_DST_COLOR;
+    if (factor == NVG_SRC_ALPHA)
+        return SG_BLENDFACTOR_SRC_ALPHA;
+    if (factor == NVG_ONE_MINUS_SRC_ALPHA)
+        return SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    if (factor == NVG_DST_ALPHA)
+        return SG_BLENDFACTOR_DST_ALPHA;
+    if (factor == NVG_ONE_MINUS_DST_ALPHA)
+        return SG_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
+    if (factor == NVG_SRC_ALPHA_SATURATE)
+        return SG_BLENDFACTOR_SRC_ALPHA_SATURATED;
+    return _SG_BLENDFACTOR_DEFAULT;
+}
+
+static SGNVGblend sgnvg__blendCompositeOperation(NVGcompositeOperationState op)
+{
+    SGNVGblend blend;
+    blend.srcRGB   = sgnvg_convertBlendFuncFactor(op.srcRGB);
+    blend.dstRGB   = sgnvg_convertBlendFuncFactor(op.dstRGB);
+    blend.srcAlpha = sgnvg_convertBlendFuncFactor(op.srcAlpha);
+    blend.dstAlpha = sgnvg_convertBlendFuncFactor(op.dstAlpha);
+    if (blend.srcRGB == _SG_BLENDFACTOR_DEFAULT || blend.dstRGB == _SG_BLENDFACTOR_DEFAULT ||
+        blend.srcAlpha == _SG_BLENDFACTOR_DEFAULT || blend.dstAlpha == _SG_BLENDFACTOR_DEFAULT)
+    {
+        blend.srcRGB   = SG_BLENDFACTOR_ONE;
+        blend.dstRGB   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        blend.srcAlpha = SG_BLENDFACTOR_ONE;
+        blend.dstAlpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    }
+    return blend;
+}
+
+void nvgBeginFrame(NVGcontext* ctx, float devicePixelRatio)
+{
+    /*	printf("Tris: draws:%d  fill:%d  stroke:%d  text:%d  TOT:%d",
+                    ctx->drawCallCount, ctx->fillTriCount, ctx->strokeTriCount, ctx->textTriCount,
+                    ctx->fillTriCount+ctx->strokeTriCount+ctx->textTriCount);*/
+
+    ctx->nstates = 0;
+    nvgReset(ctx);
+
+    ctx->drawCallCount  = 0;
+    ctx->fillTriCount   = 0;
+    ctx->strokeTriCount = 0;
+    ctx->textTriCount   = 0;
+
+    // Reset calls
+    ctx->nverts        = 0;
+    ctx->nindexes      = 0;
+    ctx->first_command = NULL;
+
+    linked_arena_clear(ctx->frame_arena);
+
+    nvg__setDevicePixelRatio(ctx, devicePixelRatio);
+}
+
+void nvgEndFrame(NVGcontext* ctx)
+{
+    if (ctx->fontImageIdx != 0)
+    {
+        int fontImage                      = ctx->fontImages[ctx->fontImageIdx];
+        ctx->fontImages[ctx->fontImageIdx] = 0;
+        int i, j, iw, ih;
+        // delete images that smaller than current one
+        if (fontImage == 0)
+            return;
+        nvgImageSize(ctx, fontImage, &iw, &ih);
+        for (i = j = 0; i < ctx->fontImageIdx; i++)
+        {
+            if (ctx->fontImages[i] != 0)
+            {
+                int nw, nh;
+                int image          = ctx->fontImages[i];
+                ctx->fontImages[i] = 0;
+                nvgImageSize(ctx, image, &nw, &nh);
+                if (nw < iw || nh < ih)
+                    nvgDeleteImage(ctx, image);
+                else
+                    ctx->fontImages[j++] = image;
+            }
+        }
+        // make current font image to first
+        ctx->fontImages[j] = ctx->fontImages[0];
+        ctx->fontImages[0] = fontImage;
+        ctx->fontImageIdx  = 0;
+    }
+
+    for (int i = 0; i < ctx->ntextures; i++)
+    {
+        if (ctx->textures[i].id != 0)
+        {
+            // sgnvg__flushTexture(&ctx->textures[i]);
+
+            SGNVGtexture* tex = &ctx->textures[i];
+
+            sg_update_image(
+                tex->img,
+                &(sg_image_data){
+                    .subimage[0][0] =
+                        {tex->imgData, tex->width * tex->height * (tex->type == NVG_TEXTURE_RGBA ? 4 : 1)},
+                });
+        }
+    }
+
+    if (ctx->nverts == 0 && ctx->nindexes == 0)
+        return;
+
+    if (ctx->cverts_gpu < ctx->nverts) // resize GPU vertex buffer
+    {
+        if (ctx->cverts_gpu) // delete old buffer if necessary
+            sg_uninit_buffer(ctx->vertBuf);
+        ctx->cverts_gpu = ctx->cverts;
+        sg_init_buffer(
+            ctx->vertBuf,
+            &(sg_buffer_desc){
+                .size                = ctx->cverts_gpu * sizeof(*ctx->verts),
+                .usage.vertex_buffer = true,
+                .usage.stream_update = true,
+                .label               = "nanovg.vertBuf",
+            });
+    }
+    // upload vertex data
+    sg_update_buffer(ctx->vertBuf, &(sg_range){ctx->verts, ctx->nverts * sizeof(*ctx->verts)});
+
+    if (ctx->cindexes_gpu < ctx->nindexes) // resize GPU index buffer
+    {
+        if (ctx->cindexes_gpu) // delete old buffer if necessary
+            sg_uninit_buffer(ctx->indexBuf);
+        ctx->cindexes_gpu = ctx->cindexes;
+        sg_init_buffer(
+            ctx->indexBuf,
+            &(sg_buffer_desc){
+                .size                = ctx->cindexes_gpu * sizeof(*ctx->indexes),
+                .usage.index_buffer  = true,
+                .usage.stream_update = true,
+                .label               = "nanovg.indexBuf",
+            });
+    }
+    // upload index data
+    sg_update_buffer(ctx->indexBuf, &(sg_range){ctx->indexes, ctx->nindexes * sizeof(*ctx->indexes)});
+
+    int           ncommands = 0;
+    SGNVGcommand* cmd       = ctx->first_command;
+    while (cmd != NULL)
+    {
+        switch (cmd->type)
+        {
+        case SGNVG_CMD_BEGIN_PASS:
+        {
+            SGNVGbeginPass* p = cmd->payload.beginPass;
+
+            sg_begin_pass(&p->pass);
+
+            ctx->view.viewSize[0] = p->width;
+            ctx->view.viewSize[1] = p->height;
+
+            break;
+        }
+        case SGNVG_CMD_END_PASS:
+            sg_end_pass();
+            break;
+        case SGNVG_CMD_DRAW_NVG:
+        {
+            SGNVGdrawNVG* draws = cmd->payload.drawNVG;
+
+            SGNVGcall* call = draws->calls;
+
+            for (int i = 0; i < draws->num_calls && call != NULL; i++)
+            {
+                ctx->blend.src_factor_rgb   = call->blendFunc.srcRGB;
+                ctx->blend.dst_factor_rgb   = call->blendFunc.dstRGB;
+                ctx->blend.src_factor_alpha = call->blendFunc.srcAlpha;
+                ctx->blend.dst_factor_alpha = call->blendFunc.dstAlpha;
+                ctx->pipelineCacheIndex     = sgnvg__getIndexFromCache(ctx, sgnvg__getCombinedBlendNumber(ctx->blend));
+                if (call->type == SGNVG_FILL)
+                    sgnvg__fill(ctx, call);
+                else if (call->type == SGNVG_CONVEXFILL)
+                    sgnvg__convexFill(ctx, call);
+                else if (call->type == SGNVG_STROKE)
+                    sgnvg__stroke(ctx, call);
+                else if (call->type == SGNVG_TRIANGLES)
+                    sgnvg__triangles(ctx, call);
+
+                call = call->next;
+            }
+            break;
+        }
+        case SGNVG_CMD_CUSTOM:
+        {
+            SGNVGcustom* custom = cmd->payload.custom;
+            custom->func(custom->uptr);
+            break;
+        }
+        }
+
+        cmd = cmd->next;
+        ncommands++;
+    }
+}
+
+static int sgnvg__maxVertCount(const NVGpath* paths, int npaths)
+{
+    int i, count = 0;
+    for (i = 0; i < npaths; i++)
+    {
+        count += paths[i].nfill;
+        count += paths[i].nstroke;
+    }
+    return count;
+}
+
+static int sgnvg__maxIndexCount(const NVGpath* paths, int npaths)
+{
+    int i, count = 0;
+    for (i = 0; i < npaths; i++)
+    {
+        count += sgnvg__maxi(paths[i].nfill - 2, 0) * 3;   // triangle fan
+        count += sgnvg__maxi(paths[i].nstroke - 2, 0) * 3; // triangle strip
+    }
+    return count;
+}
+
+static void sgnvg__addCall(NVGcontext* ctx, SGNVGcall* call)
+{
+    if (ctx->current_call)
+        ctx->current_call->next = call;
+    ctx->current_call = call;
+
+    xassert(ctx->current_nvg_draw != NULL);
+    if (ctx->current_nvg_draw)
+    {
+        ctx->current_nvg_draw->num_calls++;
+        if (ctx->current_nvg_draw->calls == NULL)
+            ctx->current_nvg_draw->calls = call;
+    }
+}
+
+static SGNVGcommand* sgnvg__allocCommand(NVGcontext* ctx)
+{
+    SGNVGcommand* cmd = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*cmd));
+
+    if (ctx->first_command == NULL)
+        ctx->first_command = cmd;
+
+    if (ctx->current_command)
+        ctx->current_command->next = cmd;
+
+    ctx->current_command = cmd;
+
+    return cmd;
+}
+
+static int sgnvg__allocVerts(NVGcontext* ctx, int n)
+{
+    int ret = 0;
+    if (ctx->nverts + n > ctx->cverts)
+    {
+        SGNVGattribute* verts;
+        int             cverts = sgnvg__maxi(ctx->nverts + n, 4096) + ctx->cverts / 2; // 1.5x Overallocate
+        verts                  = (SGNVGattribute*)SGNVG_REALLOC(ctx->verts, sizeof(SGNVGattribute) * cverts);
+        if (verts == NULL)
+            return -1;
+        ctx->verts  = verts;
+        ctx->cverts = cverts;
+    }
+    ret          = ctx->nverts;
+    ctx->nverts += n;
+    return ret;
+}
+
+static int sgnvg__allocIndexes(NVGcontext* ctx, int n)
+{
+    int ret = 0;
+    if (ctx->nindexes + n > ctx->cindexes)
+    {
+        uint32_t* indexes;
+        int       cindexes = sgnvg__maxi(ctx->nindexes + n, 4096) + ctx->cindexes / 2; // 1.5x Overallocate
+        indexes            = (uint32_t*)SGNVG_REALLOC(ctx->indexes, sizeof(uint32_t) * cindexes);
+        if (indexes == NULL)
+            return -1;
+        ctx->indexes  = indexes;
+        ctx->cindexes = cindexes;
+    }
+    ret            = ctx->nindexes;
+    ctx->nindexes += n;
+    return ret;
+}
+
+static void sgnvg__vset(SGNVGattribute* vtx, float x, float y, float u, float v)
+{
+    vtx->vertex[0] = x;
+    vtx->vertex[1] = y;
+    vtx->tcoord[0] = u;
+    vtx->tcoord[1] = v;
+}
+
+static void sgnvg__generateTriangleFanIndexes(uint32_t* indexes, int offset, int nverts)
+{
+    // following triangles all use starting vertex, previous vertex, and current vertex
+    for (int i = 2; i < nverts; i++)
+    {
+        indexes[3 * (i - 2) + 0] = offset + 0;
+        indexes[3 * (i - 2) + 1] = offset + i - 1;
+        indexes[3 * (i - 2) + 2] = offset + i;
+    }
+}
+
+static void sgnvg__generateTriangleStripIndexes(uint32_t* indexes, int offset, int nverts)
+{
+    // following triangles all use previous 2 vertices, and current vertex
+    // we use bit-shifts to get the sequence:
+    // i  idx i(bits)   i-1(bits)   i-2(bits)
+    // 2: 012 0010      0001        0000
+    // 3: 213 0011      0010        0001
+    // 4: 234 0100      0011        0010
+    // 5: 435 0101      0100        0011
+    // 6: 456 0110      0101        0100
+    // 7: 657 0111      0110        0101
+    //                  first index = above & ~1 = floor_to_even(i-1)
+    //                              second index = above | 1 = ceil_to_even(i-2)
+    // all this trickery ensures that we maintain correct (CCW) vertex order
+    for (int i = 2; i < nverts; i++)
+    {
+        indexes[3 * (i - 2) + 0] = offset + ((i - 1) & ~1);
+        indexes[3 * (i - 2) + 1] = offset + ((i - 2) | 1);
+        indexes[3 * (i - 2) + 2] = offset + i;
+    }
+}
+
+void _nvgRenderFill(
+    NVGcontext*                ctx,
+    NVGpaint*                  paint,
+    NVGcompositeOperationState compositeOperation,
+    NVGscissor*                scissor,
+    float                      fringe,
+    const float*               bounds,
+    const NVGpath*             paths,
+    int                        npaths)
+{
+    SGNVGcall*         call = NULL;
+    SGNVGattribute*    quad = NULL;
+    SGNVGfragUniforms* frag = NULL;
+    int                i, maxverts, offset, maxindexes, ioffset;
+
+    // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
+    // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
+    if (ctx->current_nvg_draw == NULL)
+        snvg_command_draw_nvg(ctx);
+
+    call = linked_arena_alloc(ctx->frame_arena, sizeof(*call));
+
+    if (call == NULL)
+        return;
+
+    call->type          = SGNVG_FILL;
+    call->triangleCount = 4;
+    call->paths         = linked_arena_alloc_clear(ctx->frame_arena, npaths * sizeof(*call->paths));
+    if (call->paths == NULL)
+        goto error;
+    call->num_paths = npaths;
+    call->image     = paint->image;
+    call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
+
+    if (npaths == 1 && paths[0].convex)
+    {
+        call->type          = SGNVG_CONVEXFILL;
+        call->triangleCount = 0; // Bounding box fill quad not needed for convex fill
+    }
+
+    // Allocate vertices for all the paths.
+    maxverts = sgnvg__maxVertCount(paths, npaths) + call->triangleCount;
+    offset   = sgnvg__allocVerts(ctx, maxverts);
+    if (offset == -1)
+        goto error;
+    maxindexes = sgnvg__maxIndexCount(paths, npaths) + sgnvg__maxi(call->triangleCount - 2, 0) * 3;
+    ioffset    = sgnvg__allocIndexes(ctx, maxindexes);
+    if (ioffset == -1)
+        goto error;
+
+    for (i = 0; i < npaths; i++)
+    {
+        SGNVGpath*     copy = &call->paths[i];
+        const NVGpath* path = &paths[i];
+        if (path->nfill > 0)
+        {
+            // fill: triangle fan
+            copy->fillOffset = ioffset;
+            copy->fillCount  = (path->nfill - 2) * 3;
+            memcpy(&ctx->verts[offset], path->fill, sizeof(NVGvertex) * path->nfill);
+            sgnvg__generateTriangleFanIndexes(&ctx->indexes[ioffset], offset, path->nfill);
+            offset  += path->nfill;
+            ioffset += copy->fillCount;
+        }
+        if (path->nstroke > 0)
+        {
+            // stroke: triangle strip
+            copy->strokeOffset = ioffset;
+            copy->strokeCount  = (path->nstroke - 2) * 3;
+            memcpy(&ctx->verts[offset], path->stroke, sizeof(NVGvertex) * path->nstroke);
+            sgnvg__generateTriangleStripIndexes(&ctx->indexes[ioffset], offset, path->nstroke);
+            offset  += path->nstroke;
+            ioffset += copy->strokeCount;
+        }
+    }
+
+    // Setup uniforms for draw calls
+    if (call->type == SGNVG_FILL)
+    {
+        // Quad
+        call->triangleOffset = ioffset;
+        call->triangleCount  = (call->triangleCount - 2) * 3; // convert vertex count into index
+        quad                 = &ctx->verts[offset];
+        sgnvg__vset(&quad[0], bounds[2], bounds[3], 0.5f, 1.0f);
+        sgnvg__vset(&quad[1], bounds[2], bounds[1], 0.5f, 1.0f);
+        sgnvg__vset(&quad[2], bounds[0], bounds[3], 0.5f, 1.0f);
+        sgnvg__vset(&quad[3], bounds[0], bounds[1], 0.5f, 1.0f);
+        sgnvg__generateTriangleStripIndexes(&ctx->indexes[ioffset], offset, 4);
+
+        frag = linked_arena_alloc_clear(ctx->frame_arena, 2 * sizeof(*frag));
+        if (frag == NULL)
+            goto error;
+
+        call->uniforms = frag;
+
+        // Simple shader for stencil
+        call->uniforms->strokeThr = -1.0f;
+        call->uniforms->type      = NSVG_SHADER_SIMPLE;
+        // Fill shader
+        sgnvg__convertPaint(ctx, call->uniforms + 1, paint, scissor, fringe, fringe, -1.0f);
+    }
+    else
+    {
+        frag = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frag));
+        if (frag == NULL)
+            goto error;
+        call->uniforms = frag;
+        // Fill shader
+        sgnvg__convertPaint(ctx, frag, paint, scissor, fringe, fringe, -1.0f);
+    }
+
+    sgnvg__addCall(ctx, call);
+
+    return;
+
+error:
+    // We get here if call alloc was ok, but something else is not.
+    // Roll back the last call to prevent drawing it.
+    // if (ctx->ncalls > 0)
+    //     ctx->ncalls--;
+}
+
+void _nvgRenderStroke(
+    NVGcontext*                ctx,
+    NVGpaint*                  paint,
+    NVGcompositeOperationState compositeOperation,
+    NVGscissor*                scissor,
+    float                      fringe,
+    float                      strokeWidth,
+    const NVGpath*             paths,
+    int                        npaths)
+{
+    SGNVGcall*         call  = NULL;
+    SGNVGfragUniforms* frags = NULL;
+    int                i, maxverts, offset, maxindexes, ioffset;
+
+    // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
+    // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
+    if (ctx->current_nvg_draw == NULL)
+        snvg_command_draw_nvg(ctx);
+
+    call = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*call));
+
+    if (call == NULL)
+        return;
+
+    call->type  = SGNVG_STROKE;
+    call->paths = linked_arena_alloc_clear(ctx->frame_arena, npaths * sizeof(*call->paths));
+    if (call->paths == NULL)
+        goto error;
+    call->num_paths = npaths;
+    call->image     = paint->image;
+    call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
+
+    // Allocate vertices for all the paths.
+    maxverts = sgnvg__maxVertCount(paths, npaths);
+    offset   = sgnvg__allocVerts(ctx, maxverts);
+    if (offset == -1)
+        goto error;
+    maxindexes = sgnvg__maxIndexCount(paths, npaths);
+    ioffset    = sgnvg__allocIndexes(ctx, maxindexes);
+    if (ioffset == -1)
+        goto error;
+
+    for (i = 0; i < npaths; i++)
+    {
+        SGNVGpath*     copy = &call->paths[i];
+        const NVGpath* path = &paths[i];
+
+        if (path->nstroke)
+        {
+            // stroke: triangle strip
+            copy->strokeOffset = ioffset;
+            copy->strokeCount  = (path->nstroke - 2) * 3;
+            memcpy(&ctx->verts[offset], path->stroke, sizeof(NVGvertex) * path->nstroke);
+            sgnvg__generateTriangleStripIndexes(&ctx->indexes[ioffset], offset, path->nstroke);
+            offset  += path->nstroke;
+            ioffset += copy->strokeCount;
+        }
+    }
+
+    if (ctx->flags & NVG_STENCIL_STROKES)
+    {
+        // Fill shader
+        frags = linked_arena_alloc_clear(ctx->frame_arena, 2 * sizeof(*frags));
+
+        if (frags == NULL)
+            goto error;
+
+        call->uniforms = frags;
+
+        sgnvg__convertPaint(ctx, call->uniforms, paint, scissor, strokeWidth, fringe, -1.0f);
+        sgnvg__convertPaint(ctx, call->uniforms + 1, paint, scissor, strokeWidth, fringe, 1.0f - 0.5f / 255.0f);
+    }
+    else
+    {
+        // Fill shader
+        frags = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frags));
+        if (frags == NULL)
+            goto error;
+        call->uniforms = frags;
+        sgnvg__convertPaint(ctx, call->uniforms, paint, scissor, strokeWidth, fringe, -1.0f);
+    }
+
+    sgnvg__addCall(ctx, call);
+
+    return;
+
+error:
+    // We get here if call alloc was ok, but something else is not.
+    // Roll back the last call to prevent drawing it.
+    // if (ctx->ncalls > 0)
+    //     ctx->ncalls--;
+}
+
+void _nvgRenderTriangles(
+    NVGcontext*                ctx,
+    NVGpaint*                  paint,
+    NVGcompositeOperationState compositeOperation,
+    NVGscissor*                scissor,
+    const NVGvertex*           verts,
+    int                        nverts,
+    float                      fringe)
+{
+    SGNVGcall*         call = NULL;
+    SGNVGfragUniforms* frag = NULL;
+
+    // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
+    // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
+    if (ctx->current_nvg_draw == NULL)
+        snvg_command_draw_nvg(ctx);
+
+    call = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*call));
+
+    if (call == NULL)
+        return;
+
+    call->type      = SGNVG_TRIANGLES;
+    call->image     = paint->image;
+    call->blendFunc = sgnvg__blendCompositeOperation(compositeOperation);
+
+    int offset, ioffset;
+    offset = sgnvg__allocVerts(ctx, nverts);
+    if (offset == -1)
+        return;
+    ioffset = sgnvg__allocIndexes(ctx, nverts);
+    if (ioffset == -1)
+        return;
+
+    // Allocate vertices for all the paths.
+    call->triangleOffset = ioffset;
+    call->triangleCount  = nverts;
+    memcpy(&ctx->verts[offset], verts, sizeof(NVGvertex) * nverts);
+    for (int i = 0; i < nverts; i++)
+        ctx->indexes[ioffset + i] = offset + i;
+
+    // Fill shader
+    frag = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*frag));
+    if (frag == NULL)
+        return;
+    call->uniforms = frag;
+    sgnvg__convertPaint(ctx, frag, paint, scissor, 1.0f, fringe, -1.0f);
+    frag->type = NSVG_SHADER_IMG;
+
+    // Success
+    sgnvg__addCall(ctx, call);
+
+    return;
+}
+
+int snvgCreateImageFromHandleSokol(
+    NVGcontext* ctx,
+    sg_image    imageSokol,
+    sg_sampler  samplerSokol,
+    int         type,
+    int         w,
+    int         h,
+    int         flags)
+{
+    SGNVGtexture* tex = sgnvg__allocTexture(ctx);
+
+    if (tex == NULL)
+        return 0;
+
+    tex->type   = type;
+    tex->img    = imageSokol;
+    tex->smp    = samplerSokol;
+    tex->flags  = flags;
+    tex->width  = w;
+    tex->height = h;
+
+    return tex->id;
+}
+
+sg_image snvgImageHandleSokol(NVGcontext* ctx, int image)
+{
+    SGNVGtexture* tex = sgnvg__findTexture(ctx, image);
+    return tex->img;
+}
+
+void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass* pass, int width, int height)
+{
+    SGNVGcommand*   cmd = sgnvg__allocCommand(ctx);
+    SGNVGbeginPass* bp  = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*bp));
+
+    cmd->type              = SGNVG_CMD_BEGIN_PASS;
+    cmd->payload.beginPass = bp;
+
+    bp->pass   = *pass;
+    bp->width  = width;
+    bp->height = height;
+}
+
+void snvg_command_end_pass(NVGcontext* ctx)
+{
+    SGNVGcommand* cmd = sgnvg__allocCommand(ctx);
+    cmd->type         = SGNVG_CMD_END_PASS;
+}
+
+void snvg_command_draw_nvg(NVGcontext* ctx)
+{
+    SGNVGcommand* cmd   = sgnvg__allocCommand(ctx);
+    SGNVGdrawNVG* draws = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*draws));
+
+    cmd->type            = SGNVG_CMD_DRAW_NVG;
+    cmd->payload.drawNVG = draws;
+
+    ctx->current_nvg_draw = draws;
+}
+
+void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func)
+{
+    // Clear cached call points
+    // This will help us to enforce users are correctly calling snvg_command_draw_nvg() before issuing
+    // nvgFill/Stroke/Text commands
+    ctx->current_call     = NULL;
+    ctx->current_nvg_draw = NULL;
+
+    SGNVGcommand* cmd    = sgnvg__allocCommand(ctx);
+    SGNVGcustom*  custom = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*custom));
+
+    cmd->type           = SGNVG_CMD_CUSTOM;
+    cmd->payload.custom = custom;
+
+    custom->uptr = uptr;
+    custom->func = func;
+}
+
+NVGcontext* nvgCreateContext(int flags)
+{
+    NVGcontext* ctx = (NVGcontext*)SGNVG_MALLOC(sizeof(NVGcontext));
+    FONSparams  fontParams;
+    int         i;
+
+    if (ctx == NULL)
+        goto error;
+    memset(ctx, 0, sizeof(*ctx));
+
+    ctx->frame_arena = linked_arena_create(1024 * 64);
+    if (ctx->frame_arena == NULL)
+        goto error;
+
+    ctx->edgeAntiAlias = flags & NVG_ANTIALIAS ? 1 : 0;
+    ctx->flags         = flags;
+
+    // if(ctx->flags & NVG_ANTIALIAS)
+    ctx->shader = sg_make_shader(nanovg_sg_shader_desc(sg_query_backend()));
+    // else
+    // ctx->shader = sg_make_shader(nanovg_sg_shader_desc(sg_query_backend()));
+    for (i = 0; i < NANOVG_SG_PIPELINE_CACHE_SIZE; i++)
+    {
+        for (enum SGNVGpipelineType t = 0; t < SGNVG_PIP_NUM_; t++)
+        {
+            // only allocate pipelines if correct flags are set
+            if (!sgnvg__pipelineTypeIsInUse(ctx, t))
+                continue;
+            ctx->pipelineCache.pipelines[i][t] = sg_alloc_pipeline();
+        }
+    }
+
+    ctx->blend = (sg_blend_state){
+        .enabled          = true,
+        .src_factor_rgb   = SG_BLENDFACTOR_ZERO,
+        .dst_factor_rgb   = SG_BLENDFACTOR_ZERO,
+        .op_rgb           = SG_BLENDOP_ADD,
+        .src_factor_alpha = SG_BLENDFACTOR_ZERO,
+        .dst_factor_alpha = SG_BLENDFACTOR_ZERO,
+        .op_alpha         = SG_BLENDOP_ADD,
+    };
+
+    ctx->vertBuf  = sg_alloc_buffer();
+    ctx->indexBuf = sg_alloc_buffer();
+
+    // Some platforms does not allow to have samples to unset textures.
+    // Create empty one which is bound when there's no texture specified.
+    ctx->dummyTex = _nvgRenderCreateTexture(ctx, NVG_TEXTURE_ALPHA, 1, 1, 0, NULL);
+
+    nvgReset(ctx);
+    nvg__setDevicePixelRatio(ctx, 1.0f);
+
+    ctx->commands = (float*)SGNVG_MALLOC(sizeof(float) * NVG_INIT_COMMANDS_SIZE);
+    if (!ctx->commands)
+        goto error;
+    ctx->ccommands = NVG_INIT_COMMANDS_SIZE;
+
+    ctx->cache = nvg__allocPathCache();
+    if (ctx->cache == NULL)
+        goto error;
+
+    // Init font rendering
+    memset(&fontParams, 0, sizeof(fontParams));
+    fontParams.width  = NVG_INIT_FONTIMAGE_SIZE;
+    fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
+    fontParams.flags  = FONS_ZERO_TOPLEFT;
+    ctx->fs           = fonsCreateInternal(&fontParams);
+    if (ctx->fs == NULL)
+        goto error;
+
+    // Create font texture
+    ctx->fontImages[0] = _nvgRenderCreateTexture(ctx, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
+    if (ctx->fontImages[0] == 0)
+        goto error;
+
+    return ctx;
+
+error:
+    if (ctx != NULL)
+        nvgDestroyContext(ctx);
+    return NULL;
+}
+
+void nvgDestroyContext(NVGcontext* ctx)
+{
+    int i;
+    if (ctx == NULL)
+        return;
+    if (ctx->commands != NULL)
+        SGNVG_FREE(ctx->commands);
+    if (ctx->cache != NULL)
+        nvg__deletePathCache(ctx->cache);
+
+    if (ctx->fs)
+        fonsDeleteInternal(ctx->fs);
+
+    for (i = 0; i < NVG_MAX_FONTIMAGES; i++)
+    {
+        if (ctx->fontImages[i] != 0)
+        {
+            nvgDeleteImage(ctx, ctx->fontImages[i]);
+            ctx->fontImages[i] = 0;
+        }
+    }
+
+    sg_destroy_shader(ctx->shader);
+
+    for (i = 0; i < NANOVG_SG_PIPELINE_CACHE_SIZE; i++)
+    {
+        for (enum SGNVGpipelineType t = 0; t < SGNVG_PIP_NUM_; t++)
+        {
+            // only uninitialize if correct flags are set
+            if (!sgnvg__pipelineTypeIsInUse(ctx, t))
+                continue;
+            if (ctx->pipelineCache.pipelinesActive[i] & (1 << t))
+                sg_uninit_pipeline(ctx->pipelineCache.pipelines[i][t]);
+            sg_dealloc_pipeline(ctx->pipelineCache.pipelines[i][t]);
+        }
+    }
+
+    if (ctx->cverts_gpu)
+        sg_uninit_buffer(ctx->vertBuf);
+    sg_dealloc_buffer(ctx->vertBuf);
+
+    if (ctx->cindexes_gpu)
+        sg_uninit_buffer(ctx->indexBuf);
+    sg_dealloc_buffer(ctx->indexBuf);
+
+    _nvgRenderDeleteTexture(ctx, ctx->dummyTex);
+    for (i = 0; i < ctx->ntextures; i++)
+    {
+        bool img_exists    = ctx->textures[i].img.id != 0;
+        bool should_delete = (ctx->textures[i].flags & NVG_IMAGE_NODELETE) == 0;
+        if (img_exists && should_delete)
+            sg_destroy_image(ctx->textures[i].img);
+    }
+
+    if (ctx->textures)
+    {
+        SGNVG_FREE(ctx->textures);
+    }
+    if (ctx->verts)
+    {
+        SGNVG_FREE(ctx->verts);
+    }
+    if (ctx->indexes)
+    {
+        SGNVG_FREE(ctx->indexes);
+    }
+
+    if (ctx->frame_arena)
+    {
+        linked_arena_destroy(ctx->frame_arena);
+    }
+
+    SGNVG_FREE(ctx);
 }

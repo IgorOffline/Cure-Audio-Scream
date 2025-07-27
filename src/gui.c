@@ -17,7 +17,6 @@
 
 #include <cplug_extensions/window.h>
 #include <nanovg2.h>
-#include <nanovg_sokol.h>
 #include <stb_image.h>
 
 #include <math.h>
@@ -232,7 +231,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
         .pipeline_pool_size = 512,
     });
 
-    gui->nvg = nvgCreateSokol(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
+    gui->nvg = nvgCreateContext(NVG_ANTIALIAS);
     CPLUG_LOG_ASSERT(gui->nvg);
 
     // Load font
@@ -428,7 +427,7 @@ void pw_destroy_gui(void* _gui)
     ted_deinit(&gui->texteditor);
 
     sg_set_global(gui->sg);
-    nvgDeleteSokol(gui->nvg);
+    nvgDestroyContext(gui->nvg);
     sg_shutdown(gui->sg);
 
     gui->plugin->gui = NULL;
