@@ -310,7 +310,6 @@ enum SGNVGshaderType
 
 typedef struct SGNVGtexture
 {
-    int        id;
     sg_image   img;
     sg_sampler smp;
     int        width, height;
@@ -507,13 +506,12 @@ typedef struct NVGcontext
     sg_shader          shader;
     SGNVGtexture*      textures;
     SGNVGvertUniforms  view;
+    int                flags;
     int                ntextures;
     int                ctextures;
-    int                textureId;
     sg_buffer          vertBuf;
     sg_buffer          indexBuf;
     SGNVGpipelineCache pipelineCache;
-    int                flags;
 
     // Per frame buffers
     SGNVGattribute* verts;

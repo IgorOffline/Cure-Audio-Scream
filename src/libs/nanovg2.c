@@ -269,6 +269,11 @@ void main(void) {
 
 #define NVG_COUNTOF(arr) (sizeof(arr) / sizeof(0 [arr]))
 
+#define NVG_ASSERT_GOTO(cond, label)                                                                                   \
+    NVG_ASSERT(cond);                                                                                                  \
+    if (!(cond))                                                                                                       \
+        goto label;
+
 void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts);
 
 static float nvg__sqrtf(float a) { return sqrtf(a); }
@@ -715,16 +720,19 @@ void nvgDeleteImage(NVGcontext* ctx, int image)
     for (i = 0; i < ctx->ntextures; i++)
     {
         SGNVGtexture* tex = &ctx->textures[i];
-        if (tex->id == image)
+        if (tex->img.id == image)
         {
             if (tex->img.id != 0 && (tex->flags & NVG_IMAGE_NODELETE) == 0)
                 sg_destroy_image(tex->img);
-            SGNVG_FREE(tex->imgData);
+            if (tex->imgData)
+            {
+                NVG_FREE(tex->imgData);
+            }
             memset(tex, 0, sizeof(*tex));
             return;
         }
     }
-    SGNVG_ASSERT(0);
+    NVG_ASSERT(0);
 }
 
 NVGpaint nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolour icol, NVGcolour ocol)
@@ -966,7 +974,7 @@ static void nvg__appendCommands(NVGcontext* ctx, float* vals, int nvals)
     {
         float* commands;
         int    ccommands = ctx->ncommands + nvals + ctx->ccommands / 2;
-        commands         = (float*)SGNVG_REALLOC(ctx->commands, sizeof(float) * ccommands);
+        commands         = (float*)NVG_REALLOC(ctx->commands, sizeof(float) * ccommands);
         if (commands == NULL)
             return;
         ctx->commands  = commands;
@@ -1030,7 +1038,7 @@ static void nvg__addPath(NVGcontext* ctx)
     {
         NVGpath* paths;
         int      cpaths = ctx->cache.npaths + 1 + ctx->cache.cpaths / 2;
-        paths           = (NVGpath*)SGNVG_REALLOC(ctx->cache.paths, sizeof(NVGpath) * cpaths);
+        paths           = (NVGpath*)NVG_REALLOC(ctx->cache.paths, sizeof(NVGpath) * cpaths);
         if (paths == NULL)
             return;
         ctx->cache.paths  = paths;
@@ -1072,7 +1080,7 @@ static void nvg__addPoint(NVGcontext* ctx, float x, float y, int flags)
     {
         NVGpoint* points;
         int       cpoints = ctx->cache.npoints + 1 + ctx->cache.cpoints / 2;
-        points            = (NVGpoint*)SGNVG_REALLOC(ctx->cache.points, sizeof(NVGpoint) * cpoints);
+        points            = (NVGpoint*)NVG_REALLOC(ctx->cache.points, sizeof(NVGpoint) * cpoints);
         if (points == NULL)
             return;
         ctx->cache.points  = points;
@@ -1118,7 +1126,7 @@ static NVGvertex* nvg__allocTempVerts(NVGcontext* ctx, int nverts)
     {
         NVGvertex* verts;
         int cverts = (nverts + 0xff) & ~0xff; // Round up to prevent allocations when things change just slightly.
-        verts      = (NVGvertex*)SGNVG_REALLOC(ctx->cache.verts, sizeof(NVGvertex) * cverts);
+        verts      = (NVGvertex*)NVG_REALLOC(ctx->cache.verts, sizeof(NVGvertex) * cverts);
         if (verts == NULL)
             return NULL;
         ctx->cache.verts  = verts;
@@ -3099,7 +3107,7 @@ static SGNVGtexture* sgnvg__allocTexture(NVGcontext* ctx)
 
     for (i = 0; i < ctx->ntextures; i++)
     {
-        if (ctx->textures[i].id == 0)
+        if (ctx->textures[i].img.id == 0)
         {
             tex = &ctx->textures[i];
             break;
@@ -3111,7 +3119,7 @@ static SGNVGtexture* sgnvg__allocTexture(NVGcontext* ctx)
         {
             SGNVGtexture* textures;
             int           ctextures = nvg__maxi(ctx->ntextures + 1, 4) + ctx->ctextures / 2; // 1.5x Overallocate
-            textures                = (SGNVGtexture*)SGNVG_REALLOC(ctx->textures, sizeof(SGNVGtexture) * ctextures);
+            textures                = (SGNVGtexture*)NVG_REALLOC(ctx->textures, sizeof(SGNVGtexture) * ctextures);
             if (textures == NULL)
                 return NULL;
             ctx->textures  = textures;
@@ -3121,7 +3129,6 @@ static SGNVGtexture* sgnvg__allocTexture(NVGcontext* ctx)
     }
 
     memset(tex, 0, sizeof(*tex));
-    tex->id = ++ctx->textureId;
     return tex;
 }
 
@@ -3129,7 +3136,7 @@ static SGNVGtexture* sgnvg__findTexture(NVGcontext* ctx, int id)
 {
     int i;
     for (i = 0; i < ctx->ntextures; i++)
-        if (ctx->textures[i].id == id)
+        if (ctx->textures[i].img.id == id)
             return &ctx->textures[i];
     return NULL;
 }
@@ -3139,7 +3146,7 @@ static uint16_t sgnvg__getCombinedBlendNumber(sg_blend_state blend)
 #if __STDC_VERSION__ >= 201112L
     _Static_assert(_SG_BLENDFACTOR_NUM <= 17, "too many blend factors for 16-bit blend number");
 #else
-    SGNVG_ASSERT(_SG_BLENDFACTOR_NUM <= 17); // can be a _Static_assert
+    NVG_ASSERT(_SG_BLENDFACTOR_NUM <= 17); // can be a _Static_assert
 #endif
     return blend.src_factor_rgb | (blend.dst_factor_rgb << 4) | (blend.src_factor_alpha << 8) |
            (blend.dst_factor_alpha << 12);
@@ -3197,7 +3204,7 @@ static bool sgnvg__pipelineTypeIsInUse(NVGcontext* ctx, enum SGNVGpipelineType t
     case SGNVG_PIP_NUM_: // to avoid warnings
         break;           /* fall through to assert */
     }
-    SGNVG_ASSERT(0);
+    NVG_ASSERT(0);
     return false;
 }
 
@@ -3242,7 +3249,7 @@ static int sgnvg__getIndexFromCache(NVGcontext* ctx, uint16_t blendNumber)
 
 static sg_pipeline sgnvg__getPipelineFromCache(NVGcontext* ctx, enum SGNVGpipelineType type)
 {
-    SGNVG_ASSERT(sgnvg__pipelineTypeIsInUse(ctx, type));
+    NVG_ASSERT(sgnvg__pipelineTypeIsInUse(ctx, type));
 
     int         pipelineCacheIndex = ctx->pipelineCacheIndex;
     sg_pipeline pipeline           = ctx->pipelineCache.pipelines[pipelineCacheIndex][type];
@@ -3404,7 +3411,7 @@ static sg_pipeline sgnvg__getPipelineFromCache(NVGcontext* ctx, enum SGNVGpipeli
             break;
 
         default:
-            SGNVG_ASSERT(0);
+            NVG_ASSERT(0);
         }
     }
     return pipeline;
@@ -3445,6 +3452,7 @@ int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int im
 {
     SGNVGtexture* tex = sgnvg__allocTexture(ctx);
 
+    NVG_ASSERT(tex != NULL);
     if (tex == NULL)
         return 0;
 
@@ -3466,7 +3474,7 @@ int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int im
         }
     }
 #endif
-    SGNVG_ASSERT(!(imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && "TODO mipmaps");
+    NVG_ASSERT(!(imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && "TODO mipmaps");
 
     // if we have mipmaps, we forbid updating
     bool immutable = !!(imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data;
@@ -3479,23 +3487,25 @@ int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int im
         // TODO mipmaps
         .subimage[0][0] = {data, w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1)},
     };
-    tex->img     = sg_make_image(&(sg_image_desc){
-            .type = SG_IMAGETYPE_2D,
+    tex->img = sg_make_image(&(sg_image_desc){
+        .type = SG_IMAGETYPE_2D,
         //.render_target
-            .width                = w,
-            .height               = h,
-            .num_mipmaps          = 1, // TODO mipmaps
-            .usage.immutable      = immutable,
-            .usage.dynamic_update = !immutable,
-            .pixel_format         = type == NVG_TEXTURE_RGBA ? SG_PIXELFORMAT_RGBA8 : SG_PIXELFORMAT_R8,
-            .data                 = ((imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data) ? imageData
-                                                                                        : (sg_image_data){.subimage[0][0] = {NULL, 0}},
-            .label                = "nanovg.image[]",
+        .width                = w,
+        .height               = h,
+        .num_mipmaps          = 1, // TODO mipmaps
+        .usage.immutable      = immutable,
+        .usage.dynamic_update = !immutable,
+        .pixel_format         = type == NVG_TEXTURE_RGBA ? SG_PIXELFORMAT_RGBA8 : SG_PIXELFORMAT_R8,
+        .data                 = ((imageFlags & NVG_IMAGE_GENERATE_MIPMAPS) && data) ? imageData
+                                                                                    : (sg_image_data){.subimage[0][0] = {NULL, 0}},
+        .label                = "nanovg.image[]",
     });
-    tex->imgData = SGNVG_MALLOC(w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
+    NVG_ASSERT(tex->img.id != 0);
+    tex->imgData = NVG_MALLOC(w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
     if (data != NULL)
     {
         memcpy(tex->imgData, data, w * h * (type == NVG_TEXTURE_RGBA ? 4 : 1));
+        tex->flags |= NVG_IMAGE_DIRTY;
     }
     tex->smp = sg_make_sampler(&(sg_sampler_desc){
         .min_filter    = imageFlags & NVG_IMAGE_GENERATE_MIPMAPS
@@ -3509,7 +3519,7 @@ int nvgCreateTexture(NVGcontext* ctx, enum NVGtexture type, int w, int h, int im
         .wrap_v        = imageFlags & NVG_IMAGE_REPEATY ? SG_WRAP_REPEAT : SG_WRAP_CLAMP_TO_EDGE,
     });
 
-    return tex->id;
+    return tex->img.id;
 }
 
 int nvgUpdateTexture(NVGcontext* ctx, int image, int x0, int y0, int w, int h, const unsigned char* data)
@@ -3849,7 +3859,7 @@ void nvgEndFrame(NVGcontext* ctx)
 
     for (int i = 0; i < ctx->ntextures; i++)
     {
-        if (ctx->textures[i].id != 0)
+        if (ctx->textures[i].img.id != 0)
         {
             SGNVGtexture* tex = &ctx->textures[i];
 
@@ -4018,7 +4028,7 @@ static int sgnvg__allocVerts(NVGcontext* ctx, int n)
     {
         SGNVGattribute* verts;
         int             cverts = nvg__maxi(ctx->nverts + n, 4096) + ctx->cverts / 2; // 1.5x Overallocate
-        verts                  = (SGNVGattribute*)SGNVG_REALLOC(ctx->verts, sizeof(SGNVGattribute) * cverts);
+        verts                  = (SGNVGattribute*)NVG_REALLOC(ctx->verts, sizeof(SGNVGattribute) * cverts);
         if (verts == NULL)
             return -1;
         ctx->verts  = verts;
@@ -4036,7 +4046,7 @@ static int sgnvg__allocIndexes(NVGcontext* ctx, int n)
     {
         uint32_t* indexes;
         int       cindexes = nvg__maxi(ctx->nindexes + n, 4096) + ctx->cindexes / 2; // 1.5x Overallocate
-        indexes            = (uint32_t*)SGNVG_REALLOC(ctx->indexes, sizeof(uint32_t) * cindexes);
+        indexes            = (uint32_t*)NVG_REALLOC(ctx->indexes, sizeof(uint32_t) * cindexes);
         if (indexes == NULL)
             return -1;
         ctx->indexes  = indexes;
@@ -4114,7 +4124,7 @@ void nvgFill(NVGcontext* ctx)
     int                maxverts, offset, maxindexes, ioffset;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
-    // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
+    // NVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
     if (ctx->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 
@@ -4257,7 +4267,7 @@ void nvgStroke(NVGcontext* ctx)
     int                maxverts, offset, maxindexes, ioffset;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
-    // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
+    // NVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
     if (ctx->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 
@@ -4347,7 +4357,7 @@ void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts)
     SGNVGfragUniforms* frag = NULL;
 
     // Looks like you forgot to call snvg_command_draw_nvg() before issuing nvgFill()/nvgStroke()/nvgText() commands!
-    // SGNVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
+    // NVG_ASSERT(ctx->current_nvg_draw != NULL); // TODO: remove?
     if (ctx->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 
@@ -4411,7 +4421,7 @@ int snvgCreateImageFromHandleSokol(
     tex->width  = w;
     tex->height = h;
 
-    return tex->id;
+    return tex->img.id;
 }
 
 sg_image snvgImageHandleSokol(NVGcontext* ctx, int image)
@@ -4470,17 +4480,15 @@ void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func)
 
 NVGcontext* nvgCreateContext(int flags)
 {
-    NVGcontext* ctx = (NVGcontext*)SGNVG_MALLOC(sizeof(NVGcontext));
+    NVGcontext* ctx = (NVGcontext*)NVG_MALLOC(sizeof(NVGcontext));
     FONSparams  fontParams;
     int         i;
 
-    if (ctx == NULL)
-        goto error;
+    NVG_ASSERT_GOTO(ctx != NULL, error);
     memset(ctx, 0, sizeof(*ctx));
 
     ctx->frame_arena = linked_arena_create(1024 * 64);
-    if (ctx->frame_arena == NULL)
-        goto error;
+    NVG_ASSERT_GOTO(ctx->frame_arena != NULL, error);
 
     ctx->edgeAntiAlias = flags & NVG_ANTIALIAS ? 1 : 0;
     ctx->flags         = flags;
@@ -4520,25 +4528,21 @@ NVGcontext* nvgCreateContext(int flags)
     nvgReset(ctx);
     nvg__setDevicePixelRatio(ctx, 1.0f);
 
-    ctx->commands = (float*)SGNVG_MALLOC(sizeof(float) * NVG_INIT_COMMANDS_SIZE);
-    if (!ctx->commands)
-        goto error;
+    ctx->commands  = (float*)NVG_MALLOC(sizeof(float) * NVG_INIT_COMMANDS_SIZE);
     ctx->ccommands = NVG_INIT_COMMANDS_SIZE;
+    NVG_ASSERT_GOTO(ctx->commands != NULL, error);
 
-    ctx->cache.points = (NVGpoint*)SGNVG_MALLOC(sizeof(NVGpoint) * NVG_INIT_POINTS_SIZE);
-    if (!ctx->cache.points)
-        goto error;
+    ctx->cache.points  = (NVGpoint*)NVG_MALLOC(sizeof(NVGpoint) * NVG_INIT_POINTS_SIZE);
     ctx->cache.cpoints = NVG_INIT_POINTS_SIZE;
+    NVG_ASSERT_GOTO(ctx->cache.points != NULL, error);
 
-    ctx->cache.paths = (NVGpath*)SGNVG_MALLOC(sizeof(NVGpath) * NVG_INIT_PATHS_SIZE);
-    if (!ctx->cache.paths)
-        goto error;
+    ctx->cache.paths  = (NVGpath*)NVG_MALLOC(sizeof(NVGpath) * NVG_INIT_PATHS_SIZE);
     ctx->cache.cpaths = NVG_INIT_PATHS_SIZE;
+    NVG_ASSERT_GOTO(ctx->cache.paths != NULL, error);
 
-    ctx->cache.verts = (NVGvertex*)SGNVG_MALLOC(sizeof(NVGvertex) * NVG_INIT_VERTS_SIZE);
-    if (!ctx->cache.verts)
-        goto error;
+    ctx->cache.verts  = (NVGvertex*)NVG_MALLOC(sizeof(NVGvertex) * NVG_INIT_VERTS_SIZE);
     ctx->cache.cverts = NVG_INIT_VERTS_SIZE;
+    NVG_ASSERT_GOTO(ctx->cache.verts != NULL, error);
 
     // Init font rendering
     memset(&fontParams, 0, sizeof(fontParams));
@@ -4546,13 +4550,11 @@ NVGcontext* nvgCreateContext(int flags)
     fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
     fontParams.flags  = FONS_ZERO_TOPLEFT;
     ctx->fs           = fonsCreateInternal(&fontParams);
-    if (ctx->fs == NULL)
-        goto error;
+    NVG_ASSERT_GOTO(ctx->fs != NULL, error);
 
     // Create font texture
     ctx->fontImages[0] = nvgCreateTexture(ctx, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
-    if (ctx->fontImages[0] == 0)
-        goto error;
+    NVG_ASSERT_GOTO(ctx->fontImages[0] != 0, error);
 
     return ctx;
 
@@ -4568,13 +4570,13 @@ void nvgDestroyContext(NVGcontext* ctx)
     if (ctx == NULL)
         return;
     if (ctx->commands != NULL)
-        SGNVG_FREE(ctx->commands);
+        NVG_FREE(ctx->commands);
     if (ctx->cache.points != NULL)
-        SGNVG_FREE(ctx->cache.points);
+        NVG_FREE(ctx->cache.points);
     if (ctx->cache.paths != NULL)
-        SGNVG_FREE(ctx->cache.paths);
+        NVG_FREE(ctx->cache.paths);
     if (ctx->cache.verts != NULL)
-        SGNVG_FREE(ctx->cache.verts);
+        NVG_FREE(ctx->cache.verts);
 
     if (ctx->fs)
         fonsDeleteInternal(ctx->fs);
@@ -4622,15 +4624,15 @@ void nvgDestroyContext(NVGcontext* ctx)
 
     if (ctx->textures)
     {
-        SGNVG_FREE(ctx->textures);
+        NVG_FREE(ctx->textures);
     }
     if (ctx->verts)
     {
-        SGNVG_FREE(ctx->verts);
+        NVG_FREE(ctx->verts);
     }
     if (ctx->indexes)
     {
-        SGNVG_FREE(ctx->indexes);
+        NVG_FREE(ctx->indexes);
     }
 
     if (ctx->frame_arena)
@@ -4638,5 +4640,5 @@ void nvgDestroyContext(NVGcontext* ctx)
         linked_arena_destroy(ctx->frame_arena);
     }
 
-    SGNVG_FREE(ctx);
+    NVG_FREE(ctx);
 }
