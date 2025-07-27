@@ -480,18 +480,18 @@ typedef struct SGNVGcommand
 
 typedef struct NVGcontext
 {
-    float*        commands;
-    int           ccommands;
-    int           ncommands;
-    float         commandx, commandy;
-    NVGstate      state;
-    int           nstates;
-    int           edgeAntiAlias;
-    NVGpathCache* cache;
-    float         tessTol;
-    float         distTol;
-    float         fringeWidth;
-    float         devicePxRatio;
+    float*       commands;
+    int          ccommands;
+    int          ncommands;
+    float        commandx, commandy;
+    NVGstate     state;
+    int          nstates;
+    int          edgeAntiAlias;
+    NVGpathCache cache;
+    float        tessTol;
+    float        distTol;
+    float        fringeWidth;
+    float        devicePxRatio;
 
     struct FONScontext* fs;
 
@@ -513,7 +513,6 @@ typedef struct NVGcontext
     sg_buffer          vertBuf;
     sg_buffer          indexBuf;
     SGNVGpipelineCache pipelineCache;
-    int                fragSize;
     int                flags;
 
     // Per frame buffers
@@ -585,12 +584,6 @@ void nvgSetGlobalCompositeBlendFuncSeparate(NVGcontext* ctx, int srcRGB, int dst
 //
 // Colours in NanoVG are stored as unsigned ints in ABGR format.
 
-// Returns a colour value from red, green, blue values. Alpha will be set to 255 (1.0f).
-NVGcolour nvgRGB(unsigned char r, unsigned char g, unsigned char b);
-
-// Returns a colour value from red, green, blue values. Alpha will be set to 1.0f.
-NVGcolour nvgRGBf(float r, float g, float b);
-
 // Returns a colour value from red, green, blue and alpha values.
 NVGcolour nvgRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
 
@@ -607,38 +600,6 @@ NVGcolour nvgHSL(float h, float s, float l);
 // Returns colour value specified by hue, saturation and lightness and alpha.
 // HSL values are all in range [0..1], alpha in range [0..255]
 NVGcolour nvgHSLA(float h, float s, float l, unsigned char a);
-
-//
-// Render styles
-//
-// Fill and stroke render style can be either a solid colour or a paint which is a gradient or a pattern.
-// Solid colour is simply defined as a colour value, different kinds of paints can be created
-// using nvgLinearGradient(), nvgBoxGradient(), nvgRadialGradient() and nvgImagePattern().
-//
-
-// Sets whether to draw antialias for nvgStroke() and nvgFill(). It's enabled by default.
-void nvgSetShapeAntiAlias(NVGcontext* ctx, int enabled);
-
-// Sets current paint style to a solid colour.
-void nvgSetColour(NVGcontext* ctx, NVGcolour colour);
-
-// Sets current paint style to a gradient or pattern.
-void nvgSetPaint(NVGcontext* ctx, NVGpaint paint);
-
-// Sets the miter limit of the stroke style.
-// Miter limit controls when a sharp corner is beveled.
-void nvgSetMiterLimit(NVGcontext* ctx, float limit);
-
-// Sets the stroke width of the stroke style.
-void nvgSetStrokeWidth(NVGcontext* ctx, float size);
-
-// Sets how the end of the line (cap) is drawn,
-// Can be one of: NVG_BUTT (default), NVG_ROUND, NVG_SQUARE.
-void nvgSetLineCap(NVGcontext* ctx, int cap);
-
-// Sets how sharp path corners are drawn.
-// Can be one of NVG_MITER (default), NVG_ROUND, NVG_BEVEL.
-void nvgSetLineJoin(NVGcontext* ctx, int join);
 
 //
 // Transforms
@@ -726,6 +687,42 @@ void nvgTransformPoint(float* dstx, float* dsty, const float* xform, float srcx,
 // Converts degrees to radians and vice versa.
 float nvgDegToRad(float deg);
 float nvgRadToDeg(float rad);
+
+//
+// Render styles
+//
+// Fill and stroke render style can be either a solid colour or a paint which is a gradient or a pattern.
+// Solid colour is simply defined as a colour value, different kinds of paints can be created
+// using nvgLinearGradient(), nvgBoxGradient(), nvgRadialGradient() and nvgImagePattern().
+//
+
+// Sets whether to draw antialias for nvgStroke() and nvgFill(). It's enabled by default.
+static inline void nvgSetShapeAntiAlias(NVGcontext* ctx, int enabled) { ctx->state.shapeAntiAlias = enabled; }
+
+// Sets current paint style to a solid colour.
+void nvgSetColour(NVGcontext* ctx, NVGcolour colour);
+
+// Sets current paint style to a gradient or pattern.
+static inline void nvgSetPaint(NVGcontext* ctx, NVGpaint paint)
+{
+    ctx->state.paint = paint;
+    nvgTransformMultiply(ctx->state.paint.xform, ctx->state.xform);
+}
+
+// Sets the miter limit of the stroke style.
+// Miter limit controls when a sharp corner is beveled.
+static inline void nvgSetMiterLimit(NVGcontext* ctx, float limit) { ctx->state.miterLimit = limit; }
+
+// Sets the stroke width of the stroke style.
+static inline void nvgSetStrokeWidth(NVGcontext* ctx, float size) { ctx->state.strokeWidth = size; }
+
+// Sets how the end of the line (cap) is drawn,
+// Can be one of: NVG_BUTT (default), NVG_ROUND, NVG_SQUARE.
+static inline void nvgSetLineCap(NVGcontext* ctx, int cap) { ctx->state.lineCap = cap; }
+
+// Sets how sharp path corners are drawn.
+// Can be one of NVG_MITER (default), NVG_ROUND, NVG_BEVEL.
+static inline void nvgSetLineJoin(NVGcontext* ctx, int join) { ctx->state.lineJoin = join; }
 
 //
 // Images

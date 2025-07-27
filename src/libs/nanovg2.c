@@ -301,50 +301,6 @@ static float nvg__normalize(float* x, float* y)
     return d;
 }
 
-static void nvg__deletePathCache(NVGpathCache* c)
-{
-    if (c == NULL)
-        return;
-    if (c->points != NULL)
-        SGNVG_FREE(c->points);
-    if (c->paths != NULL)
-        SGNVG_FREE(c->paths);
-    if (c->verts != NULL)
-        SGNVG_FREE(c->verts);
-    SGNVG_FREE(c);
-}
-
-static NVGpathCache* nvg__allocPathCache(void)
-{
-    NVGpathCache* c = (NVGpathCache*)SGNVG_MALLOC(sizeof(NVGpathCache));
-    if (c == NULL)
-        goto error;
-    memset(c, 0, sizeof(NVGpathCache));
-
-    c->points = (NVGpoint*)SGNVG_MALLOC(sizeof(NVGpoint) * NVG_INIT_POINTS_SIZE);
-    if (!c->points)
-        goto error;
-    c->npoints = 0;
-    c->cpoints = NVG_INIT_POINTS_SIZE;
-
-    c->paths = (NVGpath*)SGNVG_MALLOC(sizeof(NVGpath) * NVG_INIT_PATHS_SIZE);
-    if (!c->paths)
-        goto error;
-    c->npaths = 0;
-    c->cpaths = NVG_INIT_PATHS_SIZE;
-
-    c->verts = (NVGvertex*)SGNVG_MALLOC(sizeof(NVGvertex) * NVG_INIT_VERTS_SIZE);
-    if (!c->verts)
-        goto error;
-    c->nverts = 0;
-    c->cverts = NVG_INIT_VERTS_SIZE;
-
-    return c;
-error:
-    nvg__deletePathCache(c);
-    return NULL;
-}
-
 static void nvg__setDevicePixelRatio(NVGcontext* ctx, float ratio)
 {
     ctx->tessTol       = 0.25f / ratio;
@@ -426,15 +382,12 @@ static NVGcompositeOperationState nvg__compositeOperationState(int op)
     return state;
 }
 
-static NVGstate* nvg__getState(NVGcontext* ctx) { return &ctx->state; }
-void             nvg__setPaintColour(NVGpaint* p, NVGcolour colour);
-
 void nvgReset(NVGcontext* ctx)
 {
     NVGstate* state = &ctx->state;
     memset(state, 0, sizeof(*state));
 
-    nvg__setPaintColour(&state->paint, nvgRGBA(0, 0, 0, 255));
+    nvgSetColour(ctx, nvgRGBA(0, 0, 0, 255));
     state->compositeOperation = nvg__compositeOperationState(NVG_SOURCE_OVER);
     state->shapeAntiAlias     = 1;
     state->strokeWidth        = 1.0f;
@@ -453,10 +406,6 @@ void nvgReset(NVGcontext* ctx)
     state->textAlign     = NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE;
     state->fontId        = 0;
 }
-
-NVGcolour nvgRGB(unsigned char r, unsigned char g, unsigned char b) { return nvgRGBA(r, g, b, 255); }
-
-NVGcolour nvgRGBf(float r, float g, float b) { return nvgRGBAf(r, g, b, 1.0f); }
 
 NVGcolour nvgRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
 {
@@ -641,47 +590,7 @@ float nvgDegToRad(float deg) { return deg / 180.0f * NVG_PI; }
 
 float nvgRadToDeg(float rad) { return rad / NVG_PI * 180.0f; }
 
-void nvg__setPaintColour(NVGpaint* p, NVGcolour colour)
-{
-    memset(p, 0, sizeof(*p));
-    nvgTransformIdentity(p->xform);
-    p->radius      = 0.0f;
-    p->feather     = 1.0f;
-    p->innerColour = colour;
-    p->outerColour = colour;
-}
-
-// State setting
-void nvgSetShapeAntiAlias(NVGcontext* ctx, int enabled)
-{
-    NVGstate* state       = &ctx->state;
-    state->shapeAntiAlias = enabled;
-}
-
-void nvgSetStrokeWidth(NVGcontext* ctx, float width)
-{
-    NVGstate* state    = &ctx->state;
-    state->strokeWidth = width;
-}
-
-void nvgSetMiterLimit(NVGcontext* ctx, float limit)
-{
-    NVGstate* state   = &ctx->state;
-    state->miterLimit = limit;
-}
-
-void nvgSetLineCap(NVGcontext* ctx, int cap)
-{
-    NVGstate* state = &ctx->state;
-    state->lineCap  = cap;
-}
-
-void nvgSetLineJoin(NVGcontext* ctx, int join)
-{
-    NVGstate* state = &ctx->state;
-    state->lineJoin = join;
-}
-
+// Transforms
 void nvgTransform(NVGcontext* ctx, float a, float b, float c, float d, float e, float f)
 {
     NVGstate* state = &ctx->state;
@@ -746,14 +655,13 @@ void nvgCurrentTransform(NVGcontext* ctx, float* xform)
 void nvgSetColour(NVGcontext* ctx, NVGcolour colour)
 {
     NVGstate* state = &ctx->state;
-    nvg__setPaintColour(&state->paint, colour);
-}
-
-void nvgSetPaint(NVGcontext* ctx, NVGpaint paint)
-{
-    NVGstate* state = &ctx->state;
-    state->paint    = paint;
-    nvgTransformMultiply(state->paint.xform, state->xform);
+    NVGpaint* p     = &state->paint;
+    memset(&state->paint, 0, sizeof(*p));
+    nvgTransformIdentity(p->xform);
+    p->radius      = 0.0f;
+    p->feather     = 1.0f;
+    p->innerColour = colour;
+    p->outerColour = colour;
 }
 
 #ifndef NVG_NO_STB
@@ -942,7 +850,7 @@ void nvgSetScissor(NVGcontext* ctx, float x, float y, float w, float h)
     nvgTransformIdentity(state->scissor.xform);
     state->scissor.xform[4] = x + w * 0.5f;
     state->scissor.xform[5] = y + h * 0.5f;
-    nvgTransformMultiply(state->scissor.xform, state->xform);
+    // nvgTransformMultiply(state->scissor.xform, state->xform);
 
     state->scissor.extent[0] = w * 0.5f;
     state->scissor.extent[1] = h * 0.5f;
@@ -1108,44 +1016,38 @@ static void nvg__appendCommands(NVGcontext* ctx, float* vals, int nvals)
     ctx->ncommands += nvals;
 }
 
-static void nvg__clearPathCache(NVGcontext* ctx)
-{
-    ctx->cache->npoints = 0;
-    ctx->cache->npaths  = 0;
-}
-
 static NVGpath* nvg__lastPath(NVGcontext* ctx)
 {
-    if (ctx->cache->npaths > 0)
-        return &ctx->cache->paths[ctx->cache->npaths - 1];
+    if (ctx->cache.npaths > 0)
+        return &ctx->cache.paths[ctx->cache.npaths - 1];
     return NULL;
 }
 
 static void nvg__addPath(NVGcontext* ctx)
 {
     NVGpath* path;
-    if (ctx->cache->npaths + 1 > ctx->cache->cpaths)
+    if (ctx->cache.npaths + 1 > ctx->cache.cpaths)
     {
         NVGpath* paths;
-        int      cpaths = ctx->cache->npaths + 1 + ctx->cache->cpaths / 2;
-        paths           = (NVGpath*)SGNVG_REALLOC(ctx->cache->paths, sizeof(NVGpath) * cpaths);
+        int      cpaths = ctx->cache.npaths + 1 + ctx->cache.cpaths / 2;
+        paths           = (NVGpath*)SGNVG_REALLOC(ctx->cache.paths, sizeof(NVGpath) * cpaths);
         if (paths == NULL)
             return;
-        ctx->cache->paths  = paths;
-        ctx->cache->cpaths = cpaths;
+        ctx->cache.paths  = paths;
+        ctx->cache.cpaths = cpaths;
     }
-    path = &ctx->cache->paths[ctx->cache->npaths];
+    path = &ctx->cache.paths[ctx->cache.npaths];
     memset(path, 0, sizeof(*path));
-    path->first   = ctx->cache->npoints;
+    path->first   = ctx->cache.npoints;
     path->winding = NVG_CCW;
 
-    ctx->cache->npaths++;
+    ctx->cache.npaths++;
 }
 
 static NVGpoint* nvg__lastPoint(NVGcontext* ctx)
 {
-    if (ctx->cache->npoints > 0)
-        return &ctx->cache->points[ctx->cache->npoints - 1];
+    if (ctx->cache.npoints > 0)
+        return &ctx->cache.points[ctx->cache.npoints - 1];
     return NULL;
 }
 
@@ -1156,7 +1058,7 @@ static void nvg__addPoint(NVGcontext* ctx, float x, float y, int flags)
     if (path == NULL)
         return;
 
-    if (path->count > 0 && ctx->cache->npoints > 0)
+    if (path->count > 0 && ctx->cache.npoints > 0)
     {
         pt = nvg__lastPoint(ctx);
         if (nvg__ptEquals(pt->x, pt->y, x, y, ctx->distTol))
@@ -1166,24 +1068,24 @@ static void nvg__addPoint(NVGcontext* ctx, float x, float y, int flags)
         }
     }
 
-    if (ctx->cache->npoints + 1 > ctx->cache->cpoints)
+    if (ctx->cache.npoints + 1 > ctx->cache.cpoints)
     {
         NVGpoint* points;
-        int       cpoints = ctx->cache->npoints + 1 + ctx->cache->cpoints / 2;
-        points            = (NVGpoint*)SGNVG_REALLOC(ctx->cache->points, sizeof(NVGpoint) * cpoints);
+        int       cpoints = ctx->cache.npoints + 1 + ctx->cache.cpoints / 2;
+        points            = (NVGpoint*)SGNVG_REALLOC(ctx->cache.points, sizeof(NVGpoint) * cpoints);
         if (points == NULL)
             return;
-        ctx->cache->points  = points;
-        ctx->cache->cpoints = cpoints;
+        ctx->cache.points  = points;
+        ctx->cache.cpoints = cpoints;
     }
 
-    pt = &ctx->cache->points[ctx->cache->npoints];
+    pt = &ctx->cache.points[ctx->cache.npoints];
     memset(pt, 0, sizeof(*pt));
     pt->x     = x;
     pt->y     = y;
     pt->flags = (unsigned char)flags;
 
-    ctx->cache->npoints++;
+    ctx->cache.npoints++;
     path->count++;
 }
 
@@ -1212,18 +1114,18 @@ static float nvg__getAverageScale(float* t)
 
 static NVGvertex* nvg__allocTempVerts(NVGcontext* ctx, int nverts)
 {
-    if (nverts > ctx->cache->cverts)
+    if (nverts > ctx->cache.cverts)
     {
         NVGvertex* verts;
         int cverts = (nverts + 0xff) & ~0xff; // Round up to prevent allocations when things change just slightly.
-        verts      = (NVGvertex*)SGNVG_REALLOC(ctx->cache->verts, sizeof(NVGvertex) * cverts);
+        verts      = (NVGvertex*)SGNVG_REALLOC(ctx->cache.verts, sizeof(NVGvertex) * cverts);
         if (verts == NULL)
             return NULL;
-        ctx->cache->verts  = verts;
-        ctx->cache->cverts = cverts;
+        ctx->cache.verts  = verts;
+        ctx->cache.cverts = cverts;
     }
 
-    return ctx->cache->verts;
+    return ctx->cache.verts;
 }
 
 static float nvg__triarea2(float ax, float ay, float bx, float by, float cx, float cy)
@@ -1325,7 +1227,7 @@ static void nvg__tesselateBezier(
 
 static void nvg__flattenPaths(NVGcontext* ctx)
 {
-    NVGpathCache* cache = ctx->cache;
+    NVGpathCache* cache = &ctx->cache;
     //	NVGstate* state = &ctx->state;
     NVGpoint* last;
     NVGpoint* p0;
@@ -1746,7 +1648,7 @@ nvg__roundCapEnd(NVGvertex* dst, NVGpoint* p, float dx, float dy, float w, int n
 
 static void nvg__calculateJoins(NVGcontext* ctx, float w, int lineJoin, float miterLimit)
 {
-    NVGpathCache* cache = ctx->cache;
+    NVGpathCache* cache = &ctx->cache;
     int           i, j;
     float         iw = 0.0f;
 
@@ -1823,7 +1725,7 @@ static void nvg__calculateJoins(NVGcontext* ctx, float w, int lineJoin, float mi
 
 static int nvg__expandStroke(NVGcontext* ctx, float w, float fringe, int lineCap, int lineJoin, float miterLimit)
 {
-    NVGpathCache* cache = ctx->cache;
+    NVGpathCache* cache = &ctx->cache;
     NVGvertex*    verts;
     NVGvertex*    dst;
     int           cverts, i, j;
@@ -1973,7 +1875,7 @@ static int nvg__expandStroke(NVGcontext* ctx, float w, float fringe, int lineCap
 
 static int nvg__expandFill(NVGcontext* ctx, float w, int lineJoin, float miterLimit)
 {
-    NVGpathCache* cache = ctx->cache;
+    NVGpathCache* cache = &ctx->cache;
     NVGvertex*    verts;
     NVGvertex*    dst;
     int           cverts, convex, i, j;
@@ -2124,8 +2026,9 @@ static int nvg__expandFill(NVGcontext* ctx, float w, int lineJoin, float miterLi
 // Draw
 void nvgBeginPath(NVGcontext* ctx)
 {
-    ctx->ncommands = 0;
-    nvg__clearPathCache(ctx);
+    ctx->ncommands     = 0;
+    ctx->cache.npoints = 0;
+    ctx->cache.npaths  = 0;
 }
 
 void nvgMoveTo(NVGcontext* ctx, float x, float y)
@@ -2445,10 +2348,10 @@ void nvgDebugDumpPathCache(NVGcontext* ctx)
     const NVGpath* path;
     int            i, j;
 
-    printf("Dumping %d cached paths\n", ctx->cache->npaths);
-    for (i = 0; i < ctx->cache->npaths; i++)
+    printf("Dumping %d cached paths\n", ctx->cache.npaths);
+    for (i = 0; i < ctx->cache.npaths; i++)
     {
-        path = &ctx->cache->paths[i];
+        path = &ctx->cache.paths[i];
         printf(" - Path %d\n", i);
         if (path->nfill)
         {
@@ -4189,21 +4092,21 @@ void nvgFill(NVGcontext* ctx)
 {
     NVGstate*      state = &ctx->state;
     const NVGpath* path;
-    NVGpaint       paint = state->paint;
+    NVGpaint       paint             = state->paint;
+    float          expandFringeWidth = 0;
     int            i;
 
     nvg__flattenPaths(ctx);
     if (ctx->edgeAntiAlias && state->shapeAntiAlias)
-        nvg__expandFill(ctx, ctx->fringeWidth, NVG_MITER, 2.4f);
-    else
-        nvg__expandFill(ctx, 0.0f, NVG_MITER, 2.4f);
+        expandFringeWidth = ctx->fringeWidth;
+    nvg__expandFill(ctx, expandFringeWidth, NVG_MITER, 2.4f);
 
     NVGcompositeOperationState compositeOperation = state->compositeOperation;
     NVGscissor*                scissor            = &state->scissor;
     float                      fringe             = ctx->fringeWidth;
-    const float*               bounds             = ctx->cache->bounds;
-    const NVGpath*             paths              = ctx->cache->paths;
-    int                        npaths             = ctx->cache->npaths;
+    const float*               bounds             = ctx->cache.bounds;
+    const NVGpath*             paths              = ctx->cache.paths;
+    int                        npaths             = ctx->cache.npaths;
 
     SGNVGcall*         call = NULL;
     SGNVGattribute*    quad = NULL;
@@ -4309,9 +4212,9 @@ void nvgFill(NVGcontext* ctx)
     sgnvg__addCall(ctx, call);
 
     // Count triangles
-    for (i = 0; i < ctx->cache->npaths; i++)
+    for (i = 0; i < ctx->cache.npaths; i++)
     {
-        path                = &ctx->cache->paths[i];
+        path                = &ctx->cache.paths[i];
         ctx->fillTriCount  += path->nfill - 2;
         ctx->fillTriCount  += path->nstroke - 2;
         ctx->drawCallCount += 2;
@@ -4320,10 +4223,11 @@ void nvgFill(NVGcontext* ctx)
 
 void nvgStroke(NVGcontext* ctx)
 {
-    NVGstate* state       = &ctx->state;
-    float     scale       = nvg__getAverageScale(state->xform);
-    float     strokeWidth = nvg__clampf(state->strokeWidth * scale, 0.0f, 200.0f);
-    NVGpaint  paint       = state->paint;
+    NVGstate* state             = &ctx->state;
+    float     scale             = nvg__getAverageScale(state->xform);
+    float     strokeWidth       = nvg__clampf(state->strokeWidth * scale, 0.0f, 200.0f);
+    NVGpaint  paint             = state->paint;
+    float     expandFringeWidth = 0;
     int       i;
 
     if (strokeWidth < ctx->fringeWidth)
@@ -4339,21 +4243,14 @@ void nvgStroke(NVGcontext* ctx)
     nvg__flattenPaths(ctx);
 
     if (ctx->edgeAntiAlias && state->shapeAntiAlias)
-        nvg__expandStroke(
-            ctx,
-            strokeWidth * 0.5f,
-            ctx->fringeWidth,
-            state->lineCap,
-            state->lineJoin,
-            state->miterLimit);
-    else
-        nvg__expandStroke(ctx, strokeWidth * 0.5f, 0.0f, state->lineCap, state->lineJoin, state->miterLimit);
+        expandFringeWidth = ctx->fringeWidth;
+    nvg__expandStroke(ctx, strokeWidth * 0.5f, expandFringeWidth, state->lineCap, state->lineJoin, state->miterLimit);
 
     NVGcompositeOperationState compositeOperation = state->compositeOperation;
     NVGscissor*                scissor            = &state->scissor;
     float                      fringe             = ctx->fringeWidth;
-    const NVGpath*             paths              = ctx->cache->paths;
-    int                        npaths             = ctx->cache->npaths;
+    const NVGpath*             paths              = ctx->cache.paths;
+    int                        npaths             = ctx->cache.npaths;
 
     SGNVGcall*         call  = NULL;
     SGNVGfragUniforms* frags = NULL;
@@ -4430,9 +4327,9 @@ void nvgStroke(NVGcontext* ctx)
     sgnvg__addCall(ctx, call);
 
     // Count triangles
-    for (i = 0; i < ctx->cache->npaths; i++)
+    for (i = 0; i < ctx->cache.npaths; i++)
     {
-        const NVGpath* path  = &ctx->cache->paths[i];
+        const NVGpath* path  = &ctx->cache.paths[i];
         ctx->strokeTriCount += path->nstroke - 2;
         ctx->drawCallCount++;
     }
@@ -4628,9 +4525,20 @@ NVGcontext* nvgCreateContext(int flags)
         goto error;
     ctx->ccommands = NVG_INIT_COMMANDS_SIZE;
 
-    ctx->cache = nvg__allocPathCache();
-    if (ctx->cache == NULL)
+    ctx->cache.points = (NVGpoint*)SGNVG_MALLOC(sizeof(NVGpoint) * NVG_INIT_POINTS_SIZE);
+    if (!ctx->cache.points)
         goto error;
+    ctx->cache.cpoints = NVG_INIT_POINTS_SIZE;
+
+    ctx->cache.paths = (NVGpath*)SGNVG_MALLOC(sizeof(NVGpath) * NVG_INIT_PATHS_SIZE);
+    if (!ctx->cache.paths)
+        goto error;
+    ctx->cache.cpaths = NVG_INIT_PATHS_SIZE;
+
+    ctx->cache.verts = (NVGvertex*)SGNVG_MALLOC(sizeof(NVGvertex) * NVG_INIT_VERTS_SIZE);
+    if (!ctx->cache.verts)
+        goto error;
+    ctx->cache.cverts = NVG_INIT_VERTS_SIZE;
 
     // Init font rendering
     memset(&fontParams, 0, sizeof(fontParams));
@@ -4661,8 +4569,12 @@ void nvgDestroyContext(NVGcontext* ctx)
         return;
     if (ctx->commands != NULL)
         SGNVG_FREE(ctx->commands);
-    if (ctx->cache != NULL)
-        nvg__deletePathCache(ctx->cache);
+    if (ctx->cache.points != NULL)
+        SGNVG_FREE(ctx->cache.points);
+    if (ctx->cache.paths != NULL)
+        SGNVG_FREE(ctx->cache.paths);
+    if (ctx->cache.verts != NULL)
+        SGNVG_FREE(ctx->cache.verts);
 
     if (ctx->fs)
         fonsDeleteInternal(ctx->fs);
