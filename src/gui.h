@@ -41,14 +41,6 @@ typedef struct LayoutMetrics
     float    knob_radius;
 } LayoutMetrics;
 
-typedef struct RenderTarget
-{
-    sg_image       img_colour;
-    sg_attachments attachment;
-    int            width;
-    int            height;
-} RenderTarget;
-
 typedef struct GUI
 {
     LinkedArena* arena;
@@ -86,7 +78,7 @@ typedef struct GUI
     uint64_t gui_create_time;
     uint64_t last_resize_time;
 
-    RenderTarget render_target_test;
+    SGNVGrenderTarget render_target_test;
 } GUI;
 
 // Nanovg helpers

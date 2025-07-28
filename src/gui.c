@@ -166,37 +166,6 @@ sg_image sg_make_image_with_mipmaps(const sg_image_desc* desc_)
     return img;
 }
 
-RenderTarget make_render_target(int width, int height)
-{
-    RenderTarget rt = {0};
-
-    sg_image img_colour = sg_make_image(&(sg_image_desc){
-        .usage.render_attachment = true,
-        .width                   = width,
-        .height                  = height,
-        .pixel_format            = SG_PIXELFORMAT_BGRA8,
-        .sample_count            = 1,
-        .label                   = "render target colour image"});
-
-    sg_image img_depth = sg_make_image(&(sg_image_desc){
-        .usage.render_attachment = true,
-        .width                   = width,
-        .height                  = height,
-        .pixel_format            = SG_PIXELFORMAT_DEPTH_STENCIL,
-        .sample_count            = 1,
-        .label                   = "render target depth image"});
-
-    rt.img_colour = img_colour;
-    rt.attachment = sg_make_attachments(&(sg_attachments_desc){
-        .colors[0].image     = rt.img_colour,
-        .depth_stencil.image = img_depth,
-        .label               = "render target attachment"});
-    rt.width      = width;
-    rt.height     = height;
-
-    return rt;
-}
-
 void* pw_create_gui(void* _plugin, void* _pw)
 {
     CPLUG_LOG_ASSERT(_plugin);
@@ -372,7 +341,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     ted_init(&gui->texteditor);
 
-    gui->render_target_test = make_render_target(200, 200);
+    gui->render_target_test = snvgCreateRenderTarget(gui->nvg, 200, 200);
 
     gui->gui_create_time = gui->frame_end_time = xtime_now_ns();
 
@@ -394,6 +363,9 @@ void pw_destroy_gui(void* _gui)
     ted_deinit(&gui->texteditor);
 
     sg_set_global(gui->sg);
+
+    snvgDestroyRenderTarget(gui->nvg, &gui->render_target_test);
+
     nvgDestroyContext(gui->nvg);
     sg_shutdown(gui->sg);
 
@@ -1343,18 +1315,19 @@ void pw_tick(void* _gui)
         nvg,
         &(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}}},
-            .attachments = gui->render_target_test.attachment,
+            .attachments = gui->render_target_test.att,
             .label       = "render target test",
         },
         gui->render_target_test.width,
         gui->render_target_test.height);
     snvg_command_draw_nvg(nvg);
-    snvg_command_end_pass(nvg);
 
     nvgBeginPath(nvg);
     nvgRect(nvg, 20, 20, 40, 60);
     nvgSetColour(nvg, (NVGcolour){1, 0, 0, 1});
     nvgFill(nvg);
+
+    snvg_command_end_pass(nvg);
 
     snvg_command_begin_pass(
         gui->nvg,
@@ -2254,6 +2227,13 @@ void pw_tick(void* _gui)
             nvgSetTextAlign(nvg, NVG_ALIGN_BR);
             nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
         }
+    }
+
+    {
+        nvgBeginPath(nvg);
+        nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, 32, 32, 0, gui->render_target_test.img.id, 1));
+        nvgRect(nvg, 0, 0, 32, 32);
+        nvgFill(nvg);
     }
 
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
