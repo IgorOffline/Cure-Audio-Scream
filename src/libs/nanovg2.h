@@ -44,7 +44,7 @@
 // - Created 'command' list for supporting multiple render passes and custom shaders
 // - Merged with nanovg
 // - Create 'drity' flag for textures to only update them on new data
-// - Add snvgCreateRenderTarget() & snvgDestroyRenderTarget()
+// - Add snvgCreateFramebuffer() & snvgDestroyFramebuffer()
 
 #ifndef NANOVG_H
 #define NANOVG_H
@@ -315,14 +315,14 @@ typedef struct SGNVGtexture
     uint8_t*   imgData;
 } SGNVGtexture;
 
-typedef struct SGNVGrenderTarget
+typedef struct SGNVGframebuffer
 {
     sg_image       img;
     sg_image       depth;
     sg_attachments att;
     int            width;
     int            height;
-} SGNVGrenderTarget;
+} SGNVGframebuffer;
 
 typedef struct SGNVGblend
 {
@@ -1041,8 +1041,8 @@ int snvgCreateImageFromHandleSokol(
     int             h,
     int             flags);
 
-SGNVGrenderTarget snvgCreateRenderTarget(NVGcontext* ctx, int width, int height);
-void              snvgDestroyRenderTarget(NVGcontext* ctx, SGNVGrenderTarget* renderTarget);
+SGNVGframebuffer snvgCreateFramebuffer(NVGcontext* ctx, int width, int height);
+void              snvgDestroyFramebuffer(NVGcontext* ctx, SGNVGframebuffer* renderTarget);
 
 void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass*, int width, int height);
 void snvg_command_end_pass(NVGcontext* ctx);

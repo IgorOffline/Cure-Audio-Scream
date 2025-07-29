@@ -341,7 +341,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     ted_init(&gui->texteditor);
 
-    gui->render_target_test = snvgCreateRenderTarget(gui->nvg, 200, 200);
+    gui->framebuffer_test = snvgCreateFramebuffer(gui->nvg, 200, 200);
 
     gui->gui_create_time = gui->frame_end_time = xtime_now_ns();
 
@@ -364,7 +364,7 @@ void pw_destroy_gui(void* _gui)
 
     sg_set_global(gui->sg);
 
-    snvgDestroyRenderTarget(gui->nvg, &gui->render_target_test);
+    snvgDestroyFramebuffer(gui->nvg, &gui->framebuffer_test);
 
     nvgDestroyContext(gui->nvg);
     sg_shutdown(gui->sg);
@@ -1315,11 +1315,11 @@ void pw_tick(void* _gui)
         nvg,
         &(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}}},
-            .attachments = gui->render_target_test.att,
+            .attachments = gui->framebuffer_test.att,
             .label       = "render target test",
         },
-        gui->render_target_test.width,
-        gui->render_target_test.height);
+        gui->framebuffer_test.width,
+        gui->framebuffer_test.height);
     snvg_command_draw_nvg(nvg);
 
     nvgBeginPath(nvg);
@@ -2231,7 +2231,7 @@ void pw_tick(void* _gui)
 
     {
         nvgBeginPath(nvg);
-        nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, 32, 32, 0, gui->render_target_test.img.id, 1));
+        nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, 32, 32, 0, gui->framebuffer_test.img.id, 1));
         nvgRect(nvg, 0, 0, 32, 32);
         nvgFill(nvg);
     }

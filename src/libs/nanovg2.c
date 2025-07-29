@@ -4380,9 +4380,9 @@ int snvgCreateImageFromHandleSokol(
     return tex->img.id;
 }
 
-SGNVGrenderTarget snvgCreateRenderTarget(NVGcontext* ctx, int width, int height)
+SGNVGframebuffer snvgCreateFramebuffer(NVGcontext* ctx, int width, int height)
 {
-    SGNVGrenderTarget rt = {0};
+    SGNVGframebuffer rt = {0};
 
     sg_image img_colour = sg_make_image(&(sg_image_desc){
         .usage.render_attachment = true,
@@ -4390,7 +4390,7 @@ SGNVGrenderTarget snvgCreateRenderTarget(NVGcontext* ctx, int width, int height)
         .height                  = height,
         .pixel_format            = SG_PIXELFORMAT_BGRA8,
         .sample_count            = 1,
-        .label                   = "SGNVGrenderTarget colour image"});
+        .label                   = "SGNVGframebuffer colour image"});
 
     sg_image img_depth = sg_make_image(&(sg_image_desc){
         .usage.render_attachment = true,
@@ -4398,14 +4398,14 @@ SGNVGrenderTarget snvgCreateRenderTarget(NVGcontext* ctx, int width, int height)
         .height                  = height,
         .pixel_format            = SG_PIXELFORMAT_DEPTH_STENCIL,
         .sample_count            = 1,
-        .label                   = "SGNVGrenderTarget depth image"});
+        .label                   = "SGNVGframebuffer depth image"});
 
     rt.img    = img_colour;
     rt.depth  = img_depth;
     rt.att    = sg_make_attachments(&(sg_attachments_desc){
            .colors[0].image     = rt.img,
            .depth_stencil.image = img_depth,
-           .label               = "SGNVGrenderTarget attachment"});
+           .label               = "SGNVGframebuffer attachment"});
     rt.width  = width;
     rt.height = height;
 
@@ -4414,7 +4414,7 @@ SGNVGrenderTarget snvgCreateRenderTarget(NVGcontext* ctx, int width, int height)
     return rt;
 }
 
-void snvgDestroyRenderTarget(NVGcontext* ctx, SGNVGrenderTarget* rt)
+void snvgDestroyFramebuffer(NVGcontext* ctx, SGNVGframebuffer* rt)
 {
     nvgDeleteImage(ctx, rt->img.id);
     sg_destroy_image(rt->depth);
