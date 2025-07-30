@@ -4104,7 +4104,7 @@ void nvgFill(NVGcontext* ctx)
     if (ctx->current_nvg_draw == NULL)
         snvg_command_draw_nvg(ctx);
 
-    call = linked_arena_alloc(ctx->frame_arena, sizeof(*call));
+    call = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*call));
 
     if (call == NULL)
         return;
