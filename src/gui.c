@@ -246,7 +246,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
             .usage.vertex_buffer = true,
             .usage.stream_update = true,
             .size                = sizeof(vertex_t) * 4 * 3,
-            .label               = "knob-vertices"});
+            .label               = DBGTXT(knob vertices)});
 
         // clang-format off
         static const uint16_t KNOB_INDICES[] = {
@@ -262,7 +262,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
             .usage.immutable    = true,
             .data               = SG_RANGE(KNOB_INDICES),
             .size               = sizeof(KNOB_INDICES),
-            .label              = "knob-indices"});
+            .label              = DBGTXT(knob indices)});
 
         sg_shader shd = sg_make_shader(knob_shader_desc(sg_query_backend()));
         gui->knob_pip = sg_make_pipeline(&(sg_pipeline_desc){
@@ -282,7 +282,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
                          .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
                          .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
                      }},
-            .label = "knob-pipeline"});
+            .label = DBGTXT(knob pipeline)});
     }
 
     // Logo shader
@@ -1318,7 +1318,7 @@ void pw_tick(void* _gui)
         &(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
             .attachments = gui->main_framebuffer.att,
-            .label       = "main_framebuffer",
+            .label       = DBGTXT(main_framebuffer),
         },
         gui->main_framebuffer.width,
         gui->main_framebuffer.height);
@@ -2171,7 +2171,7 @@ void pw_tick(void* _gui)
         &(sg_pass){
             .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
             .swapchain = gui->swapchain,
-            .label     = "swapchain / main",
+            .label     = DBGTXT(swapchain / main),
         },
         gui->layout.width,
         gui->layout.height);
