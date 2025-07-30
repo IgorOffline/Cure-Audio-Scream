@@ -1288,7 +1288,7 @@ void pw_tick(void* _gui)
         snvgDestroyFramebuffer(nvg, &gui->main_framebuffer);
         snvgDestroyImageFX(nvg, gui->main_framebuffer_fx);
         gui->main_framebuffer    = snvgCreateFramebuffer(nvg, lm->width, lm->height);
-        gui->main_framebuffer_fx = snvgCreateImageFX(nvg, lm->width, lm->height, 4);
+        gui->main_framebuffer_fx = snvgCreateImageFX(nvg, lm->width, lm->height, 64);
     }
 
     // Note: The 'id<CAMetalDrawable>' pointer can change every frame.
@@ -2150,16 +2150,16 @@ void pw_tick(void* _gui)
     static float apply_lightfilter   = 0;
     static float apply_bloom         = 0;
     static float lightness_threshold = 0.86;
+    static float blur_radius_px      = 2;
     static float bloom_amount        = 1;
-    static float num_stages          = 2;
 
     snvg_command_fx(
         nvg,
         apply_lightfilter > 0.5,
         apply_bloom > 0.5,
         lightness_threshold,
+        blur_radius_px,
         bloom_amount,
-        (int)num_stages,
         &gui->main_framebuffer,
         gui->main_framebuffer_fx);
 
@@ -2193,10 +2193,10 @@ void pw_tick(void* _gui)
         im_slider(nvg, im, rect, &lightness_threshold, 0, 1, "%.2f", "Filter threshold");
         rect.b += offset;
         rect.y += offset;
-        im_slider(nvg, im, rect, &bloom_amount, 0, 1, "%.2f", "Bloom amount");
+        im_slider(nvg, im, rect, &blur_radius_px, 0, gui->main_framebuffer_fx->max_radius_px, "%.2fpx", "Blur Radius");
         rect.b += offset;
         rect.y += offset;
-        im_slider(nvg, im, rect, &num_stages, 1, gui->main_framebuffer_fx->max_mip_levels, "%.2f", "Blur stages");
+        im_slider(nvg, im, rect, &bloom_amount, 0, 1, "%.2f", "Bloom amount");
         rect.b += offset;
         rect.y += offset;
     }

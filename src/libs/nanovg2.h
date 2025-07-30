@@ -326,9 +326,11 @@ typedef struct SGNVGframebuffer
 
 typedef struct SGNVGimageFX
 {
-    SGNVGframebuffer resolve;
-    int              max_mip_levels;
-    SGNVGframebuffer mip_levels[];
+    SGNVGframebuffer  resolve;
+    float             max_radius_px;
+    int               max_mip_levels;
+    SGNVGframebuffer* mip_levels;
+    SGNVGframebuffer* interp_levels;
 } SGNVGimageFX;
 
 typedef struct SGNVGblend
@@ -463,15 +465,12 @@ typedef struct SGNVGcommandNVG
 typedef struct SGNVGcommandImageFX
 {
     // These are probably redundant and could be implied by the above params being > 0
-    bool apply_lightfilter;
+    bool apply_lightness_filter;
     bool apply_bloom;
 
     float lightness_threshold;
+    float radius_px;
     float bloom_amount;
-
-    // Num downsampling stages.
-    // TODO: replace this with blur radius in px and dynamically calculate the number of downsample stages at runtime
-    int num_stages;
 
     SGNVGframebuffer* src;
     SGNVGimageFX*     fx;
@@ -551,6 +550,7 @@ typedef struct NVGcontext
     sg_pipeline pip_lightness_filter;
     sg_pipeline pip_downsample;
     sg_pipeline pip_upsample;
+    sg_pipeline pip_upsample_mix;
     sg_pipeline pip_bloom;
 
     // Per frame buffers
@@ -1080,19 +1080,22 @@ int snvgCreateImageFromHandleSokol(NVGcontext* ctx, sg_image imageSokol, enum NV
 SGNVGframebuffer snvgCreateFramebuffer(NVGcontext* ctx, int width, int height);
 void             snvgDestroyFramebuffer(NVGcontext* ctx, SGNVGframebuffer* renderTarget);
 
-SGNVGimageFX* snvgCreateImageFX(NVGcontext* ctx, int width, int height, int max_mip_levels);
+// If you pass a blur radius less than a power of two, it will be rounded up to a power of two
+SGNVGimageFX* snvgCreateImageFX(NVGcontext* ctx, int width, int height, int max_blur_radius);
 void          snvgDestroyImageFX(NVGcontext* ctx, SGNVGimageFX* fx);
 
 void snvg_command_begin_pass(NVGcontext* ctx, const sg_pass*, int width, int height);
 void snvg_command_end_pass(NVGcontext* ctx);
 void snvg_command_draw_nvg(NVGcontext* ctx);
+// 'radius_px' can be animated each frame. For best performance, finish your animations with radius at a power of 2,
+// and a minimum of 8px
 void snvg_command_fx(
     NVGcontext*       ctx,
-    bool              apply_lightfilter,
+    bool              apply_lightness_filter,
     bool              apply_bloom,
     float             lightness_threshold,
+    float             radius_px,
     float             bloom_amount,
-    int               num_stages,
     SGNVGframebuffer* src,
     SGNVGimageFX*     fx);
 void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func);

@@ -284,6 +284,8 @@ static float nvg__cosf(float a) { return cosf(a); }
 static float nvg__tanf(float a) { return tanf(a); }
 static float nvg__atan2f(float a, float b) { return atan2f(a, b); }
 static float nvg__acosf(float a) { return acosf(a); }
+static float nvg__log2f(float a) { return log2f(a); }
+static float nvg__ceilf(float a) { return ceilf(a); }
 
 static int   nvg__mini(int a, int b) { return a < b ? a : b; }
 static int   nvg__maxi(int a, int b) { return a > b ? a : b; }
@@ -4438,15 +4440,23 @@ void snvgDestroyFramebuffer(NVGcontext* ctx, SGNVGframebuffer* rt)
     }
 }
 
-SGNVGimageFX* snvgCreateImageFX(NVGcontext* ctx, int width, int height, int max_mip_levels)
+SGNVGimageFX* snvgCreateImageFX(NVGcontext* ctx, int width, int height, int max_blur_radius)
 {
+    NVG_ASSERT(max_blur_radius >= 2);
+    int max_mip_levels = (int)nvg__ceilf(nvg__log2f(max_blur_radius));
+    max_mip_levels     = nvg__maxi(max_mip_levels, 2);
+
     size_t base_size      = sizeof(SGNVGimageFX);
     size_t miplevels_size = sizeof(SGNVGframebuffer) * max_mip_levels;
 
-    size_t alloc_size = base_size + miplevels_size;
+    size_t alloc_size = base_size + miplevels_size * 2;
 
-    SGNVGimageFX* fx = NVG_MALLOC(alloc_size);
-    memset(fx, 0, alloc_size);
+    unsigned char* ptr = NVG_MALLOC(alloc_size);
+    memset(ptr, 0, alloc_size);
+
+    SGNVGimageFX* fx  = (SGNVGimageFX*)ptr;
+    fx->mip_levels    = (SGNVGframebuffer*)(ptr + base_size);
+    fx->interp_levels = (SGNVGframebuffer*)(ptr + base_size + miplevels_size);
 
     fx->resolve = snvgCreateFramebuffer(ctx, width, height);
     for (int i = 0; i < max_mip_levels; i++)
@@ -4455,10 +4465,13 @@ SGNVGimageFX* snvgCreateImageFX(NVGcontext* ctx, int width, int height, int max_
         int h = height >> i;
         if (w && h)
         {
-            fx->mip_levels[i] = snvgCreateFramebuffer(ctx, w, h);
+            fx->mip_levels[i]    = snvgCreateFramebuffer(ctx, w, h);
+            fx->interp_levels[i] = snvgCreateFramebuffer(ctx, w, h);
             fx->max_mip_levels++;
         }
     }
+
+    fx->max_radius_px = 1 << fx->max_mip_levels;
 
     return fx;
 }
@@ -4471,11 +4484,12 @@ void snvgDestroyImageFX(NVGcontext* ctx, SGNVGimageFX* fx)
     for (int i = 0; i < fx->max_mip_levels; i++)
     {
         snvgDestroyFramebuffer(ctx, &fx->mip_levels[i]);
+        snvgDestroyFramebuffer(ctx, &fx->interp_levels[i]);
     }
     NVG_FREE(fx);
 }
 
-void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* state)
+void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
 {
     // Based off of Dual filter blur. Marius Bjorge - Bandwith-Efficient Rendering, Siggraph 2015
     // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf
@@ -4493,43 +4507,57 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* state)
     // quality results and/or performance. Here we filter seperately, but feel free to copy paste the code and design
     // your own
 
-    // TODO: linearly interpolate between mip maps based off of a log2 distance
-    // float radius_stages = log2(radius_px);
-    // float radius_remainder = radius_stages - (int)radius_stages;
-    // int num_stages = cielf(radius_stages);
-    // ...
-    // lerp(radius_remainder, img_stage_lo, img_stage_hi)
+    const SGNVGframebuffer* src = cmd->src;
+    const SGNVGimageFX*     fx  = cmd->fx;
 
+    const SGNVGframebuffer* a = NULL;
+    const SGNVGframebuffer* b = NULL;
+
+    if (cmd->apply_lightness_filter == false && cmd->apply_bloom == false && cmd->radius_px == 0)
+        return;
+
+    NVG_ASSERT(cmd->radius_px <= fx->max_radius_px);
+    float fstages = cmd->radius_px > 0 ? (nvg__log2f(cmd->radius_px) - 1) : 0;
+    int   istages = (int)nvg__ceilf(fstages);
+
+    float blur_interp_amount = fstages - (int)fstages;
+
+    if (cmd->radius_px > 0 && cmd->radius_px < 8)
+    {
+        istages            = 2;
+        blur_interp_amount = cmd->radius_px / 8.0f;
+    }
+
+    // Lightness filter
     sg_begin_pass(&(sg_pass){
         .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-        .attachments = state->fx->mip_levels[0].att,
+        .attachments = fx->mip_levels[0].att,
     });
-    if (state->apply_lightfilter)
+    if (cmd->apply_lightness_filter)
         sg_apply_pipeline(ctx->pip_lightness_filter);
     else
         sg_apply_pipeline(ctx->pip_texread);
 
     sg_apply_bindings(&(sg_bindings){
-        .images[0]   = state->src->img,
+        .images[0]   = src->img,
         .samplers[0] = ctx->sampler_nearest,
     });
-    if (state->apply_lightfilter)
+    if (cmd->apply_lightness_filter)
     {
-        fs_lightfilter_t lightfilter_uniforms = {.u_threshold = state->lightness_threshold};
+        fs_lightfilter_t lightfilter_uniforms = {.u_threshold = cmd->lightness_threshold};
         sg_apply_uniforms(UB_fs_lightfilter, &SG_RANGE(lightfilter_uniforms));
     }
     sg_draw(0, 3, 1);
     sg_end_pass();
 
-    const int num_stages = state->num_stages;
-    xassert(state->num_stages <= state->fx->max_mip_levels);
-    for (int i = 0; i < num_stages - 1; i++)
+    // Downsample
+    for (int i = 0; i < istages - 1; i++)
     {
-        SGNVGframebuffer* a = state->fx->mip_levels + i;
-        SGNVGframebuffer* b = state->fx->mip_levels + i + 1;
+        a = fx->mip_levels + i;
+        b = fx->mip_levels + i + 1;
 
         sg_begin_pass(&(sg_pass){
-            .action = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
+            .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
             .attachments = b->att,
         });
         sg_apply_pipeline(ctx->pip_downsample);
@@ -4538,54 +4566,109 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* state)
             .samplers[0] = ctx->sampler_linear,
         });
         // More numerically stable than 1.0f / a->width
-        double          halfpixel_x = 0.5 / b->width;
-        double          halfpixel_y = 0.5 / b->height;
-        fs_downsample_t uniforms    = {.u_offset = {halfpixel_x, halfpixel_y}};
+        float halfpixel_x = 0.5f / b->width;
+        float halfpixel_y = 0.5f / b->height;
+
+        fs_downsample_t uniforms = {
+            .u_offset = {halfpixel_x, halfpixel_y},
+        };
         sg_apply_uniforms(UB_fs_downsample, &SG_RANGE(uniforms));
         sg_draw(0, 3, 1);
         sg_end_pass();
     }
 
-    for (int i = num_stages - 2; i >= 0; i--)
+    // Upsample
+    for (int i = istages - 2; i >= 0; i--)
     {
-        SGNVGframebuffer* a = state->fx->mip_levels + i + 1;
-        SGNVGframebuffer* b = state->fx->mip_levels + i;
+        a = fx->mip_levels + i + 1;
+        b = fx->mip_levels + i;
 
-        sg_begin_pass(&(sg_pass){
-            .action      = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}}},
-            .attachments = b->att,
-        });
-        sg_apply_pipeline(ctx->pip_upsample);
-        sg_apply_bindings(&(sg_bindings){
-            .images[0]   = a->img,
-            .samplers[0] = ctx->sampler_linear,
-        });
-        float           halfpixel_x = 0.5f / a->width;
-        float           halfpixel_y = 0.5f / a->height;
-        fs_downsample_t uniforms    = {.u_offset = {halfpixel_x, halfpixel_y}};
-        sg_apply_uniforms(UB_fs_downsample, &SG_RANGE(uniforms));
+        // AFAIK DX11 doesn't support reading the pixel/texel of the framebuffer you write to in a pixel/frag shader
+        // This requires an Unordered Access View (UAV), which is only supported in compute shaders
+        // To circumvent this problem, we write to a spare framebuffer
+        // TODO: rewrite all of this as compute shaders and remove the spare framebuffers
+
+        const bool is_first_upsample_pass  = i == istages - 2;
+        const bool is_second_upsample_pass = i == istages - 3;
+        const bool should_mix              = blur_interp_amount > 0 && blur_interp_amount < 1;
+
+        if (is_first_upsample_pass && should_mix)
+        {
+            const SGNVGframebuffer* c = fx->interp_levels + i;
+
+            sg_begin_pass(&(sg_pass){
+                .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
+                .attachments = c->att,
+            });
+            sg_apply_pipeline(ctx->pip_upsample_mix);
+            sg_apply_bindings(&(sg_bindings){
+                .images[0]   = a->img,
+                .samplers[0] = ctx->sampler_linear,
+
+                .images[1]   = b->img,
+                .samplers[1] = ctx->sampler_nearest,
+            });
+
+            float halfpixel_x = 0.5f / a->width;
+            float halfpixel_y = 0.5f / a->height;
+
+            fs_upsample_mix_t uniforms = {
+                .u_offset = {halfpixel_x, halfpixel_y},
+                .u_amount = blur_interp_amount,
+            };
+            sg_apply_uniforms(UB_fs_upsample_mix, &SG_RANGE(uniforms));
+
+            b = c;
+        }
+        else
+        {
+            if (is_second_upsample_pass && should_mix)
+            {
+                a = fx->interp_levels + i + 1;
+            }
+            sg_begin_pass(&(sg_pass){
+                .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
+                .attachments = b->att,
+            });
+            sg_apply_pipeline(ctx->pip_upsample);
+            sg_apply_bindings(&(sg_bindings){
+                .images[0]   = a->img,
+                .samplers[0] = ctx->sampler_linear,
+            });
+
+            float halfpixel_x = 0.5f / a->width;
+            float halfpixel_y = 0.5f / a->height;
+
+            fs_upsample_t uniforms = {
+                .u_offset = {halfpixel_x, halfpixel_y},
+            };
+            sg_apply_uniforms(UB_fs_upsample, &SG_RANGE(uniforms));
+        }
+
         sg_draw(0, 3, 1);
         sg_end_pass();
     }
 
     // Draw resolve image
-    sg_begin_pass(&(sg_pass){
-        .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-        .attachments = state->fx->resolve.att});
+    sg_begin_pass(
+        &(sg_pass){.action = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}}, .attachments = fx->resolve.att});
 
-    if (state->apply_bloom)
+    if (cmd->apply_bloom)
         sg_apply_pipeline(ctx->pip_bloom);
     else // blur
         sg_apply_pipeline(ctx->pip_texread);
 
+    if (b == NULL)
+        b = fx->mip_levels;
+
     sg_apply_bindings(&(sg_bindings){
-        .images[0]   = state->fx->mip_levels[0].img,
-        .images[1]   = state->src->img,
+        .images[0]   = b->img,
+        .images[1]   = src->img,
         .samplers[0] = ctx->sampler_nearest,
     });
-    if (state->apply_bloom)
+    if (cmd->apply_bloom)
     {
-        fs_bloom_t bloom_uniforms = {.u_amount = state->bloom_amount};
+        fs_bloom_t bloom_uniforms = {.u_amount = cmd->bloom_amount};
         sg_apply_uniforms(UB_fs_bloom, &SG_RANGE(bloom_uniforms));
     }
     sg_draw(0, 3, 1);
@@ -4624,11 +4707,11 @@ void snvg_command_draw_nvg(NVGcontext* ctx)
 
 void snvg_command_fx(
     NVGcontext*       ctx,
-    bool              apply_lightfilter,
+    bool              apply_lightness_filter,
     bool              apply_bloom,
     float             lightness_threshold,
+    float             radius_px,
     float             bloom_amount,
-    int               num_stages,
     SGNVGframebuffer* src,
     SGNVGimageFX*     fx)
 {
@@ -4638,9 +4721,9 @@ void snvg_command_fx(
     ctx->current_call     = NULL;
     ctx->current_nvg_draw = NULL;
 
-    NVG_ASSERT(num_stages <= fx->max_mip_levels); // Oops!
-    if (num_stages > fx->max_mip_levels)
-        num_stages = fx->max_mip_levels;
+    NVG_ASSERT(radius_px <= fx->max_radius_px); // Oops!
+    if (radius_px > fx->max_radius_px)
+        radius_px = fx->max_radius_px;
 
     SGNVGcommand*        cmd   = sgnvg__allocCommand(ctx);
     SGNVGcommandImageFX* cmdfx = linked_arena_alloc_clear(ctx->frame_arena, sizeof(*cmdfx));
@@ -4648,13 +4731,13 @@ void snvg_command_fx(
     cmd->type       = SGNVG_CMD_IMAGE_FX;
     cmd->payload.fx = cmdfx;
 
-    cmdfx->apply_lightfilter   = apply_lightfilter;
-    cmdfx->apply_bloom         = apply_bloom;
-    cmdfx->lightness_threshold = lightness_threshold;
-    cmdfx->bloom_amount        = bloom_amount;
-    cmdfx->num_stages          = num_stages;
-    cmdfx->src                 = src;
-    cmdfx->fx                  = fx;
+    cmdfx->apply_lightness_filter = apply_lightness_filter;
+    cmdfx->apply_bloom            = apply_bloom;
+    cmdfx->lightness_threshold    = lightness_threshold;
+    cmdfx->bloom_amount           = bloom_amount;
+    cmdfx->radius_px              = radius_px;
+    cmdfx->src                    = src;
+    cmdfx->fx                     = fx;
 }
 
 void snvg_command_custom(NVGcontext* ctx, void* uptr, SGNVGcustomFunc func)
@@ -4721,6 +4804,10 @@ NVGcontext* nvgCreateContext(int flags)
 
     ctx->pip_upsample = sg_make_pipeline(&(sg_pipeline_desc){
         .shader                 = sg_make_shader(upsample_shader_desc(sg_query_backend())),
+        .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
+
+    ctx->pip_upsample_mix = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader                 = sg_make_shader(upsample_mix_shader_desc(sg_query_backend())),
         .colors[0].pixel_format = SG_PIXELFORMAT_BGRA8});
 
     ctx->pip_bloom = sg_make_pipeline(&(sg_pipeline_desc){

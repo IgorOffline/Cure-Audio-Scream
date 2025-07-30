@@ -79,18 +79,15 @@ layout(binding=0) uniform fs_downsample {
     vec2 u_offset;
 };
 
-vec4 downsample(vec2 uv, vec2 halfpixel)
-{
-    vec4 sum = texture(sampler2D(tex, smp), uv) * 4.0;
-    sum += texture(sampler2D(tex, smp), uv - halfpixel.xy);
-    sum += texture(sampler2D(tex, smp), uv + halfpixel.xy);
-    sum += texture(sampler2D(tex, smp), uv + vec2(halfpixel.x, -halfpixel.y));
-    sum += texture(sampler2D(tex, smp), uv - vec2(halfpixel.x, -halfpixel.y));
-    return sum / 8.0;
-}
-
 void main() {
-    frag_colour = downsample(uv, u_offset);
+    // Downsample
+    vec4 sum = texture(sampler2D(tex, smp), uv) * 4.0;
+    sum += texture(sampler2D(tex, smp), uv - u_offset.xy);
+    sum += texture(sampler2D(tex, smp), uv + u_offset.xy);
+    sum += texture(sampler2D(tex, smp), uv + vec2(u_offset.x, -u_offset.y));
+    sum += texture(sampler2D(tex, smp), uv - vec2(u_offset.x, -u_offset.y));
+    sum /= 8.0;
+    frag_colour = sum;
 }
 @end
 
@@ -100,25 +97,53 @@ out vec4 frag_colour;
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 layout(binding=0) uniform fs_upsample {
-    vec2 u_halfpixel;
+    vec2 u_offset;
 };
 
-vec4 upsample(vec2 uv, vec2 halfpixel)
-{
-    vec4 sum = texture(sampler2D(tex, smp), uv + vec2(-halfpixel.x * 2.0, 0.0));
-    sum += texture(sampler2D(tex, smp), uv + vec2(-halfpixel.x, halfpixel.y)) * 2.0;
-    sum += texture(sampler2D(tex, smp), uv + vec2(0.0, halfpixel.y * 2.0));
-    sum += texture(sampler2D(tex, smp), uv + vec2(halfpixel.x, halfpixel.y)) * 2.0;
-    sum += texture(sampler2D(tex, smp), uv + vec2(halfpixel.x * 2.0, 0.0));
-    sum += texture(sampler2D(tex, smp), uv + vec2(halfpixel.x, -halfpixel.y)) * 2.0;
-    sum += texture(sampler2D(tex, smp), uv + vec2(0.0, -halfpixel.y * 2.0));
-    sum += texture(sampler2D(tex, smp), uv + vec2(-halfpixel.x, -halfpixel.y)) * 2.0;
-    return sum / 12.0;
+void main() {
+    // Upsample
+    vec4 sum = texture(sampler2D(tex, smp), uv + vec2(-u_offset.x * 2.0, 0.0));
+    sum += texture(sampler2D(tex, smp), uv + vec2(-u_offset.x, u_offset.y)) * 2.0;
+    sum += texture(sampler2D(tex, smp), uv + vec2(0.0, u_offset.y * 2.0));
+    sum += texture(sampler2D(tex, smp), uv + vec2(u_offset.x, u_offset.y)) * 2.0;
+    sum += texture(sampler2D(tex, smp), uv + vec2(u_offset.x * 2.0, 0.0));
+    sum += texture(sampler2D(tex, smp), uv + vec2(u_offset.x, -u_offset.y)) * 2.0;
+    sum += texture(sampler2D(tex, smp), uv + vec2(0.0, -u_offset.y * 2.0));
+    sum += texture(sampler2D(tex, smp), uv + vec2(-u_offset.x, -u_offset.y)) * 2.0;
+    sum /= 12.0;
+
+    frag_colour = sum;
 }
+@end
+
+@fs upsample_mix_fs
+in vec2 uv;
+out vec4 frag_colour;
+layout(binding=0) uniform texture2D tex_wet;
+layout(binding=0) uniform sampler smp_wet;
+layout(binding=1) uniform texture2D tex_dry;
+layout(binding=1) uniform sampler smp_dry;
+layout(binding=0) uniform fs_upsample_mix {
+    vec2 u_offset;
+    float u_amount;
+};
 
 void main() {
-    frag_colour = upsample(uv, u_halfpixel);
-}
+    vec4 dry = texture(sampler2D(tex_dry, smp_dry), uv);
+
+    // Upsample
+    vec4 wet = texture(sampler2D(tex_wet, smp_wet), uv + vec2(-u_offset.x * 2.0, 0.0));
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(-u_offset.x, u_offset.y)) * 2.0;
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(0.0, u_offset.y * 2.0));
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(u_offset.x, u_offset.y)) * 2.0;
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(u_offset.x * 2.0, 0.0));
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(u_offset.x, -u_offset.y)) * 2.0;
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(0.0, -u_offset.y * 2.0));
+    wet += texture(sampler2D(tex_wet, smp_wet), uv + vec2(-u_offset.x, -u_offset.y)) * 2.0;
+    wet /= 12.0;
+
+    // Blend
+    frag_colour = mix(dry, wet, u_amount);}
 @end
 
 @fs bloom_fs
@@ -144,4 +169,5 @@ void main() {
 @program kawase_blur fullscreen_triangle_vs kawase_blur_fs
 @program downsample fullscreen_triangle_vs downsample_fs
 @program upsample fullscreen_triangle_vs upsample_fs
+@program upsample_mix fullscreen_triangle_vs upsample_mix_fs
 @program bloom fullscreen_triangle_vs bloom_fs
