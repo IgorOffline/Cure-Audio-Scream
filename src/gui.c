@@ -361,7 +361,6 @@ void pw_destroy_gui(void* _gui)
     sg_set_global(gui->sg);
 
     snvgDestroyFramebuffer(gui->nvg, &gui->main_framebuffer);
-    snvgDestroyImageFX(gui->nvg, gui->main_framebuffer_fx);
 
     nvgDestroyContext(gui->nvg);
     sg_shutdown(gui->sg);
@@ -429,6 +428,8 @@ bool pw_event(const PWEvent* event)
     if (!gui || !gui->plugin)
         return false;
 
+    imgui_send_event(&gui->imgui, event);
+
     if (event->type == PW_EVENT_RESIZE)
     {
         // Retain size info for when the GUI is destroyed / reopened
@@ -438,7 +439,6 @@ bool pw_event(const PWEvent* event)
 
         gui->last_resize_time = xtime_now_ns();
     }
-    imgui_send_event(&gui->imgui, event);
 
     if (gui->texteditor.active_param != -1)
     {
@@ -513,6 +513,26 @@ bool pw_event(const PWEvent* event)
         else if (event->type == PW_EVENT_KEY_FOCUS_LOST)
         {
             ted_deactivate(ted);
+        }
+    }
+
+    if (event->type == PW_EVENT_MOUSE_LEFT_DOWN)
+    {
+        if (imgui_hittest_rect((imgui_pt){event->mouse.x, event->mouse.y}, &gui->lfo_toggle_button))
+        {
+            LayoutMetrics* lm = &gui->layout;
+
+            gui->plugin->lfo_section_open = !gui->plugin->lfo_section_open;
+
+            int next_height    = lm->height;
+            int content_height = lm->content_b - lm->content_y;
+            if (gui->plugin->lfo_section_open)
+                next_height += content_height;
+            else
+                next_height -= content_height - lm->top_content_height;
+            xassert(next_height >= 0);
+
+            gui->plugin->cplug_ctx->requestResize(gui->plugin->cplug_ctx, lm->width, next_height);
         }
     }
 
@@ -1285,10 +1305,15 @@ void pw_tick(void* _gui)
             lm->knobs_pos[i].y = roundf(lm->content_y + lm->top_content_height * 0.5f);
         }
 
+        imgui_rect lfo_btn;
+        lfo_btn.x              = (lm->width / 2) - 20;
+        lfo_btn.y              = lm->top_content_bottom - 40;
+        lfo_btn.r              = lfo_btn.x + 40;
+        lfo_btn.b              = lm->top_content_bottom;
+        gui->lfo_toggle_button = lfo_btn;
+
         snvgDestroyFramebuffer(nvg, &gui->main_framebuffer);
-        snvgDestroyImageFX(nvg, gui->main_framebuffer_fx);
-        gui->main_framebuffer    = snvgCreateFramebuffer(nvg, lm->width, lm->height);
-        gui->main_framebuffer_fx = snvgCreateImageFX(nvg, lm->width, lm->height, 128);
+        gui->main_framebuffer = snvgCreateFramebuffer(nvg, lm->width, lm->height);
     }
 
     // Note: The 'id<CAMetalDrawable>' pointer can change every frame.
@@ -2121,24 +2146,13 @@ void pw_tick(void* _gui)
 #endif
     */
 
-    bool toggle_lfo_open = false;
-    {
-        imgui_rect lmao;
-        lmao.x = (lm->width / 2) - 20;
-        lmao.y = lm->top_content_bottom - 40;
-        lmao.r = lmao.x + 40;
-        lmao.b = lm->top_content_bottom;
-
-        unsigned events = imgui_get_events_rect(im, 'size', &lmao);
-
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            toggle_lfo_open = true;
-
-        nvgBeginPath(nvg);
-        nvgRect(nvg, lmao.x, lmao.y, lmao.r - lmao.x, lmao.b - lmao.y);
-        nvgSetColour(nvg, nvgHexColour(0xff0000ff));
-        nvgFill(nvg);
-    }
+    // LFO toggle button
+    imgui_rect rect = gui->lfo_toggle_button;
+    snvg_command_draw_nvg(nvg, DBGTXT(ayy lmao));
+    nvgBeginPath(nvg);
+    nvgRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y);
+    nvgSetColour(nvg, nvgHexColour(0xff0000ff));
+    nvgFill(nvg);
 
     if (gui->plugin->lfo_section_open)
     {
@@ -2146,25 +2160,6 @@ void pw_tick(void* _gui)
     }
 
     snvg_command_end_pass(nvg);
-
-    static BloomFilterParams bloom_params = {
-        .apply_lightness_filter = 0,
-        .apply_bloom            = 0,
-        .lightness_threshold    = 0.86,
-        .radius_px              = 16,
-        .bloom_amount           = 1,
-    };
-    bloom_params.fx = gui->main_framebuffer_fx;
-
-    snvg_command_fx(
-        nvg,
-        bloom_params.apply_lightness_filter > 0.5,
-        bloom_params.apply_bloom > 0.5,
-        bloom_params.lightness_threshold,
-        bloom_params.radius_px,
-        bloom_params.bloom_amount,
-        &gui->main_framebuffer,
-        gui->main_framebuffer_fx);
 
     snvg_command_begin_pass(
         gui->nvg,
@@ -2179,12 +2174,9 @@ void pw_tick(void* _gui)
 
     nvgBeginPath(nvg);
     nvgRect(nvg, 0, 0, lm->width, lm->height);
-    // int bgimg = gui->main_framebuffer.img.id;
-    int bgimg = gui->main_framebuffer_fx->resolve.img.id;
+    int bgimg = gui->main_framebuffer.img.id;
     nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, lm->width, lm->height, 0, bgimg, 1, nvg->sampler_nearest));
     nvgFill(nvg);
-
-    im_bloom_hud(nvg, im, &bloom_params);
 
     // Footer
     {
@@ -2266,21 +2258,6 @@ void pw_tick(void* _gui)
     sg_set_global(NULL);
 
     imgui_end_frame(&gui->imgui);
-
-    if (toggle_lfo_open)
-    {
-        gui->plugin->lfo_section_open = !gui->plugin->lfo_section_open;
-
-        int next_height    = lm->height;
-        int content_height = lm->content_b - lm->content_y;
-        if (gui->plugin->lfo_section_open)
-            next_height += content_height;
-        else
-            next_height -= content_height - lm->top_content_height;
-        xassert(next_height >= 0);
-
-        gui->plugin->cplug_ctx->requestResize(gui->plugin->cplug_ctx, lm->width, next_height);
-    }
 
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 }

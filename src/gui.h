@@ -57,6 +57,7 @@ typedef struct GUI
     struct imgui_context imgui;
 
     LayoutMetrics layout;
+    imgui_rect    lfo_toggle_button;
 
     float input_gain_peaks_slow[2];
     float input_gain_peaks_fast[2];
@@ -79,7 +80,6 @@ typedef struct GUI
     uint64_t last_resize_time;
 
     SGNVGframebuffer main_framebuffer;
-    SGNVGimageFX*    main_framebuffer_fx;
 } GUI;
 
 // Nanovg helpers
