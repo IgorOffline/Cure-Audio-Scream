@@ -1288,7 +1288,7 @@ void pw_tick(void* _gui)
         snvgDestroyFramebuffer(nvg, &gui->main_framebuffer);
         snvgDestroyImageFX(nvg, gui->main_framebuffer_fx);
         gui->main_framebuffer    = snvgCreateFramebuffer(nvg, lm->width, lm->height);
-        gui->main_framebuffer_fx = snvgCreateImageFX(nvg, lm->width, lm->height, 64);
+        gui->main_framebuffer_fx = snvgCreateImageFX(nvg, lm->width, lm->height, 128);
     }
 
     // Note: The 'id<CAMetalDrawable>' pointer can change every frame.

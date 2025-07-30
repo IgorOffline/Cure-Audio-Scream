@@ -4513,9 +4513,6 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
     const SGNVGframebuffer* a = NULL;
     const SGNVGframebuffer* b = NULL;
 
-    if (cmd->apply_lightness_filter == false && cmd->apply_bloom == false && cmd->radius_px == 0)
-        return;
-
     NVG_ASSERT(cmd->radius_px <= fx->max_radius_px);
     float fstages = cmd->radius_px > 0 ? (nvg__log2f(cmd->radius_px) - 1) : 0;
     int   istages = (int)nvg__ceilf(fstages);
@@ -4528,33 +4525,47 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
         blur_interp_amount = cmd->radius_px / 8.0f;
     }
 
-    // Lightness filter
-    sg_begin_pass(&(sg_pass){
-        .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-        .attachments = fx->mip_levels[0].att,
-    });
-    if (cmd->apply_lightness_filter)
-        sg_apply_pipeline(ctx->pip_lightness_filter);
-    else
-        sg_apply_pipeline(ctx->pip_texread);
+    if (cmd->apply_lightness_filter == false && cmd->apply_bloom == false && cmd->radius_px == 0)
+    {
+        b = src;
+        goto resolve;
+    }
 
-    sg_apply_bindings(&(sg_bindings){
-        .images[0]   = src->img,
-        .samplers[0] = ctx->sampler_nearest,
-    });
     if (cmd->apply_lightness_filter)
     {
-        fs_lightfilter_t lightfilter_uniforms = {.u_threshold = cmd->lightness_threshold};
-        sg_apply_uniforms(UB_fs_lightfilter, &SG_RANGE(lightfilter_uniforms));
+        sg_begin_pass(&(sg_pass){
+            .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
+            .attachments = fx->mip_levels[0].att,
+        });
+        if (cmd->apply_lightness_filter)
+            sg_apply_pipeline(ctx->pip_lightness_filter);
+        else
+            sg_apply_pipeline(ctx->pip_texread);
+
+        sg_apply_bindings(&(sg_bindings){
+            .images[0]   = src->img,
+            .samplers[0] = ctx->sampler_nearest,
+        });
+        if (cmd->apply_lightness_filter)
+        {
+            fs_lightfilter_t lightfilter_uniforms = {.u_threshold = cmd->lightness_threshold};
+            sg_apply_uniforms(UB_fs_lightfilter, &SG_RANGE(lightfilter_uniforms));
+        }
+        sg_draw(0, 3, 1);
+        sg_end_pass();
     }
-    sg_draw(0, 3, 1);
-    sg_end_pass();
 
     // Downsample
     for (int i = 0; i < istages - 1; i++)
     {
         a = fx->mip_levels + i;
         b = fx->mip_levels + i + 1;
+
+        const bool is_first_downsample_pass = i == 0;
+        const bool is_first_pass            = is_first_downsample_pass && cmd->apply_lightness_filter == false;
+
+        if (is_first_pass)
+            a = cmd->src;
 
         sg_begin_pass(&(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
@@ -4590,22 +4601,31 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
 
         const bool is_first_upsample_pass  = i == istages - 2;
         const bool is_second_upsample_pass = i == istages - 3;
+        const bool is_last_upsample_pass   = i == 0;
         const bool should_mix              = blur_interp_amount > 0 && blur_interp_amount < 1;
+
+        const bool is_second_pass = istages == 2 && cmd->apply_lightness_filter == false;
+        const bool is_last_pass   = is_last_upsample_pass && cmd->apply_bloom == false;
 
         if (is_first_upsample_pass && should_mix)
         {
-            const SGNVGframebuffer* c = fx->interp_levels + i;
-
+            // Mix 2 blur stages together
+            // In the case of only one downsampling/upsampling stage, one of the frambuffers may be the original image
+            const SGNVGframebuffer* target = fx->interp_levels + i;
+            if (is_last_pass)
+                target = &fx->resolve;
+            if (is_second_pass)
+                b = cmd->src;
             sg_begin_pass(&(sg_pass){
                 .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-                .attachments = c->att,
+                .attachments = target->att,
             });
             sg_apply_pipeline(ctx->pip_upsample_mix);
             sg_apply_bindings(&(sg_bindings){
-                .images[0]   = a->img,
+                .images[0]   = a->img, // wet
                 .samplers[0] = ctx->sampler_linear,
 
-                .images[1]   = b->img,
+                .images[1]   = b->img, // dry
                 .samplers[1] = ctx->sampler_nearest,
             });
 
@@ -4618,14 +4638,15 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
             };
             sg_apply_uniforms(UB_fs_upsample_mix, &SG_RANGE(uniforms));
 
-            b = c;
+            b = target;
         }
         else
         {
             if (is_second_upsample_pass && should_mix)
-            {
-                a = fx->interp_levels + i + 1;
-            }
+                a = fx->interp_levels + i + 1; // mixed framebuffer
+            if (is_last_pass)
+                b = &fx->resolve;
+
             sg_begin_pass(&(sg_pass){
                 .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
                 .attachments = b->att,
@@ -4647,8 +4668,17 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
 
         sg_draw(0, 3, 1);
         sg_end_pass();
+
+        if (is_last_pass)
+            return;
     }
 
+    if (cmd->apply_lightness_filter == false && cmd->radius_px == 0)
+        b = src;
+    if (cmd->apply_lightness_filter == true && cmd->radius_px == 0)
+        b = fx->mip_levels;
+
+resolve:
     // Draw resolve image
     sg_begin_pass(
         &(sg_pass){.action = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}}, .attachments = fx->resolve.att});
@@ -4658,9 +4688,7 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
     else // blur
         sg_apply_pipeline(ctx->pip_texread);
 
-    if (b == NULL)
-        b = fx->mip_levels;
-
+    NVG_ASSERT(b != NULL);
     sg_apply_bindings(&(sg_bindings){
         .images[0]   = b->img,
         .images[1]   = src->img,
