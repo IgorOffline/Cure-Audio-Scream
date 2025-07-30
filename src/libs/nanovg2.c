@@ -4507,11 +4507,11 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
     // quality results and/or performance. Here we filter seperately, but feel free to copy paste the code and design
     // your own
 
-    const SGNVGframebuffer* src = cmd->src;
-    const SGNVGimageFX*     fx  = cmd->fx;
+    const SGNVGimageFX* fx = cmd->fx;
 
-    const SGNVGframebuffer* a = NULL;
-    const SGNVGframebuffer* b = NULL;
+    const SGNVGframebuffer* dst  = &fx->resolve;
+    const SGNVGframebuffer* src0 = cmd->src;
+    const SGNVGframebuffer* src1 = cmd->src;
 
     NVG_ASSERT(cmd->radius_px <= fx->max_radius_px);
     float fstages = cmd->radius_px > 0 ? (nvg__log2f(cmd->radius_px) - 1) : 0;
@@ -4527,7 +4527,7 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
 
     if (cmd->apply_lightness_filter == false && cmd->apply_bloom == false && cmd->radius_px == 0)
     {
-        b = src;
+        src0 = cmd->src;
         goto resolve;
     }
 
@@ -4543,7 +4543,7 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
             sg_apply_pipeline(ctx->pip_texread);
 
         sg_apply_bindings(&(sg_bindings){
-            .images[0]   = src->img,
+            .images[0]   = cmd->src->img,
             .samplers[0] = ctx->sampler_nearest,
         });
         if (cmd->apply_lightness_filter)
@@ -4558,27 +4558,27 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
     // Downsample
     for (int i = 0; i < istages - 1; i++)
     {
-        a = fx->mip_levels + i;
-        b = fx->mip_levels + i + 1;
+        src0 = fx->mip_levels + i;
+        dst  = fx->mip_levels + i + 1;
 
         const bool is_first_downsample_pass = i == 0;
         const bool is_first_pass            = is_first_downsample_pass && cmd->apply_lightness_filter == false;
 
         if (is_first_pass)
-            a = cmd->src;
+            src0 = cmd->src;
 
         sg_begin_pass(&(sg_pass){
             .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-            .attachments = b->att,
+            .attachments = dst->att,
         });
         sg_apply_pipeline(ctx->pip_downsample);
         sg_apply_bindings(&(sg_bindings){
-            .images[0]   = a->img,
+            .images[0]   = src0->img,
             .samplers[0] = ctx->sampler_linear,
         });
         // More numerically stable than 1.0f / a->width
-        float halfpixel_x = 0.5f / b->width;
-        float halfpixel_y = 0.5f / b->height;
+        float halfpixel_x = 0.5f / dst->width;
+        float halfpixel_y = 0.5f / dst->height;
 
         fs_downsample_t uniforms = {
             .u_offset = {halfpixel_x, halfpixel_y},
@@ -4591,8 +4591,8 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
     // Upsample
     for (int i = istages - 2; i >= 0; i--)
     {
-        a = fx->mip_levels + i + 1;
-        b = fx->mip_levels + i;
+        src0 = fx->mip_levels + i + 1;
+        dst  = fx->mip_levels + i;
 
         // AFAIK DX11 doesn't support reading the pixel/texel of the framebuffer you write to in a pixel/frag shader
         // This requires an Unordered Access View (UAV), which is only supported in compute shaders
@@ -4611,26 +4611,34 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
         {
             // Mix 2 blur stages together
             // In the case of only one downsampling/upsampling stage, one of the frambuffers may be the original image
-            const SGNVGframebuffer* target = fx->interp_levels + i;
+            dst  = fx->interp_levels + i;
+            src1 = fx->mip_levels + i;
             if (is_last_pass)
-                target = &fx->resolve;
+                dst = &fx->resolve;
             if (is_second_pass)
-                b = cmd->src;
+                src1 = cmd->src;
+
+            NVG_ASSERT(src0 != NULL);
+            NVG_ASSERT(src1 != NULL);
+            NVG_ASSERT(src1->width > src0->width);
+            NVG_ASSERT(src1->height > src0->height);
+
             sg_begin_pass(&(sg_pass){
                 .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-                .attachments = target->att,
+                .attachments = dst->att,
             });
+
             sg_apply_pipeline(ctx->pip_upsample_mix);
             sg_apply_bindings(&(sg_bindings){
-                .images[0]   = a->img, // wet
+                .images[0]   = src0->img, // wet. lower resolution
                 .samplers[0] = ctx->sampler_linear,
 
-                .images[1]   = b->img, // dry
+                .images[1]   = src1->img, // dry. higher resolution
                 .samplers[1] = ctx->sampler_nearest,
             });
 
-            float halfpixel_x = 0.5f / a->width;
-            float halfpixel_y = 0.5f / a->height;
+            float halfpixel_x = 0.5f / src0->width;
+            float halfpixel_y = 0.5f / src0->height;
 
             fs_upsample_mix_t uniforms = {
                 .u_offset = {halfpixel_x, halfpixel_y},
@@ -4638,27 +4646,27 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
             };
             sg_apply_uniforms(UB_fs_upsample_mix, &SG_RANGE(uniforms));
 
-            b = target;
+            src0 = dst;
         }
         else
         {
             if (is_second_upsample_pass && should_mix)
-                a = fx->interp_levels + i + 1; // mixed framebuffer
+                src0 = fx->interp_levels + i + 1; // mixed framebuffer
             if (is_last_pass)
-                b = &fx->resolve;
+                dst = &fx->resolve;
 
             sg_begin_pass(&(sg_pass){
                 .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-                .attachments = b->att,
+                .attachments = dst->att,
             });
             sg_apply_pipeline(ctx->pip_upsample);
             sg_apply_bindings(&(sg_bindings){
-                .images[0]   = a->img,
+                .images[0]   = src0->img,
                 .samplers[0] = ctx->sampler_linear,
             });
 
-            float halfpixel_x = 0.5f / a->width;
-            float halfpixel_y = 0.5f / a->height;
+            float halfpixel_x = 0.5f / src0->width;
+            float halfpixel_y = 0.5f / src0->height;
 
             fs_upsample_t uniforms = {
                 .u_offset = {halfpixel_x, halfpixel_y},
@@ -4674,9 +4682,9 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
     }
 
     if (cmd->apply_lightness_filter == false && cmd->radius_px == 0)
-        b = src;
+        src0 = cmd->src;
     if (cmd->apply_lightness_filter == true && cmd->radius_px == 0)
-        b = fx->mip_levels;
+        src0 = fx->mip_levels;
 
 resolve:
     // Draw resolve image
@@ -4688,10 +4696,9 @@ resolve:
     else // blur
         sg_apply_pipeline(ctx->pip_texread);
 
-    NVG_ASSERT(b != NULL);
     sg_apply_bindings(&(sg_bindings){
-        .images[0]   = b->img,
-        .images[1]   = src->img,
+        .images[0]   = src0->img,
+        .images[1]   = cmd->src->img,
         .samplers[0] = ctx->sampler_nearest,
     });
     if (cmd->apply_bloom)
