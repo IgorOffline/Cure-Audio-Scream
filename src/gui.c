@@ -2147,26 +2147,29 @@ void pw_tick(void* _gui)
 
     snvg_command_end_pass(nvg);
 
-    static float apply_lightfilter   = 0;
-    static float apply_bloom         = 0;
-    static float lightness_threshold = 0.86;
-    static float blur_radius_px      = 2;
-    static float bloom_amount        = 1;
+    static BloomFilterParams bloom_params = {
+        .apply_lightness_filter = 0,
+        .apply_bloom            = 0,
+        .lightness_threshold    = 0.86,
+        .radius_px              = 16,
+        .bloom_amount           = 1,
+    };
+    bloom_params.fx = gui->main_framebuffer_fx;
 
     snvg_command_fx(
         nvg,
-        apply_lightfilter > 0.5,
-        apply_bloom > 0.5,
-        lightness_threshold,
-        blur_radius_px,
-        bloom_amount,
+        bloom_params.apply_lightness_filter > 0.5,
+        bloom_params.apply_bloom > 0.5,
+        bloom_params.lightness_threshold,
+        bloom_params.radius_px,
+        bloom_params.bloom_amount,
         &gui->main_framebuffer,
         gui->main_framebuffer_fx);
 
     snvg_command_begin_pass(
         gui->nvg,
         &(sg_pass){
-            .action    = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0, 0, 0, 1}}},
+            .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
             .swapchain = gui->swapchain,
             .label     = "swapchain / main",
         },
@@ -2181,25 +2184,7 @@ void pw_tick(void* _gui)
     nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, lm->width, lm->height, 0, bgimg, 1, nvg->sampler_nearest));
     nvgFill(nvg);
 
-    {
-        imgui_rect  rect   = {10, 10, 200, 30};
-        const float offset = 10 + (rect.b - rect.y);
-        im_slider(nvg, im, rect, &apply_lightfilter, 0, 1, "%.2f", "Apply lightness filter");
-        rect.b += offset;
-        rect.y += offset;
-        im_slider(nvg, im, rect, &apply_bloom, 0, 1, "%.2f", "Apply bloom");
-        rect.b += offset;
-        rect.y += offset;
-        im_slider(nvg, im, rect, &lightness_threshold, 0, 1, "%.2f", "Filter threshold");
-        rect.b += offset;
-        rect.y += offset;
-        im_slider(nvg, im, rect, &blur_radius_px, 0, gui->main_framebuffer_fx->max_radius_px, "%.2fpx", "Blur Radius");
-        rect.b += offset;
-        rect.y += offset;
-        im_slider(nvg, im, rect, &bloom_amount, 0, 1, "%.2f", "Bloom amount");
-        rect.b += offset;
-        rect.y += offset;
-    }
+    im_bloom_hud(nvg, im, &bloom_params);
 
     // Footer
     {

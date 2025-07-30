@@ -4509,6 +4509,9 @@ void snvg__processImageFX(NVGcontext* ctx, SGNVGcommandImageFX* cmd)
 
     const SGNVGimageFX* fx = cmd->fx;
 
+    // All this juggling of pointers is messy but it helps to merge bloom & blur with optional filters into a single
+    // code path, skipping unnecessary render passes. Sorry to the reader of this code but this is helps to make things
+    // run fast and maintain a great and flexible user facing API.
     const SGNVGframebuffer* dst  = &fx->resolve;
     const SGNVGframebuffer* src0 = cmd->src;
     const SGNVGframebuffer* src1 = cmd->src;

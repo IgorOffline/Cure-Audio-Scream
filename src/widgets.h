@@ -66,6 +66,37 @@ void im_slider(
     nvgText(nvg, rect.r + 10, c.y, name, NULL);
 }
 
+typedef struct BloomFilterParams
+{
+    float         apply_lightness_filter;
+    float         apply_bloom;
+    float         lightness_threshold;
+    float         radius_px;
+    float         bloom_amount;
+    SGNVGimageFX* fx;
+} BloomFilterParams;
+
+void im_bloom_hud(NVGcontext* nvg, imgui_context* im, BloomFilterParams* params)
+{
+    imgui_rect  rect   = {10, 10, 200, 30};
+    const float offset = 10 + (rect.b - rect.y);
+    im_slider(nvg, im, rect, &params->apply_lightness_filter, 0, 1, "%.2f", "Apply lightness filter");
+    rect.b += offset;
+    rect.y += offset;
+    im_slider(nvg, im, rect, &params->apply_bloom, 0, 1, "%.2f", "Apply bloom");
+    rect.b += offset;
+    rect.y += offset;
+    im_slider(nvg, im, rect, &params->lightness_threshold, 0, 1, "%.2f", "Filter threshold");
+    rect.b += offset;
+    rect.y += offset;
+    im_slider(nvg, im, rect, &params->radius_px, 0, params->fx->max_radius_px, "%.2fpx", "Blur Radius");
+    rect.b += offset;
+    rect.y += offset;
+    im_slider(nvg, im, rect, &params->bloom_amount, 0, 1, "%.2f", "Bloom amount");
+    rect.b += offset;
+    rect.y += offset;
+}
+
 void plot_expander(NVGcontext* nvg, float width, float height)
 {
     nvgBeginPath(nvg);
