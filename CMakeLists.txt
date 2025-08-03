@@ -66,7 +66,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleC
         -Wno-microsoft-enum-forward-reference
         )
 
-    list(APPEND PLUGIN_OPTIONS "-include${PROJECT_SOURCE_DIR}/src/common.h")
+    list(APPEND PLUGIN_OPTIONS "-I ${PROJECT_SOURCE_DIR}/src/common.h")
 endif()
 # list(APPEND CMAKE_C_FLAGS -fsanitize=address)
 # list(APPEND CMAKE_CXX_FLAGS -fsanitize=address)
