@@ -145,6 +145,18 @@ enum NVGalign
     NVG_ALIGN_MIDDLE   = 1 << 4, // Align text vertically to middle.
     NVG_ALIGN_BOTTOM   = 1 << 5, // Align text vertically to bottom.
     NVG_ALIGN_BASELINE = 1 << 6, // Default, align text vertically to baseline.
+
+    NVG_ALIGN_TL = (NVG_ALIGN_TOP | NVG_ALIGN_LEFT),
+    NVG_ALIGN_TC = (NVG_ALIGN_TOP | NVG_ALIGN_CENTER),
+    NVG_ALIGN_TR = (NVG_ALIGN_TOP | NVG_ALIGN_RIGHT),
+
+    NVG_ALIGN_CL = (NVG_ALIGN_MIDDLE | NVG_ALIGN_LEFT),
+    NVG_ALIGN_CC = (NVG_ALIGN_MIDDLE | NVG_ALIGN_CENTER),
+    NVG_ALIGN_CR = (NVG_ALIGN_MIDDLE | NVG_ALIGN_RIGHT),
+
+    NVG_ALIGN_BL = (NVG_ALIGN_BOTTOM | NVG_ALIGN_LEFT),
+    NVG_ALIGN_BC = (NVG_ALIGN_BOTTOM | NVG_ALIGN_CENTER),
+    NVG_ALIGN_BR = (NVG_ALIGN_BOTTOM | NVG_ALIGN_RIGHT),
 };
 
 enum NVGblendFactor
