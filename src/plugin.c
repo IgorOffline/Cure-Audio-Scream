@@ -107,8 +107,7 @@ void* cplug_createPlugin(CplugHostContext* ctx)
     p->bpm = 120;
 
     // TODO: uncomment this
-    p->lfo_1_mod_flags                 |= 1 << PARAM_CUTOFF;
-    p->lfo_1_mod_amounts[PARAM_CUTOFF]  = 0.25f;
+    p->lfo_mod_amounts[PARAM_CUTOFF].left = 0.25f;
 
     return p;
 }
@@ -456,9 +455,21 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             }
 #endif
 
-            if (p->lfo_1_mod_flags)
+            // These flags represent active LFO modulations on parameters
+            // The index of the set bit corresponds to the parameter idx that is being modulated
+            uint8_t lfo_1_mod_flags = 0;
+            uint8_t lfo_2_mod_flags = 0;
+            for (int i = 0; i < ARRLEN(p->lfo_mod_amounts); i++)
+            {
+                if (fabsf(p->lfo_mod_amounts[i].data[0]) != 0)
+                    lfo_1_mod_flags |= 1 << i;
+                if (fabsf(p->lfo_mod_amounts[i].data[1]) != 0)
+                    lfo_2_mod_flags |= 1 << i;
+            }
+
+            if (lfo_1_mod_flags)
                 render_lfo(p, num_frames, 0);
-            if (p->lfo_2_mod_flags)
+            if (lfo_2_mod_flags)
                 render_lfo(p, num_frames, 1);
 
             // Setup params
@@ -531,7 +542,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                                            s.values[PARAM_RESONANCE].remaining | s.values[PARAM_INPUT_GAIN].remaining |
                                            s.values[PARAM_WET].remaining;
 
-                const bool has_modulation_or_smoothing = p->lfo_1_mod_flags || p->lfo_2_mod_flags || smooth_params;
+                const bool has_modulation_or_smoothing = lfo_1_mod_flags || lfo_2_mod_flags || smooth_params;
 
                 if (p->gui)
                 {
@@ -630,8 +641,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     if (has_modulation_or_smoothing)
                     {
                         _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(s.values), "");
-                        _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(p->lfo_1_mod_amounts), "");
-                        _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(p->lfo_2_mod_amounts), "");
+                        _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(p->lfo_mod_amounts), "");
                         float modvals[NUM_AUTOMATABLE_PARAMS];
                         for (int i = 0; i < ARRLEN(s.values); i++)
                         {
@@ -640,10 +650,10 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                             float v = s.values[i].current;
 
                             // TODO: apply bidirectional algorithm?
-                            if (p->lfo_1_mod_flags & (1 << i))
-                                v += p->lfo_1_mod_amounts[i] * mod_buffer->data[0];
-                            if (p->lfo_2_mod_flags & (1 << i))
-                                v += p->lfo_2_mod_amounts[i] * mod_buffer->data[1];
+                            if (lfo_1_mod_flags & (1 << i))
+                                v += p->lfo_mod_amounts[i].data[0] * mod_buffer->data[0];
+                            if (lfo_2_mod_flags & (1 << i))
+                                v += p->lfo_mod_amounts[i].data[1] * mod_buffer->data[1];
 
                             modvals[i] = xm_clampf(v, 0, 1);
                         }

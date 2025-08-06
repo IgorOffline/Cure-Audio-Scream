@@ -100,13 +100,8 @@ typedef struct Plugin
     double  beat_position;
     double  beat_inc;
 
-    // These flags represent active LFO modulations on parameters
-    // The index of the set bit corresponds to the parameter idx that is being modulated
-    uint8_t lfo_1_mod_flags;
-    uint8_t lfo_2_mod_flags;
-
-    float lfo_1_mod_amounts[NUM_AUTOMATABLE_PARAMS];
-    float lfo_2_mod_amounts[NUM_AUTOMATABLE_PARAMS];
+    // left channel is lfo 1, right is lfo 2
+    xvec2f lfo_mod_amounts[NUM_AUTOMATABLE_PARAMS];
 
     struct FilterState
     {
