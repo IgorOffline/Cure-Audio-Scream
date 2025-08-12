@@ -81,8 +81,8 @@ typedef struct GUI
     bool      lfo_cached_path_dirty;
     imgui_pt* lfo_cached_path;
 
-    imgui_pt  selection_start;
-    imgui_pt  selection_end;
+    xvec2f    selection_start;
+    xvec2f    selection_end;
     int*      selected_point_indexes;
     imgui_pt* points_copy;
 

@@ -9,6 +9,7 @@
 #include "sort.h"
 #include "widgets.h"
 
+#include <stdint.h>
 #include <xhl/array.h>
 #include <xhl/debug.h>
 #include <xhl/files.h>
@@ -1243,7 +1244,8 @@ void draw_lfo_section(GUI* gui)
     enum
     {
         LFO_POINT_CLICK_RADIUS = 12,
-        LFO_POINT_RADIUS       = 3,
+        LFO_POINT_RADIUS       = 4,
+        LFO_SKEW_POINT_RADIUS  = 3,
         LFO_SKEW_DRAG_RANGE    = 250,
     };
 
@@ -1367,8 +1369,17 @@ void draw_lfo_section(GUI* gui)
 
                 if (im->left_click_counter == 1)
                 {
-                    bool shift_click = (PW_MOD_KEY_SHIFT | PW_MOD_LEFT_BUTTON) == im->frame.modifiers_mouse_down;
-                    if (shift_click == false)
+                    bool shift_click     = (PW_MOD_KEY_SHIFT | PW_MOD_LEFT_BUTTON) == im->frame.modifiers_mouse_down;
+                    bool idx_is_selected = false;
+                    for (int i = 0; i < xarr_len(gui->selected_point_indexes); i++)
+                    {
+                        if (pt_idx == gui->selected_point_indexes[i])
+                        {
+                            idx_is_selected = true;
+                            break;
+                        }
+                    }
+                    if (shift_click == false && idx_is_selected == false)
                     {
                         xarr_setlen(gui->selected_point_indexes, 0);
                     }
@@ -1539,7 +1550,15 @@ void draw_lfo_section(GUI* gui)
     {
         if (im->left_click_counter == 1)
         {
-            xarr_setlen(gui->selected_point_indexes, 0);
+            bool shift_click = (PW_MOD_KEY_SHIFT | PW_MOD_LEFT_BUTTON) == im->frame.modifiers_mouse_down;
+            if (shift_click == false)
+            {
+                xarr_setlen(gui->selected_point_indexes, 0);
+            }
+
+            gui->selection_start.x = floorf(im->pos_mouse_down.x);
+            gui->selection_start.y = floorf(im->pos_mouse_down.y);
+            gui->selection_end.u64 = gui->selection_start.u64;
         }
         else if (im->left_click_counter == 2)
         {
@@ -1561,6 +1580,38 @@ void draw_lfo_section(GUI* gui)
                     pt_hover_idx = i + 1;
                     break;
                 }
+            }
+        }
+    }
+    if (grid_events & IMGUI_EVENT_MOUSE_LEFT_UP)
+    {
+        gui->selection_start.u64 = 0;
+        gui->selection_end.u64   = 0;
+    }
+    if (grid_events & IMGUI_EVENT_DRAG_MOVE)
+    {
+        imgui_pt pos;
+        pos.x                = floorf(im->pos_mouse_move.x);
+        pos.y                = floorf(im->pos_mouse_move.y);
+        gui->selection_end.x = xm_clampf(pos.x, grid_x, grid_r);
+        gui->selection_end.y = xm_clampf(pos.y, grid_y, grid_b);
+
+        if (gui->selection_start.u64 != 0 && gui->selection_start.u64 != gui->selection_end.u64)
+        {
+            const imgui_rect area = {
+                xm_minf(gui->selection_start.x, gui->selection_end.x),
+                xm_minf(gui->selection_start.y, gui->selection_end.y),
+                xm_maxf(gui->selection_start.x, gui->selection_end.x) + 1,
+                xm_maxf(gui->selection_start.y, gui->selection_end.y) + 1};
+
+            const int N = xarr_len(gui->lfo_points);
+            xarr_setcap(gui->selected_point_indexes, N);
+
+            for (int i = 0; i < N; i++)
+            {
+                const imgui_pt pt = gui->lfo_points[i];
+                if (imgui_hittest_rect(pt, &area))
+                    lfo_points_add_selected(gui, i);
             }
         }
     }
@@ -1681,19 +1732,57 @@ void draw_lfo_section(GUI* gui)
         for (int i = 0; i < xarr_len(gui->lfo_skew_points); i++)
         {
             imgui_pt pt = gui->lfo_skew_points[i];
-            nvgCircle(nvg, pt.x, pt.y, LFO_POINT_RADIUS);
+            nvgCircle(nvg, pt.x, pt.y, LFO_SKEW_POINT_RADIUS);
         }
         nvgSetColour(nvg, nvgHexColour(0xffff00ff));
         nvgFill(nvg);
         // regular points
-        nvgBeginPath(nvg);
-        for (int i = 0; i < xarr_len(gui->lfo_points); i++)
+        uint64_t selected_points_flags = 0;
+        for (int i = 0; i < xarr_len(gui->selected_point_indexes); i++)
+        {
+            uint64_t idx = gui->selected_point_indexes[i];
+            if (idx < 64)
+                selected_points_flags |= 1llu << idx;
+        }
+
+        static const NVGcolour col_normal   = nvgHexColour(0xff0000ff);
+        static const NVGcolour col_selected = {0.25, 0.75, 1, 1};
+        for (uint64_t i = 0; i < xarr_len(gui->lfo_points); i++)
         {
             imgui_pt pt = gui->lfo_points[i];
+
+            nvgBeginPath(nvg);
             nvgCircle(nvg, pt.x, pt.y, LFO_POINT_RADIUS);
+            if (selected_points_flags & (1llu << i))
+                nvgSetColour(nvg, col_selected);
+            else
+                nvgSetColour(nvg, col_normal);
+            nvgFill(nvg);
         }
-        nvgSetColour(nvg, nvgHexColour(0xff0000ff));
+    }
+
+    if (gui->selection_start.u64 != 0 && gui->selection_end.u64 != 0)
+    {
+        static const NVGcolour col  = {0, 0.5, 1, 1};
+        const imgui_rect       area = {
+            xm_minf(gui->selection_start.x, gui->selection_end.x),
+            xm_minf(gui->selection_start.y, gui->selection_end.y),
+            xm_maxf(gui->selection_start.x, gui->selection_end.x),
+            xm_maxf(gui->selection_start.y, gui->selection_end.y)};
+
+        NVGcolour bg_col = col;
+        bg_col.a         = 0.25f;
+
+        nvgBeginPath(nvg);
+        nvgRect2(nvg, area.x, area.y, area.r, area.b);
+        nvgSetColour(nvg, bg_col);
         nvgFill(nvg);
+
+        nvgBeginPath(nvg);
+        nvgRect2(nvg, area.x + 0.5f, area.y + 0.5f, area.r - 0.5f, area.b - 0.5f);
+        nvgSetColour(nvg, col);
+        nvgSetStrokeWidth(nvg, 0.5f);
+        nvgStroke(nvg);
     }
 
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
