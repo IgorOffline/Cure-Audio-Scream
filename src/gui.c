@@ -619,6 +619,71 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     return value_d;
 }
 
+float calculate_point_skew(GUI* gui, int idx)
+{
+    xassert(idx >= 0 && idx < xarr_len(gui->lfo_points));
+
+    const imgui_pt* pt      = gui->lfo_points + idx;
+    const imgui_pt* next_pt = gui->lfo_points + idx + 1;
+    const imgui_pt* skew_pt = gui->lfo_skew_points + idx;
+
+    float skew = 0.5f;
+    if (pt->y != next_pt->y)
+        skew = xm_normf(skew_pt->y, next_pt->y, pt->y);
+    if (pt->y > next_pt->y)
+        skew = 1 - skew;
+
+    return skew;
+}
+
+static inline double snap_point(double x)
+{
+    if (x < 0.000001)
+        x = 0;
+    if (x > 0.999999)
+        x = 1;
+    return x;
+}
+
+void send_points_to_lfo(GUI* gui, const imgui_rect* area)
+{
+    const int lfo_idx     = 0;
+    const int pattern_idx = 0;
+
+    const int pattern_length = gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx];
+
+    LFOPoint* points     = NULL;
+    int       num_points = xarr_len(gui->lfo_points) - 1;
+    xarr_setlen(points, num_points);
+
+    for (int i = 0; i < num_points; i++)
+    {
+        LFOPoint* pt = points + i;
+        pt->x        = pattern_length * snap_point(xm_normd(gui->lfo_points[i].x, area->x, area->r));
+        pt->y        = snap_point(xm_normd(gui->lfo_points[i].y, area->b, area->y));
+        pt->skew     = calculate_point_skew(gui, i);
+        xassert(pt->x >= 0 && pt->x <= num_points);
+        xassert(pt->y >= 0 && pt->y <= 1);
+        xassert(pt->skew >= 0 && pt->skew <= 1);
+    }
+    points->x = 0;
+#ifndef NDEBUG
+    for (int i = 0; i < num_points - 1; i++)
+    {
+        LFOPoint* p1 = points + i;
+        LFOPoint* p2 = points + i + 1;
+        xassert(p1->x <= p2->x);
+    }
+#endif
+
+    LFOEvent e;
+    e.set_points.type        = EVENT_SET_LFO_POINTS;
+    e.set_points.lfo_idx     = lfo_idx;
+    e.set_points.pattern_idx = pattern_idx;
+    e.set_points.array       = points;
+    send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
+}
+
 void lfo_points_add_selected(GUI* gui, int idx)
 {
     int       i;
@@ -721,33 +786,7 @@ void update_lfo_point(GUI* gui, const imgui_rect* area, imgui_pt pos, int idx)
     }
 }
 
-float calculate_point_skew(GUI* gui, int idx)
-{
-    xassert(idx >= 0 && idx < xarr_len(gui->lfo_points));
-
-    const imgui_pt* pt      = gui->lfo_points + idx;
-    const imgui_pt* next_pt = gui->lfo_points + idx + 1;
-    const imgui_pt* skew_pt = gui->lfo_skew_points + idx;
-
-    float skew = 0.5f;
-    if (pt->y != next_pt->y)
-        skew = xm_normf(skew_pt->y, next_pt->y, pt->y);
-    if (pt->y > next_pt->y)
-        skew = 1 - skew;
-
-    return skew;
-}
-
-static inline double snap_point(double x)
-{
-    if (x < 0.000001)
-        x = 0;
-    if (x > 0.999999)
-        x = 1;
-    return x;
-}
-
-static void insert_lfo_point(GUI* gui, imgui_pt pos, int idx, const imgui_rect* drag_area)
+static void insert_lfo_point(GUI* gui, imgui_pt pos, int idx, const imgui_rect* area)
 {
     const int prev_idx = idx - 1;
 
@@ -766,20 +805,10 @@ static void insert_lfo_point(GUI* gui, imgui_pt pos, int idx, const imgui_rect* 
     xarr_insert(gui->lfo_points, idx, pos);
     xarr_insert(gui->lfo_skew_points, prev_idx, pos);
 
-    // add points on LFO
-    float drag_width  = (drag_area->r - drag_area->x);
-    float drag_height = (drag_area->b - drag_area->y);
-    float relX        = (pos.x - drag_area->x) / drag_width;
-    relX              = snap_point(relX);
-
-    float relY = 1.0f - (pos.y - drag_area->y) / drag_height;
-    relY       = snap_point(relY);
-
     update_skew_point(gui, prev_idx, skew);
     if (idx < xarr_len(gui->lfo_skew_points))
         update_skew_point(gui, idx, 0.5f);
 
-    // TODO: update LFO in thread safe way
     gui->lfo_cached_path_dirty = true;
 }
 
@@ -1399,6 +1428,26 @@ void draw_lfo_section(GUI* gui)
                     update_lfo_point(gui, &grid_bg, target_pos, idx);
                 }
                 gui->lfo_cached_path_dirty = true;
+
+                if (num_selected > 1)
+                {
+                    send_points_to_lfo(gui, &grid_bg);
+                }
+                else if (num_selected == 1)
+                {
+                    int sel_idx = gui->selected_point_indexes[0];
+                    xassert(sel_idx >= 0 && sel_idx < xarr_len(gui->lfo_points));
+                    const imgui_pt* sel_pt = gui->lfo_points + sel_idx;
+
+                    LFOEvent e;
+                    e.set_xy.type        = EVENT_SET_LFO_XY;
+                    e.set_xy.lfo_idx     = lfo_idx;
+                    e.set_xy.pattern_idx = pattern_idx;
+                    e.set_xy.point_idx   = sel_idx;
+                    e.set_xy.x           = pattern_length * snap_point(xm_normd(sel_pt->x, grid_x, grid_r));
+                    e.set_xy.y           = snap_point(xm_normd(sel_pt->y, grid_b, grid_y));
+                    send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
+                }
             }
 
             if (pt_events & IMGUI_EVENT_MOUSE_LEFT_UP)
@@ -1420,6 +1469,8 @@ void draw_lfo_section(GUI* gui)
 
             pt_hover_idx      = -1;
             pt_hover_skew_idx = -1;
+
+            send_points_to_lfo(gui, &grid_bg);
         }
     }
 
@@ -1449,6 +1500,14 @@ void draw_lfo_section(GUI* gui)
                 {
                     update_skew_point(gui, pt_idx, 0.5f);
                     pt_hover_skew_idx = -1;
+
+                    LFOEvent e;
+                    e.set_skew.type        = EVENT_SET_LFO_SKEW;
+                    e.set_skew.lfo_idx     = lfo_idx;
+                    e.set_skew.pattern_idx = pattern_idx;
+                    e.set_skew.point_idx   = pt_idx;
+                    e.set_skew.skew        = 0.5f;
+                    send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
                 }
             }
             if (pt_events & IMGUI_EVENT_DRAG_MOVE)
@@ -1462,6 +1521,14 @@ void draw_lfo_section(GUI* gui)
                 xassert(next_skew >= 0 && next_skew <= 1);
 
                 update_skew_point(gui, pt_idx, next_skew);
+
+                LFOEvent e;
+                e.set_skew.type        = EVENT_SET_LFO_SKEW;
+                e.set_skew.lfo_idx     = lfo_idx;
+                e.set_skew.pattern_idx = pattern_idx;
+                e.set_skew.point_idx   = pt_idx;
+                e.set_skew.skew        = next_skew;
+                send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
             }
         }
     }
@@ -1489,6 +1556,8 @@ void draw_lfo_section(GUI* gui)
                     pos.y = xm_clampf(mouse_down.y, grid_bg.y, grid_bg.b);
 
                     insert_lfo_point(gui, pos, i + 1, &grid_bg);
+                    send_points_to_lfo(gui, &grid_bg);
+
                     pt_hover_idx = i + 1;
                     break;
                 }

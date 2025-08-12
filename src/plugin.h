@@ -49,6 +49,10 @@ typedef enum EventType
 {
     EVENT_SET_PARAMETER = 16,
     EVENT_SET_PARAMETER_NOTIFYING_HOST,
+
+    EVENT_SET_LFO_POINTS,
+    EVENT_SET_LFO_XY,
+    EVENT_SET_LFO_SKEW,
 } EventType;
 
 typedef struct LFOPoint
@@ -67,6 +71,36 @@ typedef struct LFO
     // Length in beats
     int pattern_length[NUM_LFO_PATTERNS];
 } LFO;
+
+typedef union LFOEvent
+{
+    struct
+    {
+        enum EventType type;
+        uint8_t        lfo_idx;
+        uint8_t        pattern_idx;
+        LFOPoint*      array;
+    } set_points;
+
+    struct
+    {
+        enum EventType type;
+        uint8_t        lfo_idx;
+        uint8_t        pattern_idx;
+        uint16_t       point_idx;
+        float          x, y;
+    } set_xy;
+
+    struct
+    {
+        enum EventType type;
+        uint8_t        lfo_idx;
+        uint8_t        pattern_idx;
+        uint16_t       point_idx;
+        float          skew;
+    } set_skew;
+} LFOEvent;
+_Static_assert(sizeof(LFOEvent) == sizeof(CplugEvent), "");
 
 typedef struct Plugin
 {
@@ -138,9 +172,10 @@ typedef struct Plugin
 enum GlobalEvent
 {
     GLOBAL_EVENT_DEQUEUE_MAIN,
+    GLOBAL_EVENT_GARBAGE_COLLECT_FREE,
 };
 // [Any thread] Post enum to MPSC queue.
-void send_to_global_event_queue(enum GlobalEvent, Plugin*);
+void send_to_global_event_queue(enum GlobalEvent, void*);
 // [Main thread]
 void dequeue_global_events();
 void main_dequeue_events(Plugin* p);
@@ -148,7 +183,7 @@ void main_dequeue_events(Plugin* p);
 bool is_main_thread();
 
 // [Main thread]
-void send_to_audio_event_queue(Plugin* p, const CplugEvent event);
+void send_to_audio_event_queue(Plugin* p, const CplugEvent* event);
 // [Any thread]
 void send_to_main_event_queue(Plugin* p, const CplugEvent event);
 

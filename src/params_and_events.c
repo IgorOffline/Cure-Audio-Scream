@@ -27,14 +27,17 @@ void dequeue_global_events()
         size_t compressed = g_event_queue.events[g_event_queue.tail];
 
         enum GlobalEvent type = (enum GlobalEvent)(compressed & 0xff);
-        Plugin*          p    = (Plugin*)(compressed >> 8);
-        CPLUG_LOG_ASSERT(p != NULL);
-        if (p)
+        void*            ptr  = (void*)(compressed >> 8);
+        CPLUG_LOG_ASSERT(ptr != NULL);
+        if (ptr)
         {
             switch (type)
             {
             case GLOBAL_EVENT_DEQUEUE_MAIN:
-                main_dequeue_events(p);
+                main_dequeue_events((Plugin*)ptr);
+                break;
+            case GLOBAL_EVENT_GARBAGE_COLLECT_FREE:
+                xfree(ptr);
                 break;
             default:
                 println("[WARNING] Unhanled global event: %u", type);
@@ -49,7 +52,7 @@ void dequeue_global_events()
     }
 }
 
-void send_to_global_event_queue(enum GlobalEvent type, Plugin* ptr)
+void send_to_global_event_queue(enum GlobalEvent type, void* ptr)
 {
     // NOTE: x86 64 processors use a 48 bit address space. New ARMv8.2 chips use 52 bits.
     // This gives us a max of 12 bits to reliably play with. We'll only use 8
@@ -64,11 +67,11 @@ void send_to_global_event_queue(enum GlobalEvent type, Plugin* ptr)
     xt_spinlock_unlock(&g_event_queue.lock);
 }
 
-void send_to_audio_event_queue(Plugin* plugin, const CplugEvent event)
+void send_to_audio_event_queue(Plugin* plugin, const CplugEvent* event)
 {
     CPLUG_LOG_ASSERT(is_main_thread());
     int head                         = cplug_atomic_load_i32(&plugin->queue_audio_head) & EVENT_QUEUE_MASK;
-    plugin->queue_audio_events[head] = event;
+    plugin->queue_audio_events[head] = *event;
     cplug_atomic_fetch_add_i32(&plugin->queue_audio_head, 1);
     cplug_atomic_fetch_and_i32(&plugin->queue_audio_head, EVENT_QUEUE_MASK);
 }
@@ -94,7 +97,7 @@ void param_change_begin(Plugin* p, ParamID id)
     e.parameter.id   = id;
 
     if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
-        send_to_audio_event_queue(p, e);
+        send_to_audio_event_queue(p, &e);
     else
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
 }
@@ -107,7 +110,7 @@ void param_change_end(Plugin* p, ParamID id)
     e.parameter.type = CPLUG_EVENT_PARAM_CHANGE_END;
     e.parameter.id   = id;
     if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
-        send_to_audio_event_queue(p, e);
+        send_to_audio_event_queue(p, &e);
     else
         p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
 }
@@ -138,7 +141,7 @@ void param_change_update(Plugin* p, ParamID id, double value)
     {
         if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
             e.type = EVENT_SET_PARAMETER;
-        send_to_audio_event_queue(p, e);
+        send_to_audio_event_queue(p, &e);
     }
 }
 
@@ -188,7 +191,7 @@ void main_notify_host_param_change(Plugin* p, ParamID id, double value)
     if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP)
     {
         event.type = EVENT_SET_PARAMETER_NOTIFYING_HOST;
-        send_to_audio_event_queue(p, event);
+        send_to_audio_event_queue(p, &event);
     }
     else // Standalone, VST3, AUv2
     {
@@ -355,7 +358,7 @@ void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
         e.parameter.id    = paramId;
         e.parameter.value = value;
         if (is_main)
-            send_to_audio_event_queue(p, e);
+            send_to_audio_event_queue(p, &e);
         else
             send_to_main_event_queue(p, e);
     }

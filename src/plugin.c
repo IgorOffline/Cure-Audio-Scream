@@ -296,24 +296,25 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
         while (tail != head)
         {
-            CplugEvent event = p->queue_audio_events[tail];
+            const CplugEvent* event = &p->queue_audio_events[tail];
             tail++;
             tail &= EVENT_QUEUE_MASK;
 
-            switch (event.type)
+            switch (event->type)
             {
             case CPLUG_EVENT_PARAM_CHANGE_UPDATE:
             case EVENT_SET_PARAMETER:
             case EVENT_SET_PARAMETER_NOTIFYING_HOST:
             {
-                audio_set_param(p, event.parameter.id, event.parameter.value);
-                // println("Dequeue audio (%u) - %u %f", tail, event.type, event.parameter.value);
+                audio_set_param(p, event->parameter.id, event->parameter.value);
+                // println("Dequeue audio (%u) - %u %f", tail, event->type, event->parameter.value);
 
-                if (event.type == CPLUG_EVENT_PARAM_CHANGE_UPDATE)
+                if (event->type == CPLUG_EVENT_PARAM_CHANGE_UPDATE)
                 {
-                    bool ok              = true;
-                    event.parameter.type = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
-                    ok                   = ok && ctx->enqueueEvent(ctx, &event, 0);
+                    bool       ok     = true;
+                    CplugEvent e2     = *event;
+                    e2.parameter.type = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
+                    ok                = ok && ctx->enqueueEvent(ctx, &e2, 0);
                     if (!ok)
                     {
                         println(
@@ -321,15 +322,16 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                             CPLUG_EVENT_PARAM_CHANGE_UPDATE);
                     }
                 }
-                else if (event.type == EVENT_SET_PARAMETER_NOTIFYING_HOST)
+                else if (event->type == EVENT_SET_PARAMETER_NOTIFYING_HOST)
                 {
-                    bool ok              = true;
-                    event.parameter.type = CPLUG_EVENT_PARAM_CHANGE_BEGIN;
-                    ok                   = ok && ctx->enqueueEvent(ctx, &event, 0);
-                    event.parameter.type = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
-                    ok                   = ok && ctx->enqueueEvent(ctx, &event, 0);
-                    event.parameter.type = CPLUG_EVENT_PARAM_CHANGE_END;
-                    ok                   = ok && ctx->enqueueEvent(ctx, &event, 0);
+                    bool       ok     = true;
+                    CplugEvent e2     = *event;
+                    e2.parameter.type = CPLUG_EVENT_PARAM_CHANGE_BEGIN;
+                    ok                = ok && ctx->enqueueEvent(ctx, &e2, 0);
+                    e2.parameter.type = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
+                    ok                = ok && ctx->enqueueEvent(ctx, &e2, 0);
+                    e2.parameter.type = CPLUG_EVENT_PARAM_CHANGE_END;
+                    ok                = ok && ctx->enqueueEvent(ctx, &e2, 0);
                     if (!ok)
                     {
                         println(
@@ -342,10 +344,63 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             case CPLUG_EVENT_PARAM_CHANGE_BEGIN:
             case CPLUG_EVENT_PARAM_CHANGE_END:
             {
-                bool ok = ctx->enqueueEvent(ctx, &event, 0);
+                bool ok = ctx->enqueueEvent(ctx, event, 0);
                 CPLUG_LOG_ASSERT(ok);
                 break;
             }
+            case EVENT_SET_LFO_POINTS:
+            {
+                LFOEvent* e = (LFOEvent*)event;
+
+                const int lfo_idx     = e->set_points.lfo_idx;
+                const int pattern_idx = e->set_points.pattern_idx;
+
+                LFOPoint* prev_points = p->lfos[lfo_idx].points[pattern_idx];
+                void*     ptr         = xarr_header(prev_points);
+                send_to_global_event_queue(GLOBAL_EVENT_GARBAGE_COLLECT_FREE, ptr);
+
+                p->lfos[lfo_idx].points[pattern_idx] = e->set_points.array;
+                break;
+            }
+            case EVENT_SET_LFO_XY:
+            {
+                LFOEvent* e = (LFOEvent*)event;
+
+                const int lfo_idx     = e->set_xy.lfo_idx;
+                const int pattern_idx = e->set_xy.pattern_idx;
+                const int pt_idx      = e->set_xy.point_idx;
+
+                LFOPoint* points = p->lfos[lfo_idx].points[pattern_idx];
+                LFOPoint* p1     = points + pt_idx;
+
+                p1->x = e->set_xy.x;
+                p1->y = e->set_xy.y;
+
+                if (pt_idx > 0)
+                {
+                    LFOPoint* p0 = p1 - 1;
+                    xassert(p0->x <= p1->x);
+                }
+                if (pt_idx + 1 < xarr_len(points))
+                {
+                    LFOPoint* p2 = p1 + 1;
+                    xassert(p1->x <= p2->x);
+                }
+
+                break;
+            }
+            case EVENT_SET_LFO_SKEW:
+                LFOEvent* e = (LFOEvent*)event;
+
+                const int lfo_idx     = e->set_skew.lfo_idx;
+                const int pattern_idx = e->set_skew.pattern_idx;
+                const int pt_idx      = e->set_skew.point_idx;
+
+                LFOPoint* points = p->lfos[lfo_idx].points[pattern_idx];
+                LFOPoint* p1     = points + pt_idx;
+
+                p1->skew = e->set_skew.skew;
+                break;
             }
         }
         cplug_atomic_exchange_i32(&p->queue_audio_tail, tail);
