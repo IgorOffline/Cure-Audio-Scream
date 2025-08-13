@@ -862,7 +862,7 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
     float boundary_right = area->x + (grid_idx_left + 1) * x_inc;
 
     const bool snap_to_grid = gui->imgui.frame.modifiers_mouse_move & PW_MOD_PLATFORM_KEY_ALT;
-    float      y            = pos.y;
+    float      y            = xm_clampf(pos.y, area->y, area->b);
     if (snap_to_grid)
     {
         // TODO: snap to Y grid
@@ -888,9 +888,12 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
         break;
 
     case SHAPE_TRIANGLE_UP:
-    case SHAPE_TRIANGLE_DOWN:
         pt_y_left  = area->b;
         pt_y_right = area->b;
+        break;
+    case SHAPE_TRIANGLE_DOWN:
+        pt_y_left  = area->y;
+        pt_y_right = area->y;
         break;
     case SHAPE_COUNT:
         xassert(false); // TODO!
@@ -1032,10 +1035,30 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
         update_lfo_point(gui, area, pt, left_idx);
     }
     xassert(num_points_at_right_boundary == 2);
-    xassert(left_idx > 0 ? num_points_at_left_boundary == 2 : num_points_at_left_boundary >= 1);
+
+    if (shape_type == SHAPE_CONVEX_ASC || shape_type == SHAPE_CONVEX_DESC)
+    {
+        update_skew_point(gui, left_idx, 0.85);
+    }
+    if (shape_type == SHAPE_CONCAVE_ASC || shape_type == SHAPE_CONCAVE_DESC)
+    {
+        update_skew_point(gui, left_idx, 0.15);
+    }
+
+    if (shape_type == SHAPE_TRIANGLE_UP || shape_type == SHAPE_TRIANGLE_DOWN)
+    {
+        imgui_pt pt = {boundary_left + x_inc * 0.5f, y};
+        insert_lfo_point(gui, pt, left_idx + 1, area);
+        num_points++;
+        left_idx++;
+    }
+    else
+    {
+        xassert(left_idx > 0 ? num_points_at_left_boundary == 2 : num_points_at_left_boundary >= 1);
+    }
 
     send_points_to_lfo(gui, area);
-    gui->lfo_points_dirty = true;
+    gui->lfo_cached_path_dirty = true;
 }
 
 void draw_lfo_section(GUI* gui)
@@ -1744,6 +1767,7 @@ void draw_lfo_section(GUI* gui)
 
             pt_hover_idx      = -1;
             pt_hover_skew_idx = -1;
+            xarr_setlen(gui->selected_point_indexes, 0);
 
             send_points_to_lfo(gui, &grid_bg);
         }
