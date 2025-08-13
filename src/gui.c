@@ -1841,6 +1841,7 @@ void draw_lfo_section(GUI* gui)
 
                     imgui_pt drag_pos = im->pos_mouse_move;
                     drag_pos.y        = xm_clampf(drag_pos.y, grid_y, grid_b);
+                    drag_pos.x        = xm_clampf(drag_pos.x, grid_x, grid_r);
                     if (snap_to_grid)
                     {
                         float x_inc = grid_w / num_grid_x;
@@ -1874,8 +1875,15 @@ void draw_lfo_section(GUI* gui)
                     else
                     {
                         // Rebuid points array, skipping any points between the beginning and current drag position
-                        float range_l = xm_minf(drag_pos.x, im->pos_mouse_down.x);
-                        float range_r = xm_maxf(drag_pos.x, im->pos_mouse_down.x);
+                        float range_l       = xm_minf(drag_pos.x, im->pos_mouse_down.x);
+                        float range_r       = xm_maxf(drag_pos.x, im->pos_mouse_down.x);
+                        float clamp_range_l = range_l + LFO_POINT_DRAG_ERASE_DISTANCE;
+                        float clamp_range_r = range_r - LFO_POINT_DRAG_ERASE_DISTANCE;
+                        if (clamp_range_l > clamp_range_r)
+                        {
+                            float v       = (clamp_range_l + clamp_range_r) * 0.5f;
+                            clamp_range_l = clamp_range_r = v;
+                        }
 
                         range_l = xm_maxf(range_l, grid_x);
                         range_r = xm_minf(range_r, grid_r);
@@ -1885,6 +1893,11 @@ void draw_lfo_section(GUI* gui)
                         int npoints                = 0;
                         gui->lfo_points[npoints++] = gui->points_copy[0];
                         gui->selected_point_idx    = -1;
+
+                        imgui_pt(*view_pts)[512]      = (void*)gui->lfo_points;
+                        imgui_pt(*view_skew_pts)[512] = (void*)gui->lfo_skew_points;
+                        imgui_pt(*view_src_pts)[512]  = (void*)gui->points_copy;
+
                         for (int j = 1; j < num_points; j++)
                         {
                             float skew = 0.5f;
@@ -1904,17 +1917,26 @@ void draw_lfo_section(GUI* gui)
                                 gui->selected_point_idx = npoints;
                                 npoints++;
                             }
-                            else if (
-                                p2->x <= (range_l + LFO_POINT_DRAG_ERASE_DISTANCE) ||
-                                p2->x >= (range_r - LFO_POINT_DRAG_ERASE_DISTANCE))
+                            else if (j < sel_idx && p2->x <= clamp_range_l)
                             {
                                 gui->lfo_points[npoints++] = *p2;
 
                                 // Clamp dragged point to nearby point
-                                if (p2->x >= range_l && p2->x <= (range_l + LFO_POINT_DRAG_ERASE_DISTANCE))
-                                    drag_pos.x = p2->x;
-                                else if (p2->x >= (range_r - LFO_POINT_DRAG_ERASE_DISTANCE) && p2->x <= range_r)
-                                    drag_pos.x = p2->x;
+                                if (p2->x >= range_l && p2->x <= clamp_range_l)
+                                {
+                                    drag_pos.x = xm_maxf(p2->x, drag_pos.x);
+                                    xassert(drag_pos.x >= p2->x);
+                                }
+                            }
+                            else if (j > sel_idx && p2->x >= clamp_range_r)
+                            {
+                                gui->lfo_points[npoints++] = *p2;
+                                // Clamp dragged point to nearby point
+                                if (p2->x >= clamp_range_r && p2->x <= range_r)
+                                {
+                                    drag_pos.x = xm_minf(p2->x, drag_pos.x);
+                                    xassert(drag_pos.x <= p2->x);
+                                }
                             }
                             else
                             {
@@ -1941,6 +1963,8 @@ void draw_lfo_section(GUI* gui)
                             imgui_pt*       sp   = gui->lfo_skew_points + j;
                             float           skew = skew_amts[j];
 
+                            xassert(p1->x <= p2->x);
+
                             if (p1->x == p2->x) // the line between point & next_p is vertical
                             {
                                 sp->x = p1->x;
@@ -1961,9 +1985,6 @@ void draw_lfo_section(GUI* gui)
 
                         xarr_header(gui->lfo_points)->length      = npoints;
                         xarr_header(gui->lfo_skew_points)->length = npoints - 1;
-
-                        imgui_pt(*view_pts)[512]      = (void*)gui->lfo_points;
-                        imgui_pt(*view_skew_pts)[512] = (void*)gui->lfo_skew_points;
 
                         linked_arena_release(gui->arena, skew_amts);
                         send_points_to_lfo(gui, &grid_bg);
