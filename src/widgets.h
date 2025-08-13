@@ -111,8 +111,7 @@ void plot_expander(NVGcontext* nvg, float width, float height)
         nvgLineTo(nvg, x, height);
     }
     nvgSetColour(nvg, (NVGcolour){0, 0, 0, 0.2});
-    nvgSetStrokeWidth(nvg, 1.0f);
-    nvgStroke(nvg);
+    nvgStroke(nvg, 1);
 
     nvgSetTextAlign(nvg, NVG_ALIGN_TOP | NVG_ALIGN_LEFT);
     nvgSetColour(nvg, (NVGcolour){0, 0, 0, 0.4});
@@ -148,7 +147,7 @@ void plot_expander(NVGcontext* nvg, float width, float height)
         else
             nvgLineTo(nvg, x, y);
     }
-    nvgStroke(nvg);
+    nvgStroke(nvg, 1);
 }
 
 void plot_peak_detection(NVGcontext* nvg, float width, float height)
@@ -178,8 +177,7 @@ void plot_peak_detection(NVGcontext* nvg, float width, float height)
         x += 1.0f;
     }
     nvgSetColour(nvg, (NVGcolour){0, 0, 0, 1.0});
-    nvgSetStrokeWidth(nvg, 1.0f);
-    nvgStroke(nvg);
+    nvgStroke(nvg, 1);
 }
 
 float distort_compress(float x, float drive)
@@ -303,8 +301,7 @@ void plot_line(
     }
 
     nvgSetColour(nvg, col);
-    nvgSetStrokeWidth(nvg, 2);
-    nvgStroke(nvg);
+    nvgStroke(nvg, 2);
 }
 
 void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, float gui_height)
@@ -326,9 +323,8 @@ void plot_peak_distortion(NVGcontext* nvg, imgui_context* im, float gui_width, f
     nvgLineTo(nvg, x + width * 0.5f, y + gui_height);
     nvgMoveTo(nvg, x, y + gui_height * 0.5f);
     nvgLineTo(nvg, x + width, y + gui_height * 0.5f);
-    nvgSetStrokeWidth(nvg, 1.2);
     nvgSetColour(nvg, nvgRGBAf(0.2, 0.2, 0.3, 1.0f));
-    nvgStroke(nvg);
+    nvgStroke(nvg, 1.2f);
 
     {
         enum
@@ -582,9 +578,8 @@ void plot_peak_upwards_compression(NVGcontext* nvg, imgui_context* im, float gui
     nvgLineTo(nvg, x + width * 0.5f, y + gui_height);
     nvgMoveTo(nvg, x, y + gui_height * 0.5f);
     nvgLineTo(nvg, x + width, y + gui_height * 0.5f);
-    nvgSetStrokeWidth(nvg, 1.2);
     nvgSetColour(nvg, nvgRGBAf(0.2, 0.2, 0.3, 1.0f));
-    nvgStroke(nvg);
+    nvgStroke(nvg, 1.2f);
 
     {
         enum
@@ -875,8 +870,7 @@ void plot_oscilloscope(
     }
     nvgRect(nvg, x, y, width, height);
     NVGcolour col = {0, 0, 0, 1};
-    nvgSetStrokeWidth(nvg, 1.2f);
     nvgSetColour(nvg, col);
-    nvgStroke(nvg);
+    nvgStroke(nvg, 1.2f);
 }
 #endif // CPLUG_BUILD_STANDALONE

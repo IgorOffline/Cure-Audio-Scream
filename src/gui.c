@@ -695,10 +695,11 @@ void send_points_to_lfo(GUI* gui, const imgui_rect* area)
 #endif
 
     LFOEvent e;
-    e.set_points.type        = EVENT_SET_LFO_POINTS;
-    e.set_points.lfo_idx     = lfo_idx;
-    e.set_points.pattern_idx = pattern_idx;
-    e.set_points.array       = points;
+    e.set_points.type           = EVENT_SET_LFO_POINTS;
+    e.set_points.lfo_idx        = lfo_idx;
+    e.set_points.pattern_idx    = pattern_idx;
+    e.set_points.pattern_length = pattern_length;
+    e.set_points.array          = points;
     send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
 }
 
@@ -1052,10 +1053,6 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
         num_points++;
         left_idx++;
     }
-    else
-    {
-        xassert(left_idx > 0 ? num_points_at_left_boundary == 2 : num_points_at_left_boundary >= 1);
-    }
 
     send_points_to_lfo(gui, area);
     gui->lfo_cached_path_dirty = true;
@@ -1098,8 +1095,8 @@ void draw_lfo_section(GUI* gui)
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
 
-    static const NVGcolour c_display_bg = nvgHexColour(0x090E20FF);
-    static const NVGcolour c_light_blue = nvgHexColour(0x97E6FCFF);
+    LFOPoint* next_lfo_points     = NULL;
+    int       next_pattern_length = 0;
 
     float bot_content_height = lm->content_b - lm->top_content_bottom;
 
@@ -1111,7 +1108,7 @@ void draw_lfo_section(GUI* gui)
 
     nvgBeginPath(nvg);
     nvgRoundedRect(nvg, lm->content_x + 8, display_y, display_w, display_h, 6);
-    nvgSetColour(nvg, c_display_bg);
+    nvgSetColour(nvg, COLOUR_BG_LFO);
     nvgFill(nvg);
 
     // LFO tabs
@@ -1146,13 +1143,13 @@ void draw_lfo_section(GUI* gui)
             const bool is_active = gui->plugin->selected_lfo_idx == i;
             if (is_active)
             {
-                col1 = c_light_blue;
-                col2 = c_display_bg;
+                col1 = COLOUR_LFO_LINE;
+                col2 = COLOUR_BG_LFO;
             }
             else
             {
-                col1 = c_display_bg;
-                col2 = c_light_blue;
+                col1 = COLOUR_BG_LFO;
+                col2 = COLOUR_LFO_LINE;
             }
 
             if (is_active)
@@ -1186,8 +1183,7 @@ void draw_lfo_section(GUI* gui)
                 nvgBeginPath(nvg);
                 nvgRoundedRect(nvg, rect->x + 0.5, rect->y + 0.5, rect->r - rect->x, rect->b - rect->y, 4);
                 nvgSetColour(nvg, col2);
-                nvgSetStrokeWidth(nvg, 1.1);
-                nvgStroke(nvg);
+                nvgStroke(nvg, 1.1); // rounded edges looks better when stroke width >1
             }
 
             // TODO: draw text and icon
@@ -1200,7 +1196,6 @@ void draw_lfo_section(GUI* gui)
 
             // nvgSetLineCap(nvg, NVG_ROUND); // Doesn't look great when lines are so small and thin
             nvgSetLineCap(nvg, NVG_BUTT);
-            nvgSetStrokeWidth(nvg, 1);
             nvgSetColour(nvg, col2);
 
             nvgBeginPath(nvg);
@@ -1235,7 +1230,7 @@ void draw_lfo_section(GUI* gui)
             nvgMoveTo(nvg, icon_r + LFO_TAB_ICON_PADDING + 1, icon_y - 2.5f);
             nvgLineTo(nvg, icon_r + LFO_TAB_ICON_PADDING + 1, icon_b + 2.5f);
 
-            nvgStroke(nvg);
+            nvgStroke(nvg, 1);
 
             char label[]  = "LFO 1";
             label[4]     += i;
@@ -1295,20 +1290,98 @@ void draw_lfo_section(GUI* gui)
 
         static const char* btn_labels[] = {"÷2", "×2"};
 
-        for (int i = 0; i < BUTTON_COUNT; i++)
+        for (int btn_idx = 0; btn_idx < BUTTON_COUNT; btn_idx++)
         {
-            imgui_rect* rect = buttons + i;
+            imgui_rect* rect = buttons + btn_idx;
 
             rect->y = button_top;
             rect->r = rect->x + GRID_BUTTON_WIDTH;
             rect->b = button_bottom;
 
-            unsigned wid    = 'gbtn' + i;
+            unsigned wid    = 'gbtn' + btn_idx;
             unsigned events = imgui_get_events_rect(im, wid, rect);
 
             if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
-                println("CLICKED BUTTON: %d", i);
+                println("CLICKED BUTTON: %d", btn_idx);
+
+                if (btn_idx == BUTTON_LENGTH_HALF || btn_idx == BUTTON_LENGTH_DOUBLE)
+                {
+                    int lfo_idx     = gui->plugin->selected_lfo_idx;
+                    int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
+
+                    int pattern_length = gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx];
+
+                    if (btn_idx == BUTTON_LENGTH_HALF)
+                        next_pattern_length = pattern_length >> 1;
+                    if (btn_idx == BUTTON_LENGTH_DOUBLE)
+                        next_pattern_length = pattern_length << 1;
+                    next_pattern_length = xm_clampi(next_pattern_length, 1, MAX_PATTERN_LENGTH_PATTERNS);
+
+                    if (next_pattern_length != pattern_length)
+                    {
+                        LFOPoint* current_points = gui->plugin->lfos[lfo_idx].points[pattern_idx];
+                        int       N              = xarr_len(current_points);
+
+                        xarr_setcap(next_lfo_points, (N * 2));
+                        xarr_setlen(next_lfo_points, 0);
+
+                        if (btn_idx == BUTTON_LENGTH_HALF)
+                        {
+                            // Crop points
+                            for (int i = 0; i < N; i++)
+                            {
+                                LFOPoint pt = current_points[i];
+                                if (pt.x <= next_pattern_length)
+                                {
+                                    xarr_push(next_lfo_points, pt);
+                                }
+                                if (pt.x >= next_pattern_length)
+                                    break;
+                            }
+                        }
+                        else if (btn_idx == BUTTON_LENGTH_DOUBLE)
+                        {
+                            // Duplicate pattern
+
+                            // Deep copy
+                            memcpy(next_lfo_points, current_points, sizeof(*next_lfo_points) * N);
+                            xarr_header(next_lfo_points)->length = N;
+
+                            // Copy & translate points
+                            float delta_x = next_pattern_length >> 1;
+                            for (int i = 0; i < N; i++)
+                            {
+                                LFOPoint pt  = current_points[i];
+                                pt.x        += delta_x;
+                                xarr_push(next_lfo_points, pt);
+                            }
+                        }
+
+                        // Coalesce duplicate points
+                        N = xarr_len(next_lfo_points);
+                        for (int i = N - 1; i-- > 0;)
+                        {
+                            xassert(i >= 0);
+                            xassert((i + 1) < xarr_len(next_lfo_points));
+                            LFOPoint* pt1 = next_lfo_points + i;
+                            LFOPoint* pt2 = next_lfo_points + i + 1;
+                            int       cmp = memcmp(pt1, pt2, sizeof(*pt1));
+                            if (cmp == 0)
+                            {
+                                xarr_delete(next_lfo_points, i);
+                            }
+                        }
+
+                        LFOEvent e;
+                        e.set_points.type           = EVENT_SET_LFO_POINTS;
+                        e.set_points.lfo_idx        = lfo_idx;
+                        e.set_points.pattern_idx    = pattern_idx;
+                        e.set_points.pattern_length = next_pattern_length;
+                        e.set_points.array          = next_lfo_points;
+                        send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
+                    }
+                }
             }
 
             float btn_y   = rect->y;
@@ -1326,7 +1399,7 @@ void draw_lfo_section(GUI* gui)
             nvgFill(nvg);
 
             nvgSetColour(nvg, COLOUR_GREY_1);
-            int txt_idx = i & 1;
+            int txt_idx = btn_idx & 1;
             nvgSetTextAlign(nvg, NVG_ALIGN_CC);
             nvgText(nvg, btn_cx, text_cy, btn_labels[txt_idx], NULL);
         }
@@ -1337,6 +1410,7 @@ void draw_lfo_section(GUI* gui)
 
     {
         imgui_rect buttons[SHAPE_COUNT];
+        unsigned   events[SHAPE_COUNT];
 
         for (int i = 0; i < ARRLEN(buttons); i++)
         {
@@ -1346,19 +1420,25 @@ void draw_lfo_section(GUI* gui)
             rect->r          = content_x + (i + 1) * SHAPES_WIDTH;
             rect->b          = shape_y + SHAPES_WIDTH;
 
-            unsigned wid    = 'lshp' + i;
-            unsigned events = imgui_get_events_rect(im, wid, rect);
+            unsigned wid = 'lshp' + i;
+            events[i]    = imgui_get_events_rect(im, wid, rect);
 
-            if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+            if (events[i] & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
                 gui->plugin->lfo_shape_idx = i;
+            }
+
+            if (events[i] & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+            {
+                rect->y += 1;
+                rect->b += 1;
             }
         }
 
         imgui_rect* active_area = buttons + gui->plugin->lfo_shape_idx;
         nvgBeginPath(nvg);
-        nvgSetColour(nvg, COLOUR_BLUE_SECONDARY);
-        nvgRect2(nvg, active_area->x, active_area->y, active_area->r, active_area->b);
+        nvgSetColour(nvg, COLOUR_GREY_3);
+        nvgRoundedRect2(nvg, active_area->x, active_area->y, active_area->r, active_area->b, 4);
         nvgFill(nvg);
 
         nvgBeginPath(nvg);
@@ -1377,7 +1457,7 @@ void draw_lfo_section(GUI* gui)
             {
             case SHAPE_FLAT:
             {
-                float cy = floorf(shape_y + SHAPES_WIDTH * 0.5f) + 0.5f;
+                float cy = floorf((inner.y + inner.b) * 0.5f) + 0.5f;
                 nvgMoveTo(nvg, inner.x, cy);
                 nvgLineTo(nvg, inner.r, cy);
                 break;
@@ -1421,8 +1501,7 @@ void draw_lfo_section(GUI* gui)
             }
         }
         nvgSetColour(nvg, COLOUR_WHITE);
-        nvgSetStrokeWidth(nvg, 1.2f);
-        nvgStroke(nvg);
+        nvgStroke(nvg, 1.2f);
     }
 
     float pattern_r  = content_r;
@@ -1514,7 +1593,7 @@ void draw_lfo_section(GUI* gui)
         nvgMoveTo(nvg, pattern_line_x, pattern_line_y);
         nvgLineTo(nvg, pattern_line_r, pattern_line_y);
         nvgSetColour(nvg, COLOUR_TEXT);
-        nvgStroke(nvg);
+        nvgStroke(nvg, 1);
 
         const float pattern_pos_x = xm_lerpf(value_f, pattern_line_x, pattern_line_r);
 
@@ -1542,8 +1621,10 @@ void draw_lfo_section(GUI* gui)
     const int lfo_idx     = gui->plugin->selected_lfo_idx;
     const int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
 
-    const float pattern_length = (float)gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx];
-    const int   num_grid_x     = pattern_length;
+    const float pattern_length =
+        next_pattern_length ? next_pattern_length : (float)gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx];
+    const int num_grid_x = pattern_length;
+    const int num_grid_y = 4;
 
     enum
     {
@@ -1553,33 +1634,29 @@ void draw_lfo_section(GUI* gui)
         LFO_SKEW_DRAG_RANGE    = 250,
     };
 
-    {
-        NVGcolour c_grid_1 = nvgHexColour(0x7E8795FF);
-        NVGcolour c_grid_2 = nvgHexColour(0x292D32FF);
-
-        nvgBeginPath(nvg);
-        nvgRect(nvg, grid_x + 0.5f, grid_y + 0.5f, grid_r - grid_x - 1, grid_b - grid_y - 1);
-        nvgSetStrokeWidth(nvg, 1);
-        nvgSetColour(nvg, c_grid_1);
-        nvgStroke(nvg);
-    }
-
-    if (gui->lfo_points_dirty)
+    if (gui->lfo_points_dirty || next_lfo_points)
     {
         gui->lfo_points_dirty      = false;
         gui->lfo_cached_path_dirty = true;
 
         xarr_setlen(gui->selected_point_indexes, 0);
 
-        LFOPoint* const lfo_points = gui->plugin->lfos[lfo_idx].points[pattern_idx];
+        const LFOPoint* lfo_points = next_lfo_points;
+        if (!lfo_points)
+            lfo_points = gui->plugin->lfos[lfo_idx].points[pattern_idx];
+        xassert(lfo_points);
 
-        const int N = xarr_len(lfo_points);
-
-        xarr_setlen(gui->lfo_points, (N + 1));
-        xarr_setlen(gui->lfo_skew_points, N);
+        int N = xarr_len(lfo_points);
 
         const LFOPoint* it  = lfo_points;
         const LFOPoint* end = it + N;
+        // for (int i = 0; i < N && it[i].x <= pattern_length; i++, end++)
+        // {
+        // }
+        // N = end - it;
+
+        xarr_setlen(gui->lfo_points, (N + 1));
+        xarr_setlen(gui->lfo_skew_points, N);
 
         imgui_pt* p = gui->lfo_points;
 
@@ -1614,7 +1691,7 @@ void draw_lfo_section(GUI* gui)
             }
             else
             {
-                float y = interp_points(0.5f, it->skew, p->y, next_p->y);
+                float y = interp_points(0.5f, 1 - it->skew, p->y, next_p->y);
 
                 // x is always halfway between points
                 sp->x = (p->x + next_p->x) * 0.5f;
@@ -1979,34 +2056,114 @@ void draw_lfo_section(GUI* gui)
         xarr_header(gui->lfo_cached_path)->length = npoints;
     }
 
-    // Draw grid X
-    if (num_grid_x)
+    // Draw grid
     {
         nvgBeginPath(nvg);
-        float x_inc = grid_w / num_grid_x;
+        nvgRect(nvg, grid_x + 0.5f, grid_y + 0.5f, grid_r - grid_x - 1, grid_b - grid_y - 1);
+        nvgSetColour(nvg, C_GRID_PRIMARY);
+        nvgStroke(nvg, 1);
+
+        // Horizontal subdivisions
+        nvgBeginPath(nvg);
         for (int i = 1; i < num_grid_x; i++)
         {
-            float x = grid_x + x_inc * i;
+            float x = xm_mapf(i, 0, num_grid_x, grid_x, grid_r);
             x       = floorf(x) + 0.5f;
             nvgMoveTo(nvg, x, grid_y + 1);
             nvgLineTo(nvg, x, grid_b - 1);
         }
-        nvgSetStrokeWidth(nvg, 0.5f);
-        nvgStroke(nvg);
+        // Vertical subdivisions
+        for (int i = 1; i < num_grid_y; i++)
+        {
+            float y = xm_mapf(i, 0, num_grid_y, grid_y, grid_b);
+            y       = floorf(y) + 0.5f;
+            nvgMoveTo(nvg, grid_x + 1, y);
+            nvgLineTo(nvg, grid_r - 1, y);
+        }
+        if (num_grid_x > 1 || num_grid_y > 1)
+        {
+            nvgSetColour(nvg, C_GRID_SECONDARY);
+            nvgStroke(nvg, 1);
+        }
+
+        // Horiztonal beats
+        nvgBeginPath(nvg);
+        for (int i = 1; i < pattern_length; i++)
+        {
+            float x = xm_mapf(i, 0, num_grid_x, grid_x, grid_r);
+            x       = floorf(x) + 0.5f;
+            nvgMoveTo(nvg, x, grid_y + 1);
+            nvgLineTo(nvg, x, grid_b - 1);
+        }
+        nvgSetColour(nvg, C_GRID_PRIMARY);
+        nvgStroke(nvg, 1);
+
+        static const char* labels_1_beat[]  = {"0", "1/4"};
+        static const char* labels_2_beats[] = {"0", "1/4", "1/2"};
+        static const char* labels_1_bar[]   = {"0", "1/4", "1/2", "3/4", "1 bar"};
+        static const char* labels_2_bars[]  = {"0", "1/2", "1 bar", "1 1/2", "2 bar"};
+        static const char* labels_4_bars[]  = {"0", "1 bar", "2 bar", "3 bar", "4 bar"};
+
+        const char** labels_arr = NULL;
+        int          num_labels = 0;
+        if (pattern_length == 1)
+        {
+            labels_arr = labels_1_beat;
+            num_labels = ARRLEN(labels_1_beat);
+        }
+        else if (pattern_length == 2)
+        {
+            labels_arr = labels_2_beats;
+            num_labels = ARRLEN(labels_2_beats);
+        }
+        else if (pattern_length == 4)
+        {
+            labels_arr = labels_1_bar;
+            num_labels = ARRLEN(labels_1_bar);
+        }
+        else if (pattern_length == 8)
+        {
+            labels_arr = labels_2_bars;
+            num_labels = ARRLEN(labels_2_bars);
+        }
+        else if (pattern_length == 16)
+        {
+            labels_arr = labels_4_bars;
+            num_labels = ARRLEN(labels_4_bars);
+        }
+
+        if (num_labels && labels_arr)
+        {
+            nvgSetColour(nvg, nvgHexColour(0x626A77FF));
+            for (int i = 0; i < num_labels; i++)
+            {
+                int alignment = NVG_ALIGN_BC;
+                if (i == 0)
+                    alignment = NVG_ALIGN_BL;
+                if (i == num_labels - 1)
+                    alignment = NVG_ALIGN_BR;
+
+                const char* txt = labels_arr[i];
+
+                float x = xm_mapf(i, 0, num_labels - 1, grid_x, grid_r);
+                nvgSetTextAlign(nvg, alignment);
+                nvgText(nvg, x, grid_y - 8, txt, 0);
+            }
+        }
     }
 
     // Draw path
     {
+        const int       N   = xarr_len(gui->lfo_cached_path);
         const imgui_pt* it  = gui->lfo_cached_path;
-        const imgui_pt* end = it + xarr_len(gui->lfo_cached_path);
+        const imgui_pt* end = it + N;
         nvgBeginPath(nvg);
         nvgMoveTo(nvg, it->x, it->y);
         while (++it != end)
             nvgLineTo(nvg, it->x, it->y);
 
-        nvgSetColour(nvg, c_light_blue);
-        nvgSetStrokeWidth(nvg, 2);
-        nvgStroke(nvg);
+        nvgSetColour(nvg, COLOUR_LFO_LINE);
+        nvgStroke(nvg, 2);
     }
 
     // Draw points
@@ -2033,8 +2190,17 @@ void draw_lfo_section(GUI* gui)
             imgui_pt pt = gui->lfo_skew_points[i];
             nvgCircle(nvg, pt.x, pt.y, LFO_SKEW_POINT_RADIUS);
         }
-        nvgSetColour(nvg, nvgHexColour(0xffff00ff));
+        nvgSetColour(nvg, COLOUR_BG_LFO);
         nvgFill(nvg);
+
+        nvgBeginPath(nvg);
+        for (int i = 0; i < xarr_len(gui->lfo_skew_points); i++)
+        {
+            imgui_pt pt = gui->lfo_skew_points[i];
+            nvgCircle(nvg, pt.x, pt.y, LFO_SKEW_POINT_RADIUS);
+        }
+        nvgSetColour(nvg, COLOUR_LFO_LINE);
+        nvgStroke(nvg, 1.5);
         // regular points
         uint64_t selected_points_flags = 0;
         for (int i = 0; i < xarr_len(gui->selected_point_indexes); i++)
@@ -2044,8 +2210,8 @@ void draw_lfo_section(GUI* gui)
                 selected_points_flags |= 1llu << idx;
         }
 
-        static const NVGcolour col_normal   = nvgHexColour(0xff0000ff);
-        static const NVGcolour col_selected = {0.25, 0.75, 1, 1};
+        static const NVGcolour col_normal   = COLOUR_LFO_LINE;
+        static const NVGcolour col_selected = nvgHexColour(0xffff00ff);
         for (uint64_t i = 0; i < xarr_len(gui->lfo_points); i++)
         {
             imgui_pt pt = gui->lfo_points[i];
@@ -2080,8 +2246,7 @@ void draw_lfo_section(GUI* gui)
         nvgBeginPath(nvg);
         nvgRect2(nvg, area.x + 0.5f, area.y + 0.5f, area.r - 0.5f, area.b - 0.5f);
         nvgSetColour(nvg, col);
-        nvgSetStrokeWidth(nvg, 0.5f);
-        nvgStroke(nvg);
+        nvgStroke(nvg, 1);
     }
 
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
@@ -2579,37 +2744,37 @@ void pw_tick(void* _gui)
                 float tick_radius_start = radius_inner - 10 * lm->param_scale;
                 float tick_radius_end   = radius_inner * 0.4f;
 
-                const imgui_pt pt1 = {pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y};
-                const imgui_pt pt2 = {pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y};
-                nvgSetStrokeWidth(nvg, 6 * lm->param_scale);
+                const imgui_pt pt1      = {pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y};
+                const imgui_pt pt2      = {pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y};
+                float          stroke_w = 6 * lm->param_scale;
                 nvgSetLineCap(nvg, NVG_ROUND);
 
                 nvgBeginPath(nvg); // Skeumorphic inner shadow
                 nvgMoveTo(nvg, pt1.x, pt1.y);
                 nvgLineTo(nvg, pt2.x, pt2.y);
                 nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
-                nvgStroke(nvg);
+                nvgStroke(nvg, stroke_w);
 
                 nvgBeginPath(nvg);
                 nvgMoveTo(nvg, pt1.x, pt1.y - 1);
                 nvgLineTo(nvg, pt2.x, pt2.y - 1);
                 nvgSetColour(nvg, nvgHexColour(0x242E56FF));
-                nvgStroke(nvg);
+                nvgStroke(nvg, stroke_w);
 
                 nvgSetLineCap(nvg, NVG_BUTT);
 
                 // Value arc
                 const float arc_radius = roundf(RADIUS_VALUE_ARC * lm->param_scale);
-                nvgSetStrokeWidth(nvg, roundf(lm->param_scale * 4));
+                stroke_w               = roundf(lm->param_scale * 4);
                 nvgBeginPath(nvg);
                 nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
                 nvgSetColour(nvg, COLOUR_GREY_1);
-                nvgStroke(nvg);
+                nvgStroke(nvg, stroke_w);
 
                 nvgBeginPath(nvg);
                 nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, angle_value, NVG_CW);
                 nvgSetColour(nvg, COLOUR_GREY_2);
-                nvgStroke(nvg);
+                nvgStroke(nvg, stroke_w);
                 break;
             }
             case PARAM_INPUT_GAIN:
@@ -2877,8 +3042,7 @@ void pw_tick(void* _gui)
                     nvgMoveTo(nvg, rect.x, zero_dB_y);
                     nvgLineTo(nvg, rect.r, zero_dB_y);
                     nvgSetPaint(nvg, bg_paint);
-                    nvgSetStrokeWidth(nvg, 1);
-                    nvgStroke(nvg);
+                    nvgStroke(nvg, 1);
                 }
                 else // param_id == PARAM_WET
                 {
@@ -2948,8 +3112,7 @@ void pw_tick(void* _gui)
                     nvgLineTo(nvg, notch_r, bot_y);
 
                     nvgSetColour(nvg, COLOUR_GREY_1);
-                    nvgSetStrokeWidth(nvg, 1);
-                    nvgStroke(nvg);
+                    nvgStroke(nvg, 1);
 
                     // Handle drop shadow
                     float handle_cy = xm_lerpf(value_d, drag_b, drag_y);
@@ -2996,23 +3159,21 @@ void pw_tick(void* _gui)
                     // Handle notch
                     float snapped_y = floorf(handle_cy) - 1;
                     // float snapped_y = floorf(handle_cy) + 0.5f;
-                    nvgSetStrokeWidth(nvg, 2);
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, notch_x, snapped_y);
                     nvgLineTo(nvg, notch_r, snapped_y);
                     nvgSetColour(nvg, nvgHexColour(0x242E56FF));
-                    nvgStroke(nvg);
-                    nvgSetStrokeWidth(nvg, 1);
-                    nvgBeginPath(nvg);
+                    nvgStroke(nvg, 2);
+
                     nvgMoveTo(nvg, notch_x, snapped_y - 2);
                     nvgLineTo(nvg, notch_r, snapped_y - 2);
                     nvgSetColour(nvg, nvgHexColour(0x9199A0FF));
-                    nvgStroke(nvg);
+                    nvgStroke(nvg, 2);
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, notch_x, snapped_y + 2);
                     nvgLineTo(nvg, notch_r, snapped_y + 2);
                     nvgSetColour(nvg, nvgHexColour(0xDCE2E9FF));
-                    nvgStroke(nvg);
+                    nvgStroke(nvg, 1);
                 }
                 break;
             }

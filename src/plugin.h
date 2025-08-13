@@ -92,6 +92,7 @@ typedef union LFOEvent
         enum EventType type;
         uint8_t        lfo_idx;
         uint8_t        pattern_idx;
+        uint8_t        pattern_length;
         LFOPoint*      array;
     } set_points;
 

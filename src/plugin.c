@@ -349,7 +349,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 void*     ptr         = xarr_header(prev_points);
                 send_to_global_event_queue(GLOBAL_EVENT_GARBAGE_COLLECT_FREE, ptr);
 
-                p->lfos[lfo_idx].points[pattern_idx] = e->set_points.array;
+                p->lfos[lfo_idx].points[pattern_idx]         = e->set_points.array;
+                p->lfos[lfo_idx].pattern_length[pattern_idx] = e->set_points.pattern_length;
                 break;
             }
             case EVENT_SET_LFO_XY:
