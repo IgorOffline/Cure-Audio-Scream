@@ -1776,7 +1776,7 @@ void draw_lfo_section(GUI* gui)
             if (pt_events & IMGUI_EVENT_MOUSE_HOVER)
             {
                 pt_hover_idx = pt_idx;
-                if (gui->selected_point_idx != -1)
+                if (gui->selected_point_idx != -1 && pt_events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
                     pt_hover_idx = gui->selected_point_idx;
             }
 
