@@ -88,8 +88,8 @@ void* cplug_createPlugin(CplugHostContext* ctx)
         {
             xarr_setcap(lfo->points[j], (4 * MAX_PATTERN_LENGTH_PATTERNS));
 
-            lfo->grid_x[i] = 1;
-            lfo->grid_y[i] = 4;
+            lfo->grid_x[j] = 1;
+            lfo->grid_y[j] = 4;
 
             lfo->pattern_length[j] = 4;
 

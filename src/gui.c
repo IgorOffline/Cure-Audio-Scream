@@ -2260,6 +2260,19 @@ void draw_lfo_section(GUI* gui)
         }
     }
 
+    float playhead = (float)gui->plugin->beat_position;
+    playhead       = fmodf(playhead, pattern_length);
+    if (playhead < pattern_length)
+    {
+        float x = xm_mapf(playhead, 0, pattern_length, grid_x, grid_r);
+        x       = floorf(x) + 0.5f;
+        nvgBeginPath(nvg);
+        nvgMoveTo(nvg, x, grid_y + 1);
+        nvgLineTo(nvg, x, grid_b - 1);
+        nvgSetColour(nvg, COLOUR_WHITE);
+        nvgStroke(nvg, 1);
+    }
+
     if (gui->selection_start.u64 != 0 && gui->selection_end.u64 != 0)
     {
         static const NVGcolour col  = {0, 0.5, 1, 1};
