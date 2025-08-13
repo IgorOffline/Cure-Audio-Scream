@@ -1250,18 +1250,13 @@ void draw_lfo_section(GUI* gui)
                     else
                     {
                         // Rebuid points array, skipping any points between the beginning and current drag position
-                        float range_l       = xm_minf(drag_pos.x, im->pos_mouse_down.x);
-                        float range_r       = xm_maxf(drag_pos.x, im->pos_mouse_down.x);
-                        float clamp_range_l = range_l + LFO_POINT_DRAG_ERASE_DISTANCE;
-                        float clamp_range_r = range_r - LFO_POINT_DRAG_ERASE_DISTANCE;
-                        if (clamp_range_l > clamp_range_r)
-                        {
-                            float v       = (clamp_range_l + clamp_range_r) * 0.5f;
-                            clamp_range_l = clamp_range_r = v;
-                        }
+                        float range_l = xm_minf(drag_pos.x, im->pos_mouse_down.x);
+                        float range_r = xm_maxf(drag_pos.x, im->pos_mouse_down.x);
+                        range_l       = xm_maxf(range_l, grid_x);
+                        range_r       = xm_minf(range_r, grid_r);
 
-                        range_l = xm_maxf(range_l, grid_x);
-                        range_r = xm_minf(range_r, grid_r);
+                        const float clamp_range_l = range_l + LFO_POINT_DRAG_ERASE_DISTANCE;
+                        const float clamp_range_r = range_r - LFO_POINT_DRAG_ERASE_DISTANCE;
 
                         float* skew_amts = linked_arena_alloc(gui->arena, sizeof(*skew_amts) * num_points);
 
