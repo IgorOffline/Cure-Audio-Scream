@@ -109,6 +109,7 @@ set(PLUGIN_DEFINITIONS
 set(PLUGIN_SOURCES
     src/plugin.c
     src/gui.c
+    src/gui_lfo.c
     src/libs/texteditor.c
 
     modules/wip_libs/src/nanovg2.c
