@@ -1644,6 +1644,57 @@ void pw_tick(void* _gui)
                 nvgText(nvg, param_cx, value_y, label, NULL);
             }
         }
+
+        const float mod_handle_offset = lm->knob_radius + 50 * lm->scale_y;
+        const float handle_y          = content_cy + mod_handle_offset;
+
+        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
+        {
+            imgui_rect    handles[2] = {0};
+            float         cx         = lm->param_positions_cx[i];
+            const ParamID param_id   = param_ids[i];
+
+            float width   = 20;
+            float padding = 10;
+            float x       = cx - width - padding * 0.5f;
+            float y       = handle_y;
+            layout_uniform_horizontal(handles, ARRLEN(handles), x, y, width, width, LAYOUT_START, padding);
+
+            for (int j = 0; j < ARRLEN(handles); j++)
+            {
+                const imgui_rect* rect = handles + j;
+
+                const unsigned uid    = 'pmod' + (i * 2) + j;
+                const unsigned events = imgui_get_events_rect(im, uid, rect);
+
+                float* pValue = &gui->plugin->lfo_mod_amounts[param_id].data[j];
+
+                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                {
+                    if (im->left_click_counter == 2)
+                    {
+                        *pValue = 0;
+                    }
+                }
+                if (events & IMGUI_EVENT_DRAG_MOVE)
+                {
+                    imgui_drag_value(im, pValue, -1, 1, 300, IMGUI_DRAG_VERTICAL);
+                }
+
+                nvgBeginPath(nvg);
+                nvgRect2(nvg, rect->x, rect->y, rect->r, rect->b);
+                nvgSetColour(nvg, nvgHexColour(0x000000ff));
+                nvgFill(nvg);
+
+                float tx     = (rect->x + rect->r) * 0.5f;
+                float ty     = (rect->y + rect->b) * 0.5f;
+                char  label  = '1';
+                label       += j;
+                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+                nvgSetColour(nvg, nvgHexColour(0xffffffff));
+                nvgText(nvg, tx, ty, &label, &label + 1);
+            }
+        }
     }
 
     snvg_command_custom(nvg, gui, do_knob_shader, NVG_LABEL("Knob shader"));
