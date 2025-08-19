@@ -47,10 +47,11 @@ void println(const char* const fmt, ...);
 #define XFILES_ASSERT(cond) CPLUG_LOG_ASSERT((cond))
 #endif // CPLUG_BUILD_STANDALONE
 
-#define LOG_MALLOC(sz)       (println("malloc(%s) - %s:%d", #sz, __FILE__, __LINE__), xmalloc(sz))
-#define LOG_CALLOC(n, sz)    (println("calloc(%s, %s) - %s:%d", #n, #sz, __FILE__, __LINE__), xcalloc(n, sz))
-#define LOG_REALLOC(ptr, sz) (println("realloc(%s, %s) - %s:%d", #ptr, #sz, __FILE__, __LINE__), xrealloc(ptr, sz))
-#define LOG_FREE(ptr)        (println("free(%s) (0x%p) - %s:%d", #ptr, (ptr), __FILE__, __LINE__), xfree(ptr))
+#define LOG_MALLOC(sz)    (println("malloc(%s) (%llu) - %s:%d", #sz, (sz), __FILE__, __LINE__), xmalloc(sz))
+#define LOG_CALLOC(n, sz) (println("calloc(%s, %s) (%llu) - %s:%d", #n, #sz, (sz), __FILE__, __LINE__), xcalloc(n, sz))
+#define LOG_REALLOC(ptr, sz)                                                                                           \
+    (println("realloc(%s, %s) (%llu) - %s:%d", #ptr, #sz, (sz), __FILE__, __LINE__), xrealloc(ptr, sz))
+#define LOG_FREE(ptr) (println("free(%s) (0x%p) - %s:%d", #ptr, (ptr), __FILE__, __LINE__), xfree(ptr))
 
 #define MY_MALLOC(sz)       xmalloc(sz)
 #define MY_CALLOC(n, sz)    xcalloc(n, sz)
