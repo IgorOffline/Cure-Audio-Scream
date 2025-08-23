@@ -516,10 +516,18 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     lfo_2_mod_flags |= 1 << i;
             }
 
+            xvec2f last_lfo_amount = {0};
             if (lfo_1_mod_flags)
+            {
                 render_lfo(p, num_frames, 0);
+                last_lfo_amount.left = p->mod_buffer[num_frames - 1].left;
+            }
             if (lfo_2_mod_flags)
+            {
                 render_lfo(p, num_frames, 1);
+                last_lfo_amount.right = p->mod_buffer[num_frames - 1].right;
+            }
+            p->last_lfo_amount = last_lfo_amount;
 
             // Setup params
 

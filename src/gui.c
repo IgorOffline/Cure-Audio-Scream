@@ -1120,11 +1120,11 @@ void pw_tick(void* _gui)
 // end - start
 #define SLIDER_LENGTH_RAD 5.23577831647275f
 
-                float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value_d);
-                float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
+                const float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value_d);
+                const float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
 
-                float angle_x = cosf(angle_value);
-                float angle_y = sinf(angle_value);
+                const float angle_x = cosf(angle_value);
+                const float angle_y = sinf(angle_value);
 
                 float tick_radius_start = radius_inner - 10 * lm->param_scale;
                 float tick_radius_end   = radius_inner * 0.4f;
@@ -1148,18 +1148,42 @@ void pw_tick(void* _gui)
 
                 nvgSetLineCap(nvg, NVG_BUTT);
 
+                xvec2f     modamts      = gui->plugin->lfo_mod_amounts[param_id];
+                const bool is_modulated = modamts.u64 != 0;
+
                 // Value arc
                 const float arc_radius = roundf(RADIUS_VALUE_ARC * lm->param_scale);
                 stroke_w               = roundf(lm->param_scale * 4);
                 nvgBeginPath(nvg);
                 nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
-                nvgSetColour(nvg, COLOUR_GREY_1);
+                nvgSetColour(nvg, is_modulated ? COLOUR_BG_LFO : COLOUR_GREY_1);
                 nvgStroke(nvg, stroke_w);
 
-                nvgBeginPath(nvg);
-                nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, angle_value, NVG_CW);
-                nvgSetColour(nvg, COLOUR_GREY_2);
-                nvgStroke(nvg, stroke_w);
+                if (modamts.u64 == 0)
+                {
+                    nvgBeginPath(nvg);
+                    nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, angle_value, NVG_CW);
+                    nvgSetColour(nvg, COLOUR_GREY_2);
+                    nvgStroke(nvg, stroke_w);
+                }
+                else
+                {
+                    const xvec2f lfo_amt = gui->plugin->last_lfo_amount;
+                    for (int lfo_idx = 0; lfo_idx < 2; lfo_idx++)
+                    {
+                        float mod_value_norm        = value_norm + modamts.data[lfo_idx] * lfo_amt.data[lfo_idx];
+                        mod_value_norm              = xm_clampf(mod_value_norm, 0, 1);
+                        const float mod_angle_value = SLIDER_START_RAD + mod_value_norm * SLIDER_LENGTH_RAD;
+
+                        float angle_start = xm_minf(angle_value, mod_angle_value);
+                        float angle_end   = xm_maxf(angle_value, mod_angle_value);
+
+                        nvgBeginPath(nvg);
+                        nvgArc(nvg, pt.x, pt.y, arc_radius, angle_start, angle_end, NVG_CW);
+                        nvgSetColour(nvg, COLOUR_LFO_LINE);
+                        nvgStroke(nvg, stroke_w * 1.3);
+                    }
+                }
                 break;
             }
             case PARAM_INPUT_GAIN:
@@ -1568,6 +1592,7 @@ void pw_tick(void* _gui)
             }
         }
 
+        // Param labels
         nvgSetColour(nvg, COLOUR_TEXT);
         const float param_font_size = 14 * lm->content_scale;
         nvgSetFontSize(nvg, param_font_size);
@@ -1645,6 +1670,7 @@ void pw_tick(void* _gui)
             }
         }
 
+        // Mod amount controls
         const float mod_handle_offset = lm->knob_radius + 50 * lm->scale_y;
         const float handle_y          = content_cy + mod_handle_offset;
 
@@ -1669,6 +1695,8 @@ void pw_tick(void* _gui)
 
                 float* pValue = &gui->plugin->lfo_mod_amounts[param_id].data[j];
 
+                if (events & IMGUI_EVENT_MOUSE_ENTER)
+                    pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
                 if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
                 {
                     if (im->left_click_counter == 2)
