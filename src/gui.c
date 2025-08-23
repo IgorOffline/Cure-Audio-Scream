@@ -1001,6 +1001,146 @@ void pw_tick(void* _gui)
     {
         static const ParamID param_ids[] = {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET};
         _Static_assert(ARRLEN(param_ids) == ARRLEN(lm->param_positions_cx), "");
+
+        // Param labels
+        nvgSetColour(nvg, COLOUR_TEXT);
+        const float param_font_size = 14 * lm->content_scale;
+        nvgSetFontSize(nvg, param_font_size);
+
+        const float content_cy  = lm->content_y + lm->top_content_height * 0.5f;
+        const float text_offset = lm->knob_radius + 40 * lm->scale_y;
+        const float value_y     = content_cy - text_offset;
+        const float label_b     = content_cy + text_offset;
+
+        static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET"};
+        _Static_assert(ARRLEN(NAMES) == ARRLEN(lm->param_positions_cx));
+        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
+        {
+            const ParamID param_id = param_ids[i];
+            const float   param_cx = lm->param_positions_cx[i];
+
+            nvgSetTextAlign(nvg, NVG_ALIGN_BC);
+            nvgSetColour(nvg, COLOUR_TEXT);
+            nvgText(nvg, param_cx, label_b, NAMES[i], NULL);
+
+            imgui_rect rect;
+            rect.x = param_cx - 50;
+            rect.r = param_cx + 50;
+            rect.y = value_y;
+            rect.b = value_y + param_font_size;
+
+            unsigned wid    = 'txt' + i;
+            uint32_t events = imgui_get_events_rect(im, wid, &rect);
+
+            if (events & IMGUI_EVENT_MOUSE_ENTER)
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_IBEAM);
+
+            // Handle events
+            if (gui->texteditor.active_param == param_id)
+            {
+                TextEditor* ted = &gui->texteditor;
+                // Text editor stuff
+                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                {
+                    ted_handle_mouse_down(ted);
+                }
+                if (events & IMGUI_EVENT_DRAG_MOVE)
+                {
+                    ted_handle_mouse_drag(ted);
+                }
+                xassert(ted->ibeam_idx >= 0 && ted->ibeam_idx <= xarr_len(ted->codepoints));
+            }
+            else
+            {
+                // Not text editor
+                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                {
+                    xvec4f dimensions = {rect.x, rect.y, rect.r - rect.x, rect.b - rect.y};
+                    xvec2f pos        = {im->pos_mouse_down.x, im->pos_mouse_down.y};
+                    ted_activate(&gui->texteditor, dimensions, pos, param_font_size, param_id);
+                }
+            }
+
+            // Draw
+            if (gui->texteditor.active_param == param_id)
+            {
+                ted_draw(&gui->texteditor);
+            }
+            else
+            {
+                extern double main_get_param(Plugin * p, ParamID id);
+
+                char   label[24];
+                double value = main_get_param(gui->plugin, param_id);
+                cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
+
+                nvgSetColour(nvg, COLOUR_TEXT);
+                nvgSetTextAlign(nvg, NVG_ALIGN_TC);
+                nvgText(nvg, param_cx, value_y, label, NULL);
+            }
+        }
+
+        // Mod amount controls
+        const float mod_handle_offset = lm->knob_radius + 50 * lm->scale_y;
+        const float handle_y          = content_cy + mod_handle_offset;
+
+        unsigned mod_amt_events[ARRLEN(lm->param_positions_cx)][2] = {0};
+
+        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
+        {
+            imgui_rect    handles[2] = {0};
+            float         cx         = lm->param_positions_cx[i];
+            const ParamID param_id   = param_ids[i];
+
+            float width   = 20;
+            float padding = 10;
+            float x       = cx - width - padding * 0.5f;
+            float y       = handle_y;
+            layout_uniform_horizontal(handles, ARRLEN(handles), x, y, width, width, LAYOUT_START, padding);
+
+            for (int j = 0; j < ARRLEN(handles); j++)
+            {
+                const imgui_rect* rect = handles + j;
+
+                const unsigned uid    = 'pmod' + (i * 2) + j;
+                const unsigned events = imgui_get_events_rect(im, uid, rect);
+
+                xassert(param_id < ARRLEN(mod_amt_events));
+                xassert(j < ARRLEN(mod_amt_events[0]));
+                mod_amt_events[param_id][j] = events;
+
+                float* pValue = &gui->plugin->lfo_mod_amounts[param_id].data[j];
+
+                if (events & IMGUI_EVENT_MOUSE_ENTER)
+                    pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
+                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                {
+                    if (im->left_click_counter == 2)
+                    {
+                        *pValue = 0;
+                    }
+                }
+                if (events & IMGUI_EVENT_DRAG_MOVE)
+                {
+                    imgui_drag_value(im, pValue, -1, 1, 300, IMGUI_DRAG_VERTICAL);
+                }
+
+                nvgBeginPath(nvg);
+                nvgRect2(nvg, rect->x, rect->y, rect->r, rect->b);
+                nvgSetColour(nvg, nvgHexColour(0x000000ff));
+                nvgFill(nvg);
+
+                float tx     = (rect->x + rect->r) * 0.5f;
+                float ty     = (rect->y + rect->b) * 0.5f;
+                char  label  = '1';
+                label       += j;
+                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+                nvgSetColour(nvg, nvgHexColour(0xffffffff));
+                nvgText(nvg, tx, ty, &label, &label + 1);
+            }
+        }
+
+        // Parameter control
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
             const ParamID  param_id = param_ids[i];
@@ -1015,11 +1155,11 @@ void pw_tick(void* _gui)
             {
                 enum
                 {
-                    RADIUS_INNER          = 86 / 2,
-                    RADIUS_OUTER          = 98 / 2,
-                    RADIUS_INLET          = 122 / 2,
-                    RADIUS_VALUE_ARC      = 140 / 2,
-                    RADIUS_DASHED_PATTERN = 154 / 2,
+                    RADIUS_INNER           = 80 / 2,
+                    RADIUS_OUTER           = 88 / 2,
+                    RADIUS_INLET           = 108 / 2,
+                    RADIUS_INNER_VALUE_ARC = 120 / 2,
+                    RADIUS_OUTER_VALUE_ARC = 136 / 2,
                 };
                 xassert(param_id < ARRLEN(lm->knobs_pos));
                 imgui_pt pt = lm->knobs_pos[param_id];
@@ -1148,29 +1288,46 @@ void pw_tick(void* _gui)
 
                 nvgSetLineCap(nvg, NVG_BUTT);
 
-                xvec2f     modamts      = gui->plugin->lfo_mod_amounts[param_id];
-                const bool is_modulated = modamts.u64 != 0;
+                xvec2f modamts = gui->plugin->lfo_mod_amounts[param_id];
 
                 // Value arc
-                const float arc_radius = roundf(RADIUS_VALUE_ARC * lm->param_scale);
-                stroke_w               = roundf(lm->param_scale * 4);
-                nvgBeginPath(nvg);
-                nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
-                nvgSetColour(nvg, is_modulated ? COLOUR_BG_LFO : COLOUR_GREY_1);
-                nvgStroke(nvg, stroke_w);
+                float arc_radius[] = {
+                    roundf(RADIUS_INNER_VALUE_ARC * lm->param_scale),
+                    roundf(RADIUS_OUTER_VALUE_ARC * lm->param_scale),
+                };
+                const xvec2f lfo_amt = gui->plugin->last_lfo_amount;
 
-                if (modamts.u64 == 0)
+                stroke_w = roundf(lm->param_scale * 4);
+                for (int lfo_idx = 0; lfo_idx < 2; lfo_idx++)
                 {
+                    const bool is_modulated = fabsf(modamts.data[lfo_idx]) != 0;
+
+                    NVGcolour col = COLOUR_GREY_1;
+                    col.a         = 0.4f;
                     nvgBeginPath(nvg);
-                    nvgArc(nvg, pt.x, pt.y, arc_radius, SLIDER_START_RAD, angle_value, NVG_CW);
-                    nvgSetColour(nvg, COLOUR_GREY_2);
+                    nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
+                    nvgSetColour(nvg, is_modulated ? COLOUR_BG_LFO : col);
                     nvgStroke(nvg, stroke_w);
-                }
-                else
-                {
-                    const xvec2f lfo_amt = gui->plugin->last_lfo_amount;
-                    for (int lfo_idx = 0; lfo_idx < 2; lfo_idx++)
+
+                    if (is_modulated)
                     {
+                        xassert(param_id < ARRLEN(mod_amt_events));
+                        xassert(lfo_idx < ARRLEN(mod_amt_events[0]));
+                        unsigned mod_amt_event = mod_amt_events[param_id][lfo_idx];
+                        if (mod_amt_event & IMGUI_EVENT_MOUSE_HOVER)
+                        {
+                            float mod_value_norm        = value_norm + modamts.data[lfo_idx];
+                            mod_value_norm              = xm_clampf(mod_value_norm, 0, 1);
+                            const float mod_angle_value = SLIDER_START_RAD + mod_value_norm * SLIDER_LENGTH_RAD;
+
+                            float angle_start = xm_minf(angle_value, mod_angle_value);
+                            float angle_end   = xm_maxf(angle_value, mod_angle_value);
+
+                            nvgBeginPath(nvg);
+                            nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], angle_start, angle_end, NVG_CW);
+                            nvgSetColour(nvg, COLOUR_BLUE_SECONDARY);
+                            nvgStroke(nvg, stroke_w * 1.3);
+                        }
                         float mod_value_norm        = value_norm + modamts.data[lfo_idx] * lfo_amt.data[lfo_idx];
                         mod_value_norm              = xm_clampf(mod_value_norm, 0, 1);
                         const float mod_angle_value = SLIDER_START_RAD + mod_value_norm * SLIDER_LENGTH_RAD;
@@ -1179,10 +1336,18 @@ void pw_tick(void* _gui)
                         float angle_end   = xm_maxf(angle_value, mod_angle_value);
 
                         nvgBeginPath(nvg);
-                        nvgArc(nvg, pt.x, pt.y, arc_radius, angle_start, angle_end, NVG_CW);
+                        nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], angle_start, angle_end, NVG_CW);
                         nvgSetColour(nvg, COLOUR_LFO_LINE);
                         nvgStroke(nvg, stroke_w * 1.3);
                     }
+                }
+
+                if (modamts.u64 == 0)
+                {
+                    nvgBeginPath(nvg);
+                    nvgArc(nvg, pt.x, pt.y, arc_radius[0], SLIDER_START_RAD, angle_value, NVG_CW);
+                    nvgSetColour(nvg, COLOUR_GREY_2);
+                    nvgStroke(nvg, stroke_w);
                 }
                 break;
             }
@@ -1589,138 +1754,6 @@ void pw_tick(void* _gui)
             default:
                 xassert(false);
                 break;
-            }
-        }
-
-        // Param labels
-        nvgSetColour(nvg, COLOUR_TEXT);
-        const float param_font_size = 14 * lm->content_scale;
-        nvgSetFontSize(nvg, param_font_size);
-
-        const float content_cy  = lm->content_y + lm->top_content_height * 0.5f;
-        const float text_offset = lm->knob_radius + 40 * lm->scale_y;
-        const float value_y     = content_cy - text_offset;
-        const float label_b     = content_cy + text_offset;
-
-        static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET"};
-        _Static_assert(ARRLEN(NAMES) == ARRLEN(lm->param_positions_cx));
-        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
-        {
-            const ParamID param_id = param_ids[i];
-            const float   param_cx = lm->param_positions_cx[i];
-
-            nvgSetTextAlign(nvg, NVG_ALIGN_BC);
-            nvgSetColour(nvg, COLOUR_TEXT);
-            nvgText(nvg, param_cx, label_b, NAMES[i], NULL);
-
-            imgui_rect rect;
-            rect.x = param_cx - 50;
-            rect.r = param_cx + 50;
-            rect.y = value_y;
-            rect.b = value_y + param_font_size;
-
-            unsigned wid    = 'txt' + i;
-            uint32_t events = imgui_get_events_rect(im, wid, &rect);
-
-            if (events & IMGUI_EVENT_MOUSE_ENTER)
-                pw_set_mouse_cursor(gui->pw, PW_CURSOR_IBEAM);
-
-            // Handle events
-            if (gui->texteditor.active_param == param_id)
-            {
-                TextEditor* ted = &gui->texteditor;
-                // Text editor stuff
-                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-                {
-                    ted_handle_mouse_down(ted);
-                }
-                if (events & IMGUI_EVENT_DRAG_MOVE)
-                {
-                    ted_handle_mouse_drag(ted);
-                }
-                xassert(ted->ibeam_idx >= 0 && ted->ibeam_idx <= xarr_len(ted->codepoints));
-            }
-            else
-            {
-                // Not text editor
-                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-                {
-                    xvec4f dimensions = {rect.x, rect.y, rect.r - rect.x, rect.b - rect.y};
-                    xvec2f pos        = {im->pos_mouse_down.x, im->pos_mouse_down.y};
-                    ted_activate(&gui->texteditor, dimensions, pos, param_font_size, param_id);
-                }
-            }
-
-            // Draw
-            if (gui->texteditor.active_param == param_id)
-            {
-                ted_draw(&gui->texteditor);
-            }
-            else
-            {
-                extern double main_get_param(Plugin * p, ParamID id);
-
-                char   label[24];
-                double value = main_get_param(gui->plugin, param_id);
-                cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
-
-                nvgSetColour(nvg, COLOUR_TEXT);
-                nvgSetTextAlign(nvg, NVG_ALIGN_TC);
-                nvgText(nvg, param_cx, value_y, label, NULL);
-            }
-        }
-
-        // Mod amount controls
-        const float mod_handle_offset = lm->knob_radius + 50 * lm->scale_y;
-        const float handle_y          = content_cy + mod_handle_offset;
-
-        for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
-        {
-            imgui_rect    handles[2] = {0};
-            float         cx         = lm->param_positions_cx[i];
-            const ParamID param_id   = param_ids[i];
-
-            float width   = 20;
-            float padding = 10;
-            float x       = cx - width - padding * 0.5f;
-            float y       = handle_y;
-            layout_uniform_horizontal(handles, ARRLEN(handles), x, y, width, width, LAYOUT_START, padding);
-
-            for (int j = 0; j < ARRLEN(handles); j++)
-            {
-                const imgui_rect* rect = handles + j;
-
-                const unsigned uid    = 'pmod' + (i * 2) + j;
-                const unsigned events = imgui_get_events_rect(im, uid, rect);
-
-                float* pValue = &gui->plugin->lfo_mod_amounts[param_id].data[j];
-
-                if (events & IMGUI_EVENT_MOUSE_ENTER)
-                    pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
-                if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-                {
-                    if (im->left_click_counter == 2)
-                    {
-                        *pValue = 0;
-                    }
-                }
-                if (events & IMGUI_EVENT_DRAG_MOVE)
-                {
-                    imgui_drag_value(im, pValue, -1, 1, 300, IMGUI_DRAG_VERTICAL);
-                }
-
-                nvgBeginPath(nvg);
-                nvgRect2(nvg, rect->x, rect->y, rect->r, rect->b);
-                nvgSetColour(nvg, nvgHexColour(0x000000ff));
-                nvgFill(nvg);
-
-                float tx     = (rect->x + rect->r) * 0.5f;
-                float ty     = (rect->y + rect->b) * 0.5f;
-                char  label  = '1';
-                label       += j;
-                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-                nvgSetColour(nvg, nvgHexColour(0xffffffff));
-                nvgText(nvg, tx, ty, &label, &label + 1);
             }
         }
     }

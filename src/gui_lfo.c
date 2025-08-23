@@ -531,7 +531,9 @@ void draw_lfo_section(GUI* gui)
 
     nvgBeginPath(nvg);
     nvgRoundedRect(nvg, lm->content_x + 8, display_y, display_w, display_h, 6);
-    nvgSetColour(nvg, COLOUR_BG_LFO);
+    nvgSetPaint(
+        nvg,
+        nvgLinearGradient(nvg, 0, display_y, 0, display_b, nvgHexColour(0x242838FF), nvgHexColour(0x0C101DFF)));
     nvgFill(nvg);
 
     // LFO tabs
