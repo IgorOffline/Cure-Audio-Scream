@@ -420,7 +420,9 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     {
         p->bpm = ctx->bpm;
     }
-    if (ctx->flags & CPLUG_FLAG_TRANSPORT_HAS_PLAYHEAD_BEATS)
+    bool has_beat_position = ctx->flags & CPLUG_FLAG_TRANSPORT_HAS_PLAYHEAD_BEATS;
+    bool is_playing        = ctx->flags & CPLUG_FLAG_TRANSPORT_IS_PLAYING;
+    if (has_beat_position && is_playing)
     {
         p->beat_position = fmod(ctx->playheadBeats, MAX_PATTERN_LENGTH_PATTERNS);
     }
