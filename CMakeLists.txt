@@ -65,8 +65,6 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleC
         -Wno-c++20-extensions
         -Wno-microsoft-enum-forward-reference
         )
-
-    list(APPEND PLUGIN_OPTIONS "-I ${PROJECT_SOURCE_DIR}/src/common.h")
 endif()
 # list(APPEND CMAKE_C_FLAGS -fsanitize=address)
 # list(APPEND CMAKE_CXX_FLAGS -fsanitize=address)
@@ -282,6 +280,7 @@ target_link_libraries(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_LIBRARIES})
 target_include_directories(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_INCLUDE})
 target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_VST3 CPLUG_BUILD_CLAP CPLUG_BUILD_AUV2)
 target_compile_options(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_OPTIONS})
+target_precompile_headers(${PROJECT_NAME}_plugin PRIVATE src/common.h)
 # add_dependencies(${PROJECT_NAME}_plugin shader_header)
 
 # ███████╗████████╗ █████╗ ███╗   ██╗██████╗  █████╗ ██╗      ██████╗ ███╗   ██╗███████╗
@@ -306,6 +305,7 @@ endif()
 target_include_directories(${PROJECT_NAME}_standalone PRIVATE ${PLUGIN_INCLUDE})
 target_compile_definitions(${PROJECT_NAME}_standalone PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_STANDALONE)
 target_compile_options(${PROJECT_NAME}_standalone PRIVATE ${PLUGIN_OPTIONS})
+target_precompile_headers(${PROJECT_NAME}_standalone PRIVATE src/common.h)
 # add_dependencies(${PROJECT_NAME}_standalone shader_header)
 
 # ██╗  ██╗ ██████╗ ████████╗██████╗ ███████╗██╗      ██████╗  █████╗ ██████╗
