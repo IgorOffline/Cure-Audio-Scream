@@ -103,7 +103,7 @@ typedef struct GUI
     SGNVGframebuffer main_framebuffer;
 } GUI;
 
-static const NVGcolour COLOUR_TEXT = nvgHexColour(0x828A91FF);
+static const NVGcolour COLOUR_TEXT = nvgHexColour(0x707880FF);
 
 static const NVGcolour COLOUR_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
 static const NVGcolour COLOUR_BG_DARK  = nvgHexColour(0x151B32FF);

@@ -1125,9 +1125,17 @@ void pw_tick(void* _gui)
                     imgui_drag_value(im, pValue, -1, 1, 300, IMGUI_DRAG_VERTICAL);
                 }
 
+                NVGcolour ocol1 = {1, 1, 1, 0};
+                NVGcolour icol1 = {1, 1, 1, 0.25};
                 nvgBeginPath(nvg);
-                nvgRect2(nvg, rect->x, rect->y, rect->r, rect->b);
-                nvgSetColour(nvg, nvgHexColour(0x000000ff));
+                nvgSetPaint(nvg, nvgBoxGradient(nvg, rect->x - 2, rect->y - 2, width, width, 2, 4, icol1, ocol1));
+                nvgRoundedRect2(nvg, rect->x, rect->y, rect->r, rect->b, 4);
+                nvgFill(nvg);
+                nvgBeginPath(nvg);
+                NVGcolour icol2 = {0, 0, 0, 0.0};
+                NVGcolour ocol2 = {0, 0, 0, 0.25};
+                nvgSetPaint(nvg, nvgBoxGradient(nvg, rect->x + 2, rect->y + 2, width, width, 4, 4, icol2, ocol2));
+                nvgRoundedRect2(nvg, rect->x, rect->y, rect->r, rect->b, 4);
                 nvgFill(nvg);
 
                 float tx     = (rect->x + rect->r) * 0.5f;
@@ -1135,8 +1143,8 @@ void pw_tick(void* _gui)
                 char  label  = '1';
                 label       += j;
                 nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-                nvgSetColour(nvg, nvgHexColour(0xffffffff));
-                nvgText(nvg, tx, ty, &label, &label + 1);
+                nvgSetColour(nvg, COLOUR_TEXT);
+                nvgText(nvg, tx, ty + 1, &label, &label + 1);
             }
         }
 
