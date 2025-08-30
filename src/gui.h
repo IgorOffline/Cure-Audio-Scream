@@ -5,6 +5,7 @@
 #include <sokol_gfx.h>
 
 #include "libs/texteditor.h"
+#include "libs/tooltip.h"
 #include "xhl/vector.h"
 
 typedef struct
@@ -93,6 +94,8 @@ typedef struct GUI
     // Used for hacks to make the current selection & hover work properly when previewing edits to points with the
     // drag-auto-erase feature
     int selected_point_idx;
+
+    Tooltip tooltip;
 
     uint64_t frame_start_time;
     uint64_t frame_end_time;

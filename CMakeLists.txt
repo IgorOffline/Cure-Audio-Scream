@@ -109,6 +109,7 @@ set(PLUGIN_SOURCES
     src/gui.c
     src/gui_lfo.c
     src/libs/texteditor.c
+    src/libs/tooltip.c
 
     modules/wip_libs/src/nanovg2.c
     modules/wip_libs/src/linked_arena.c

@@ -1453,6 +1453,8 @@ void pw_tick(void* _gui)
                     uint32_t events        = imgui_get_events_rect(im, wid, &rect);
                     rect.r                 = rect_r;
 
+                    tooltip_handle_events(&gui->tooltip, rect, "ayy,\nlmao...", gui->frame_start_time, events);
+
                     double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, rect.b - rect.y);
 
                     nvgBeginPath(nvg);
@@ -1933,6 +1935,11 @@ void pw_tick(void* _gui)
             nvgSetTextAlign(nvg, NVG_ALIGN_BR);
             nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
         }
+    }
+
+    if (gui->tooltip.text)
+    {
+        tooltip_draw(&gui->tooltip, nvg, gui->arena, gui->frame_start_time, lm->width, lm->height, lm->content_scale);
     }
 
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
