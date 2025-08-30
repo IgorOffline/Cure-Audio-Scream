@@ -11,7 +11,19 @@
 
 - Create API for batch drawing shapes ie. functions that accept arrays of data with the same fill colours
 
-- add ability to assign/unassign lfo mods & change amounts
-- display modulated paramters
+- Tooltips on complicated controls
+- Add rate knob
+- Make grid buttons a slider
+- display modulated paramters on input & wet params
+- display LFO range on the mod amount parameter
+- display pattern 1-8 better. Try adding each number
+- Add retrig to LFO. Good suggestion from 5 Steps: "Ableton's M4L LFOs for example just have a retrig button you can automate. I think that could be a viable solution that doesn't involve MIDI"
+- unsynced LFO, eg. ms or hz
+- Paintable sine shape in the LFO
+- More visable grid lines
+
+- Stretch/skew points in selection? Could be visualised by a something like a yellow diamond shape in the middle of all the points. The diamond is draggable
+- Perlin noise LFO? Leaning towards no on that idea
+
 - make lfo look better
 - save LFO state (DAW project load/save)
