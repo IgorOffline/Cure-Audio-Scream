@@ -123,7 +123,7 @@ static const NVGcolour COLOUR_BG_LFO   = nvgHexColour(0x090E20FF);
 static const NVGcolour COLOUR_LFO_LINE = nvgHexColour(0x97E6FCFF);
 
 static const NVGcolour C_GRID_PRIMARY   = nvgHexColour(0x7E8795FF);
-static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x292D32FF);
+static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x3E434CFF);
 
 // For snapping to certain pixel boundaries
 #define snapf(val, interval) (roundf((val) / (interval)) * (interval))
