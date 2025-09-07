@@ -39,8 +39,13 @@ typedef struct LayoutMetrics
     float param_positions_cx[NUM_AUTOMATABLE_PARAMS];
     float param_scale;
 
-    imgui_pt knobs_pos[3]; // cx/cy
-    float    knob_radius;
+    float knob_outer_radius;
+    float knob_inner_radius;
+
+    float cy_param_value;
+    float cy_param;
+    float cy_param_mod_amount;
+    float cy_param_title;
 } LayoutMetrics;
 
 typedef struct GUI
@@ -120,6 +125,8 @@ static const NVGcolour C_GREY_3 = nvgHexColour(0x353940FF);
 static const NVGcolour C_DARK_BLUE    = nvgHexColour(0x459CB4FF);
 static const NVGcolour C_LIGHT_BLUE   = nvgHexColour(0xACDEECFF);
 static const NVGcolour C_LIGHT_BLUE_2 = nvgHexColour(0x97E6FCFF);
+static const NVGcolour C_GREEN        = nvgHexColour(0x62E32BFF);
+static const NVGcolour C_RED          = nvgHexColour(0xFF4757FF);
 
 static const NVGcolour C_GRID_PRIMARY   = nvgHexColour(0x7E8795FF);
 static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x3E434CFF);

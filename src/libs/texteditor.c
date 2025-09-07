@@ -9,7 +9,7 @@
 enum
 {
     // TED_TEXT_ALIGN = NVG_ALIGN_CL,
-    TED_TEXT_ALIGN = NVG_ALIGN_TC,
+    TED_TEXT_ALIGN = NVG_ALIGN_CC,
 };
 
 static inline GUI* ted_shift_ptr(TextEditor* ted) { return (GUI*)(((char*)ted) - offsetof(GUI, texteditor)); }
@@ -979,7 +979,9 @@ void ted_draw(TextEditor* ted)
 
         nvgSetTextAlign(nvg, TED_TEXT_ALIGN);
         nvgSetColour(nvg, C_TEXT);
-        nvgText(nvg, d->x + d->width * 0.5 + ted->text_offset, d->y, text, NULL);
+        float cx = d->x + d->width * 0.5;
+        float cy = d->y + d->height * 0.5;
+        nvgText(nvg, cx + ted->text_offset, cy, text, NULL);
     }
 
     // Draw ibeam

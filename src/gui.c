@@ -634,6 +634,11 @@ void do_knob_shader(void* uptr)
     GUI*           gui = uptr;
     LayoutMetrics* lm  = &gui->layout;
 
+    enum
+    {
+        NUM_KNOBS = 3,
+    };
+
     // clang-format off
     vertex_t verts[] = {
         {-1.0f,  1.0f, -32767,  32767},
@@ -651,18 +656,21 @@ void do_knob_shader(void* uptr)
         { 1.0f, -1.0f,  32767, -32767},
         {-1.0f, -1.0f, -32767, -32767},
     };
-    _Static_assert(ARRLEN(verts) == (3 * 4), "");
-    _Static_assert(ARRLEN(verts) / 4 == ARRLEN(lm->knobs_pos), "");
+    _Static_assert(ARRLEN(verts) == (NUM_KNOBS * 4), "");
     // clang-format on
 
-    float radius = lm->knob_radius;
+    float radius = lm->knob_outer_radius;
     xassert(radius != 0);
-    for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
+    for (int i = 0; i < NUM_KNOBS; i++)
     {
-        float left   = lm->knobs_pos[i].x - radius;
-        float right  = lm->knobs_pos[i].x + radius;
-        float top    = lm->knobs_pos[i].y - radius;
-        float bottom = lm->knobs_pos[i].y + radius;
+        int cx_idx = 1 + i;
+        xassert(cx_idx < ARRLEN(lm->param_positions_cx));
+        float cx = lm->param_positions_cx[cx_idx];
+
+        float left   = cx - radius;
+        float right  = cx + radius;
+        float top    = lm->cy_param - radius;
+        float bottom = lm->cy_param + radius;
 
         left   = xm_mapf(left, 0, lm->width, -1, 1);
         right  = xm_mapf(right, 0, lm->width, -1, 1);
@@ -752,13 +760,16 @@ void pw_tick(void* _gui)
 
         CONTENT_HEIGHT = GUI_INIT_HEIGHT - HEIGHT_HEADER - HEIGHT_FOOTER - 2 * BORDER_PADDING,
 
-        PARAMS_BOUNDARY_LEFT  = 32,
-        VERTICAL_SLIDER_WIDTH = 60,
-        METER_WIDTH           = 24,
-        METER_HEIGHT          = 146,
-        ROTARY_PARAM_DIAMETER = 160,
+        PARAM_MOD_AMOUNT_RADIUS     = 14,
+        PARAMS_BOUNDARY_LEFT        = 32,
+        VERTICAL_SLIDER_WIDTH       = 60,
+        INPUT_WIDTH                 = 32,
+        WET_WIDTH                   = 24,
+        VERTICAL_SLIDER_HEIGHT      = 146,
+        ROTARY_PARAM_OUTER_DIAMETER = 160,
+        ROTARY_PARAM_INNER_DIAMETER = 80,
 
-        _MINIMUM_WIDTH = PARAMS_BOUNDARY_LEFT * 2 + VERTICAL_SLIDER_WIDTH * 2 + ROTARY_PARAM_DIAMETER * 3,
+        _MINIMUM_WIDTH = PARAMS_BOUNDARY_LEFT * 2 + VERTICAL_SLIDER_WIDTH * 2 + ROTARY_PARAM_OUTER_DIAMETER * 3,
     };
     _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
 
@@ -811,7 +822,7 @@ void pw_tick(void* _gui)
         lm->param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
 
         const float veritcal_slider_width = snapf(VERTICAL_SLIDER_WIDTH * lm->param_scale, 2);
-        const float knob_diameter         = snapf(ROTARY_PARAM_DIAMETER * lm->param_scale, 2);
+        const float knob_diameter         = snapf(ROTARY_PARAM_OUTER_DIAMETER * lm->param_scale, 2);
 
         {
             _Static_assert(
@@ -834,15 +845,25 @@ void pw_tick(void* _gui)
             xassert(lm->param_positions_cx[4] < param_boundary_right);
         }
 
-        lm->knob_radius = knob_diameter * 0.5f;
+        lm->knob_outer_radius = knob_diameter * 0.5f;
+        lm->knob_inner_radius = lm->param_scale * 0.5f * ROTARY_PARAM_INNER_DIAMETER;
 
-        _Static_assert(
-            ARRLEN(lm->knobs_pos) == 3,
-            "You've changed the number of rotary params and we assumed there were only 3");
-        for (int i = 0; i < ARRLEN(lm->knobs_pos); i++)
         {
-            lm->knobs_pos[i].x = lm->param_positions_cx[i + 1];
-            lm->knobs_pos[i].y = roundf(lm->content_y + lm->top_content_height * 0.5f);
+            imgui_rect rects[4] = {0};
+            rects[0].b          = lm->content_scale * 20;                          // param value
+            rects[1].b          = lm->knob_outer_radius * 2;                       // param
+            rects[2].b          = lm->content_scale * PARAM_MOD_AMOUNT_RADIUS * 2; // mod amount
+            rects[3].b          = lm->content_scale * 20;                          // Param title
+
+            imgui_rect box  = {0, lm->content_y, 0, lm->content_y + lm->top_content_height};
+            box.y          += 36 + lm->content_scale * 10;
+            box.b          -= 40;
+            layout_vertical_fill(rects, ARRLEN(rects), LAYOUT_SPACE_BETWEEN, &box);
+
+            lm->cy_param_value      = (rects[0].y + rects[0].b) * 0.5f;
+            lm->cy_param            = (rects[1].y + rects[1].b) * 0.5f;
+            lm->cy_param_mod_amount = (rects[2].y + rects[2].b) * 0.5f;
+            lm->cy_param_title      = (rects[3].y + rects[3].b) * 0.5f;
         }
 
         imgui_rect lfo_btn;
@@ -1007,11 +1028,6 @@ void pw_tick(void* _gui)
         const float param_font_size = 14 * lm->content_scale;
         nvgSetFontSize(nvg, param_font_size);
 
-        const float content_cy  = lm->content_y + lm->top_content_height * 0.5f;
-        const float text_offset = lm->knob_radius + 40 * lm->scale_y;
-        const float value_y     = content_cy - text_offset;
-        const float label_b     = content_cy + text_offset;
-
         static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET"};
         _Static_assert(ARRLEN(NAMES) == ARRLEN(lm->param_positions_cx));
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
@@ -1019,15 +1035,15 @@ void pw_tick(void* _gui)
             const ParamID param_id = param_ids[i];
             const float   param_cx = lm->param_positions_cx[i];
 
-            nvgSetTextAlign(nvg, NVG_ALIGN_BC);
+            nvgSetTextAlign(nvg, NVG_ALIGN_CC);
             nvgSetColour(nvg, C_TEXT);
-            nvgText(nvg, param_cx, label_b, NAMES[i], NULL);
+            nvgText(nvg, param_cx, lm->cy_param_title, NAMES[i], NULL);
 
             imgui_rect rect;
             rect.x = param_cx - 50;
             rect.r = param_cx + 50;
-            rect.y = value_y;
-            rect.b = value_y + param_font_size;
+            rect.y = lm->cy_param_value - lm->content_scale * 10;
+            rect.b = rect.y + lm->content_scale * 20;
 
             unsigned wid    = 'txt' + i;
             uint32_t events = imgui_get_events_rect(im, wid, &rect);
@@ -1075,35 +1091,36 @@ void pw_tick(void* _gui)
                 cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
 
                 nvgSetColour(nvg, C_TEXT);
-                nvgSetTextAlign(nvg, NVG_ALIGN_TC);
-                nvgText(nvg, param_cx, value_y, label, NULL);
+                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+                nvgText(nvg, param_cx, lm->cy_param_value, label, NULL);
             }
         }
 
         // Mod amount controls
-        const float mod_handle_offset = lm->knob_radius + 50 * lm->scale_y;
-        const float handle_y          = content_cy + mod_handle_offset;
+        const float mod_handle_offset = lm->knob_outer_radius + 10 * lm->scale_y;
 
-        unsigned mod_amt_events[ARRLEN(lm->param_positions_cx)][2] = {0};
+        unsigned    mod_amt_events[ARRLEN(lm->param_positions_cx)][2] = {0};
+        const float mod_amt_radius                                    = lm->param_scale * PARAM_MOD_AMOUNT_RADIUS;
+        const float mod_amt_gap                                       = lm->param_scale * 10;
+        const float mod_amt_cx_delta                                  = 0.5f * mod_amt_gap + mod_amt_radius;
 
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
-            imgui_rect    handles[2] = {0};
-            float         cx         = lm->param_positions_cx[i];
-            const ParamID param_id   = param_ids[i];
+            float         param_cx = lm->param_positions_cx[i];
+            const ParamID param_id = param_ids[i];
 
-            float width   = 20;
-            float padding = 10;
-            float x       = cx - width - padding * 0.5f;
-            float y       = handle_y;
-            layout_uniform_horizontal(handles, ARRLEN(handles), x, y, width, width, LAYOUT_START, padding);
+            const float mod_amt_cx[2] = {
+                lm->param_positions_cx[i] - mod_amt_cx_delta,
+                lm->param_positions_cx[i] + mod_amt_cx_delta,
+            };
 
-            for (int j = 0; j < ARRLEN(handles); j++)
+            const xvec2f modamt = gui->plugin->lfo_mod_amounts[param_id];
+
+            for (int j = 0; j < ARRLEN(mod_amt_cx); j++)
             {
-                const imgui_rect* rect = handles + j;
-
-                const unsigned uid    = 'pmod' + (i * 2) + j;
-                const unsigned events = imgui_get_events_rect(im, uid, rect);
+                const unsigned uid    = 'pmod' + (i * ARRLEN(mod_amt_cx)) + j;
+                const imgui_pt c      = {mod_amt_cx[j], lm->cy_param_mod_amount};
+                const unsigned events = imgui_get_events_circle(im, uid, c, mod_amt_radius);
 
                 xassert(param_id < ARRLEN(mod_amt_events));
                 xassert(j < ARRLEN(mod_amt_events[0]));
@@ -1125,26 +1142,33 @@ void pw_tick(void* _gui)
                     imgui_drag_value(im, pValue, -1, 1, 300, IMGUI_DRAG_VERTICAL);
                 }
 
-                NVGcolour ocol1 = {1, 1, 1, 0};
-                NVGcolour icol1 = {1, 1, 1, 0.25};
-                nvgBeginPath(nvg);
-                nvgSetPaint(nvg, nvgBoxGradient(nvg, rect->x - 2, rect->y - 2, width, width, 2, 4, icol1, ocol1));
-                nvgRoundedRect2(nvg, rect->x, rect->y, rect->r, rect->b, 4);
-                nvgFill(nvg);
-                nvgBeginPath(nvg);
-                NVGcolour icol2 = {0, 0, 0, 0.0};
-                NVGcolour ocol2 = {0, 0, 0, 0.25};
-                nvgSetPaint(nvg, nvgBoxGradient(nvg, rect->x + 2, rect->y + 2, width, width, 4, 4, icol2, ocol2));
-                nvgRoundedRect2(nvg, rect->x, rect->y, rect->r, rect->b, 4);
-                nvgFill(nvg);
-
-                float tx     = (rect->x + rect->r) * 0.5f;
-                float ty     = (rect->y + rect->b) * 0.5f;
-                char  label  = '1';
-                label       += j;
+                char label  = '1';
+                label      += j;
                 nvgSetTextAlign(nvg, NVG_ALIGN_CC);
                 nvgSetColour(nvg, C_TEXT);
-                nvgText(nvg, tx, ty + 1, &label, &label + 1);
+                nvgText(nvg, c.x, c.y + 1, &label, &label + 1);
+
+                nvgBeginPath(nvg);
+                nvgCircle(nvg, c.x, c.y, mod_amt_radius - 2);
+                nvgSetColour(nvg, C_GREY_1);
+                nvgStroke(nvg, 4);
+
+                if (fabsf(modamt.data[j]) != 0)
+                {
+                    float start_radians = -XM_HALF_PIf;
+                    float end_radians   = -XM_HALF_PIf + XM_TAUf * modamt.data[j];
+                    nvgBeginPath(nvg);
+                    nvgArc(
+                        nvg,
+                        c.x,
+                        c.y,
+                        mod_amt_radius - 2,
+                        xm_minf(start_radians, end_radians),
+                        xm_maxf(start_radians, end_radians),
+                        NVG_CW);
+                    nvgSetColour(nvg, C_DARK_BLUE);
+                    nvgStroke(nvg, 4);
+                }
             }
         }
 
@@ -1154,6 +1178,9 @@ void pw_tick(void* _gui)
             const ParamID  param_id = param_ids[i];
             const float    param_cx = lm->param_positions_cx[i];
             const unsigned wid      = 'prm' + i;
+
+            const xvec2f modamts = gui->plugin->lfo_mod_amounts[param_id];
+            const xvec2f lfo_amt = gui->plugin->last_lfo_amount;
 
             switch (param_id)
             {
@@ -1169,10 +1196,9 @@ void pw_tick(void* _gui)
                     RADIUS_INNER_VALUE_ARC = 120 / 2,
                     RADIUS_OUTER_VALUE_ARC = 136 / 2,
                 };
-                xassert(param_id < ARRLEN(lm->knobs_pos));
-                imgui_pt pt = lm->knobs_pos[param_id];
+                imgui_pt pt = {lm->param_positions_cx[i], lm->cy_param};
 
-                uint32_t events  = imgui_get_events_circle(im, wid, pt, lm->knob_radius);
+                uint32_t events  = imgui_get_events_circle(im, wid, pt, lm->knob_outer_radius);
                 double   value_d = handle_param_events(gui, param_id, events, 300);
 
                 // Inlet
@@ -1296,25 +1322,20 @@ void pw_tick(void* _gui)
 
                 nvgSetLineCap(nvg, NVG_BUTT);
 
-                xvec2f modamts = gui->plugin->lfo_mod_amounts[param_id];
-
                 // Value arc
                 float arc_radius[] = {
                     roundf(RADIUS_INNER_VALUE_ARC * lm->param_scale),
                     roundf(RADIUS_OUTER_VALUE_ARC * lm->param_scale),
                 };
-                const xvec2f lfo_amt = gui->plugin->last_lfo_amount;
 
                 stroke_w = roundf(lm->param_scale * 4);
                 for (int lfo_idx = 0; lfo_idx < 2; lfo_idx++)
                 {
                     const bool is_modulated = fabsf(modamts.data[lfo_idx]) != 0;
 
-                    NVGcolour col = C_GREY_1;
-                    col.a         = 0.4f;
                     nvgBeginPath(nvg);
                     nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
-                    nvgSetColour(nvg, is_modulated ? C_BG_LFO : col);
+                    nvgSetColour(nvg, C_GREY_1);
                     nvgStroke(nvg, stroke_w);
 
                     if (is_modulated)
@@ -1345,7 +1366,7 @@ void pw_tick(void* _gui)
 
                         nvgBeginPath(nvg);
                         nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], angle_start, angle_end, NVG_CW);
-                        nvgSetColour(nvg, C_LIGHT_BLUE_2);
+                        nvgSetColour(nvg, C_DARK_BLUE);
                         nvgStroke(nvg, stroke_w * 1.3);
                     }
                 }
@@ -1362,15 +1383,16 @@ void pw_tick(void* _gui)
             case PARAM_INPUT_GAIN:
             case PARAM_WET:
             {
-                const float meter_width  = snapf(METER_WIDTH * lm->param_scale, 2);
-                const float meter_height = snapf(METER_HEIGHT * lm->param_scale, 2);
+                float       param_width  = param_id == PARAM_INPUT_GAIN ? INPUT_WIDTH : WET_WIDTH;
+                const float meter_width  = snapf(param_width * lm->param_scale, 2);
+                const float meter_height = snapf(VERTICAL_SLIDER_HEIGHT * lm->param_scale, 2);
 
                 imgui_rect rect;
 
                 rect.x = roundf(param_cx - meter_width * 0.5);
                 rect.r = roundf(param_cx + meter_width * 0.5);
-                rect.y = roundf(lm->knobs_pos[0].y - meter_height * 0.5f);
-                rect.b = roundf(lm->knobs_pos[0].y + meter_height * 0.5f);
+                rect.y = roundf(lm->cy_param - meter_height * 0.5f);
+                rect.b = roundf(lm->cy_param + meter_height * 0.5f);
 
                 // Shadows
                 {
@@ -1468,6 +1490,52 @@ void pw_tick(void* _gui)
                     nvgSetPaint(nvg, bg_paint);
                     nvgFill(nvg);
 
+                    const float mod_amt_padding     = 4;
+                    const float mod_amt_strokewidth = 3;
+                    const float mod_amt_delta       = mod_amt_padding + mod_amt_strokewidth;
+
+                    nvgBeginPath(nvg);
+                    for (int j = 0; j < ARRLEN(modamts.data); j++)
+                    {
+                        if (fabsf(modamts.data[j]) != 0)
+                        {
+                            float mod_amt = modamts.data[j];
+
+                            unsigned mod_amt_event = mod_amt_events[param_id][j];
+                            if (!(mod_amt_event & IMGUI_EVENT_MOUSE_HOVER))
+                            {
+                                mod_amt *= lfo_amt.data[j];
+                            }
+                            float mod_end_value = xm_clampf(mod_amt + value_d, 0, 1);
+                            float mod_start_y   = xm_lerpf(value_d, rect.b, rect.y);
+                            float mod_end_y     = xm_lerpf(mod_end_value, rect.b, rect.y);
+
+                            float y_top = xm_minf(mod_end_y, mod_start_y);
+                            float y_bot = xm_maxf(mod_end_y, mod_start_y);
+                            if (y_bot <= y_top)
+                                y_bot += 1;
+
+                            float l, r;
+                            if (j == 0)
+                            {
+                                l = rect.x - mod_amt_padding - mod_amt_strokewidth;
+                                r = rect.x - mod_amt_padding;
+                            }
+                            else
+                            {
+                                l = rect.r + mod_amt_padding;
+                                r = rect.r + mod_amt_padding + mod_amt_strokewidth;
+                            }
+
+                            nvgRect2(nvg, l, y_top, r, y_bot);
+                        }
+                    }
+                    if (modamts.u64)
+                    {
+                        nvgSetColour(nvg, C_DARK_BLUE);
+                        nvgFill(nvg);
+                    }
+
                     // Value icon
                     {
                         float icon_x = icon_r - icon_width;
@@ -1498,15 +1566,16 @@ void pw_tick(void* _gui)
                     xvec2f peaks;
                     peaks.u64 = xt_atomic_load_u64(&gui->plugin->gui_input_peak_gain);
 
-                    float ch_w    = roundf(meter_width * 0.25);
-                    float padding = roundf(meter_width / 6.0f);
+                    float ch_w = roundf(meter_width * (7.0f / 32.0f));
 
-                    const float ch_y    = rect.y + padding;
-                    const float ch_b    = rect.b - padding;
+                    const float peak_label_height = 16 * lm->content_scale;
+
+                    const float ch_y    = rect.y + peak_label_height;
+                    const float ch_b    = rect.b - 4;
                     const float ch_h    = ch_b - ch_y;
                     const float ch_x[2] = {
-                        roundf(rect.x + padding),
-                        roundf(rect.r - padding - ch_w),
+                        roundf(rect.x + meter_width * (8.0f / 32.0f)),
+                        roundf(rect.r - meter_width * (8.0f / 32.0f)) - ch_w,
                     };
 
                     // Background
@@ -1621,12 +1690,33 @@ void pw_tick(void* _gui)
 
                     // 0dB notch
                     float zero_dB_pos = xm_normf(0, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-                    float zero_dB_y   = rect.b - padding - zero_dB_pos * ch_h;
+                    float zero_dB_y   = ch_b - zero_dB_pos * ch_h;
                     nvgBeginPath(nvg);
                     nvgMoveTo(nvg, rect.x, zero_dB_y);
                     nvgLineTo(nvg, rect.r, zero_dB_y);
                     nvgSetPaint(nvg, bg_paint);
                     nvgStroke(nvg, 1);
+
+                    // Peak label + gain suggestion
+                    float peak_dB    = xm_maxf(gui->input_gain_peaks_slow[0], gui->input_gain_peaks_slow[1]);
+                    peak_dB          = xm_maxf(peak_dB, gui->input_gain_peaks_fast[0]);
+                    peak_dB          = xm_maxf(peak_dB, gui->input_gain_peaks_fast[1]);
+                    peak_dB          = xm_fast_gain_to_dB(peak_dB);
+                    const float ninf = -(INFINITY);
+                    if (peak_dB < -120)
+                        peak_dB = ninf;
+
+                    if (peak_dB >= -5 && peak_dB <= 1)
+                        nvgSetColour(nvg, C_GREEN);
+                    else if (peak_dB == ninf)
+                        nvgSetColour(nvg, C_GREY_2);
+                    else
+                        nvgSetColour(nvg, C_RED);
+
+                    nvgSetFontSize(nvg, 8);
+                    char peak_label[16];
+                    snprintf(peak_label, sizeof(peak_label), "%.2f", peak_dB);
+                    nvgText(nvg, (rect.x + rect.r) * 0.5f, rect.y + peak_label_height * 0.5f, peak_label, NULL);
                 }
                 else // param_id == PARAM_WET
                 {
@@ -1758,6 +1848,51 @@ void pw_tick(void* _gui)
                     nvgLineTo(nvg, notch_r, snapped_y + 2);
                     nvgSetColour(nvg, nvgHexColour(0xDCE2E9FF));
                     nvgStroke(nvg, 1);
+
+                    const float mod_amt_padding     = 4;
+                    const float mod_amt_strokewidth = 3;
+                    const float mod_amt_delta       = mod_amt_padding + mod_amt_strokewidth;
+
+                    nvgBeginPath(nvg);
+                    for (int j = 0; j < ARRLEN(modamts.data); j++)
+                    {
+                        if (fabsf(modamts.data[j]) != 0)
+                        {
+                            float mod_amt = modamts.data[j];
+
+                            unsigned mod_amt_event = mod_amt_events[param_id][j];
+                            if (!(mod_amt_event & IMGUI_EVENT_MOUSE_HOVER))
+                            {
+                                mod_amt *= lfo_amt.data[j];
+                            }
+                            float mod_end_value = xm_clampf(mod_amt + value_d, 0, 1);
+                            float mod_end_y     = xm_lerpf(mod_end_value, drag_b, drag_y);
+
+                            float y_top = xm_minf(mod_end_y, handle_cy);
+                            float y_bot = xm_maxf(mod_end_y, handle_cy);
+                            if (y_bot <= y_top)
+                                y_bot += 1;
+
+                            float l, r;
+                            if (j == 0)
+                            {
+                                l = rect.x - mod_amt_padding - mod_amt_strokewidth;
+                                r = rect.x - mod_amt_padding;
+                            }
+                            else
+                            {
+                                l = rect.r + mod_amt_padding;
+                                r = rect.r + mod_amt_padding + mod_amt_strokewidth;
+                            }
+
+                            nvgRect2(nvg, l, y_top, r, y_bot);
+                        }
+                    }
+                    if (modamts.u64)
+                    {
+                        nvgSetColour(nvg, C_DARK_BLUE);
+                        nvgFill(nvg);
+                    }
                 }
                 break;
             }

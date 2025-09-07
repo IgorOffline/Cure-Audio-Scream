@@ -3,6 +3,7 @@
     - when clicking the LFO show/hide button
 
 - a user reported if the input gain is crazy loud (eg. +30dB) the plugin produces silence. Investigate this
+  If this is reproducable, it may be simple enough to hard clip the input at +24dB
 
 - Create SDF shader that can draw rectangles, rounded ractangles, and text (rect with image) with linear gradients
   If possible, have it also support circles & arcs.
@@ -12,8 +13,8 @@
 - Create API for batch drawing shapes ie. functions that accept arrays of data with the same fill colours
 
 x More visable grid lines
-- display modulated parameters on input & wet params
-- display LFO range on the mod amount parameter
+x display modulated parameters on input & wet params
+x display LFO range on the mod amount parameter
 - display pattern 1-8 better. Try adding each number
 - Make grid buttons a slider
 - Add rate knob
