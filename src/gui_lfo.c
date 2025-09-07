@@ -509,7 +509,7 @@ void draw_lfo_section(GUI* gui)
         CONTENT_PADDING_X = 32,
         CONTENT_PADDING_Y = 16,
 
-        PATTERN_WIDTH                = 256,
+        PATTERN_WIDTH                = 196,
         PATTERN_NUMBER_LABEL_PADDING = 32,
         PATTERN_SLIDER_WIDTH         = PATTERN_WIDTH - 2 * PATTERN_NUMBER_LABEL_PADDING,
         PATTERN_TRIANGLE_HEIGHT      = 12,
@@ -543,7 +543,7 @@ void draw_lfo_section(GUI* gui)
     // LFO tabs
     {
         imgui_rect lfo_tabs[2];
-        float      gui_cx = lm->width / 2;
+        float      gui_cx = lm->width / 2.0f;
 
         lfo_tabs[0].r = gui_cx - 4;
         lfo_tabs[0].x = lfo_tabs[0].r - LFO_TAB_WIDTH;
@@ -662,6 +662,7 @@ void draw_lfo_section(GUI* gui)
             char label[]  = "LFO 1";
             label[4]     += i;
 
+            nvgSetFontSize(nvg, lm->content_scale * 14);
             nvgSetTextAlign(nvg, NVG_ALIGN_CR);
             nvgText(nvg, rect->r - LFO_TAB_ICON_PADDING, top_text_cy, label, label + 5);
         }
@@ -940,16 +941,18 @@ void draw_lfo_section(GUI* gui)
     }
 
     // LFO pattern selector
-    float pattern_r  = content_r;
-    float pattern_x  = xm_maxf(pattern_r - PATTERN_WIDTH, shape_x);
-    float pattern_cx = 0.5f * (pattern_x + pattern_r);
-    float pattern_cy = shape_y + SHAPES_WIDTH * 0.5f;
-    float pattern_b  = display_b - CONTENT_PADDING_Y;
     {
-        const imgui_rect rect     = {pattern_x, shape_y, pattern_r, pattern_b};
+        float pattern_r  = content_r;
+        float pattern_x  = xm_maxf(pattern_r - PATTERN_WIDTH, shape_x);
+        float pattern_cx = 0.5f * (pattern_x + pattern_r);
+        float pattern_b  = display_b - CONTENT_PADDING_Y;
+
+        const imgui_rect rect     = {pattern_x, shape_y - 16, pattern_r, pattern_b};
         const ParamID    param_id = PARAM_PATTERN_LFO_1 + gui->plugin->selected_lfo_idx;
         const unsigned   uid      = 'prm' + param_id;
         const unsigned   events   = imgui_get_events_rect(im, uid, &rect);
+
+        float pattern_cy = (rect.y + rect.b) * 0.5f;
 
         double value_d = gui->plugin->main_params[param_id];
         float  value_f = value_d;
@@ -1017,24 +1020,20 @@ void draw_lfo_section(GUI* gui)
         nvgSetColour(nvg, C_TEXT);
         nvgText(nvg, pattern_cx, pattern_b, "PATTERN", NULL);
 
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgText(nvg, pattern_x, pattern_cy, "1", NULL);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CR);
-        nvgText(nvg, pattern_r, pattern_cy, "8", NULL);
+        nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+        const float x_inc = (pattern_r - pattern_x) / (float)(NUM_LFO_PATTERNS - 1);
+        for (int i = 0; i < NUM_LFO_PATTERNS; i++)
+        {
+            char label[4]  = {'1', 0, 0, 0};
+            label[0]      += i;
+            xassert(i < 8); // oops you might be incrementing "1" past 10
+            nvgText(nvg, pattern_x + i * x_inc, pattern_cy, label, label + 1);
+        }
 
-        float pattern_line_y = floorf(pattern_cy) + 0.5f;
-        float pattern_line_x = pattern_x + PATTERN_NUMBER_LABEL_PADDING;
-        float pattern_line_r = pattern_r - PATTERN_NUMBER_LABEL_PADDING;
-        nvgBeginPath(nvg);
-        nvgMoveTo(nvg, pattern_line_x, pattern_line_y);
-        nvgLineTo(nvg, pattern_line_r, pattern_line_y);
-        nvgSetColour(nvg, C_TEXT);
-        nvgStroke(nvg, 1);
+        const float pattern_pos_x = xm_lerpf(value_f, rect.x, rect.r);
 
-        const float pattern_pos_x = xm_lerpf(value_f, pattern_line_x, pattern_line_r);
-
-        float tri_b = ceilf(pattern_line_y - 4);
-        float tri_y = tri_b - PATTERN_TRIANGLE_HEIGHT;
+        float tri_y = floorf(rect.y);
+        float tri_b = tri_y + PATTERN_TRIANGLE_HEIGHT;
 
         nvgBeginPath(nvg);
         nvgMoveTo(nvg, pattern_pos_x, tri_b);

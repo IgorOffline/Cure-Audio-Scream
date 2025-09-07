@@ -15,7 +15,7 @@
 x More visable grid lines
 x display modulated parameters on input & wet params
 x display LFO range on the mod amount parameter
-- display pattern 1-8 better. Try adding each number
+x display pattern 1-8 better. Try adding each number
 - Make grid buttons a slider
 - Add rate knob
 - unsynced LFO, eg. ms or hz
