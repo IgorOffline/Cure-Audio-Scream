@@ -67,7 +67,7 @@ void send_points_to_lfo(GUI* gui, const imgui_rect* area)
         pt->x        = pattern_length * snap_point(xm_normd(gui->lfo_points[i].x, area->x, area->r));
         pt->y        = snap_point(xm_normd(gui->lfo_points[i].y, area->b, area->y));
         pt->skew     = calculate_point_skew(gui, i);
-        xassert(pt->x >= 0 && pt->x <= num_points);
+        xassert(pt->x >= 0 && pt->x <= pattern_length);
         xassert(pt->y >= 0 && pt->y <= 1);
         xassert(pt->skew >= 0 && pt->skew <= 1);
     }
@@ -301,11 +301,13 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
     case SHAPE_LINEAR_ASC:
     case SHAPE_CONVEX_ASC:
     case SHAPE_CONCAVE_ASC:
+    case SHAPE_COSINE_ASC:
         pt_y_left = area->b;
         break;
     case SHAPE_LINEAR_DESC:
     case SHAPE_CONVEX_DESC:
     case SHAPE_CONCAVE_DESC:
+    case SHAPE_COSINE_DESC:
         pt_y_right = area->b;
         break;
 
@@ -477,6 +479,52 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
         insert_lfo_point(gui, pt, left_idx + 1, area);
         num_points++;
         left_idx++;
+    }
+
+    if (shape_type == SHAPE_COSINE_ASC || shape_type == SHAPE_COSINE_DESC)
+    {
+        // Approximation for a descening cosing shape
+        // x = (1 / 7), y = 0.95, skew = 0.731994
+        // x = 0.3333,  y = 0.75, skew = 0.56
+        // x = 0.6666,  y = 0.25, skew = 0
+        // x = (6 / 7), y = 0.05, skew = 0.44
+        // x = 1,       y = 0,    skew = 1 - 0.731994
+        imgui_pt pts[] = {
+            {(1.0f / 7.0f), 0.95f},
+            {(1.0f / 3.0f), 0.75f},
+            {(2.0f / 3.0f), 0.25f},
+            {(6.0f / 7.0f), 0.05f},
+        };
+        float skews[] = {
+            0.731994f,
+            0.56,
+            0.5,
+            0.46,
+            1 - 0.731994,
+        };
+        _Static_assert(ARRLEN(pts) == ARRLEN(skews) - 1, "");
+        if (shape_type == SHAPE_COSINE_ASC)
+        {
+            for (int i = 0; i < ARRLEN(pts); i++)
+            {
+                imgui_pt* pt = pts + i;
+                pt->y        = 1 - pt->y;
+            }
+            for (int i = 0; i < ARRLEN(skews); i++)
+                skews[i] = 1 - skews[i];
+        }
+
+        for (int i = 0; i < ARRLEN(pts); i++)
+        {
+            imgui_pt* pt = pts + i;
+            pt->x        = xm_lerpf(pt->x, boundary_left, boundary_right);
+            pt->y        = xm_lerpf(pt->y, area->b, y);
+            insert_lfo_point(gui, *pt, left_idx + 1, area);
+            update_skew_point(gui, left_idx, skews[i]);
+            num_points++;
+            left_idx++;
+        }
+        update_skew_point(gui, left_idx, skews[ARRLEN(skews) - 1]);
     }
 
     copy_points(gui);
@@ -959,6 +1007,28 @@ void draw_lfo_section(GUI* gui)
             case SHAPE_CONVEX_DESC:
                 nvgMoveTo(nvg, inner.x, inner.y);
                 nvgQuadTo(nvg, inner.r, inner.y, inner.r, inner.b);
+                break;
+            case SHAPE_COSINE_ASC:
+            {
+                float w = inner.r - inner.x;
+                float h = inner.b - inner.y;
+                // imgui_pt c = imgui_centre(&inner);
+                float cx = inner.x + w * 0.5f;
+                float cy = inner.y + h * 0.5f;
+                // More like a cosine
+                nvgMoveTo(nvg, inner.x, inner.b);
+                nvgQuadTo(nvg, inner.x + w * 0.25f, inner.b, cx, cy);
+                nvgQuadTo(nvg, inner.x + w * 0.75f, inner.y, inner.r, inner.y);
+
+                // more like a circle
+                // nvgMoveTo(nvg, inner.x, inner.b);
+                // nvgQuadTo(nvg, cx, inner.b, cx, cy);
+                // nvgQuadTo(nvg, cx, inner.y, inner.r, inner.y);
+                break;
+            }
+            case SHAPE_COSINE_DESC:
+                nvgMoveTo(nvg, inner.x, inner.y);
+                nvgQuadTo(nvg, inner.x, inner.b, inner.r, inner.b);
                 break;
             case SHAPE_TRIANGLE_UP:
                 nvgMoveTo(nvg, inner.x, inner.b);
@@ -1511,6 +1581,7 @@ void draw_lfo_section(GUI* gui)
                 e.set_skew.point_idx   = pt_idx;
                 e.set_skew.skew        = next_skew;
                 send_to_audio_event_queue(gui->plugin, (const CplugEvent*)&e);
+                println("%f", next_skew);
             }
             if (pt_events & IMGUI_EVENT_MOUSE_LEFT_UP)
             {
@@ -1672,6 +1743,30 @@ void draw_lfo_section(GUI* gui)
 
         xarr_header(gui->lfo_cached_path)->length = npoints;
     }
+
+    // Draw cosine shape to LFO grid. Useful for approximating cosine shape
+    nvgBeginPath(nvg);
+    for (int i = 0; i <= (int)(grid_w / 4.0f); i++)
+    {
+        float x  = grid_x + i;
+        float v  = cosf((float)i / floorf(grid_w / 2.f) * XM_TAUf);
+        v       += 1;
+        v       *= 0.5f;
+        float y  = xm_lerpf(v, grid_b, grid_y);
+
+        if (i == 0)
+            nvgMoveTo(nvg, x, y);
+        else
+            nvgLineTo(nvg, x, y);
+    }
+    nvgSetColour(nvg, C_WHITE);
+    nvgStroke(nvg, 2);
+    // Skew values for 'cosine'
+
+    // x = (1 / 7),     y = 0.05, skew = 0.731994
+    // x = 0.3333,      y = 0.25, skew = 0.56
+    // x = 0.6666,      y = 0.75, skew = 0.44
+    // x = 1 - (1 / 7), y = 0.96, skew = 1 - 0.731994
 
     // Draw grid
     {

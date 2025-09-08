@@ -19,7 +19,7 @@ x display pattern 1-8 better. Try adding each number
 x Make grid buttons a slider
 - Add rate knob
 - unsynced LFO, eg. ms or hz
-- Paintable sine shape in the LFO
+x Paintable sine shape in the LFO
 x Tooltips on complicated controls
   - input
   - cutoff
@@ -35,3 +35,13 @@ x Tooltips on complicated controls
 
 - make lfo look better
 - save LFO state (DAW project load/save)
+
+- LFO paint bugs:
+  the way I'm sending arrays of points from the GUI thread is already a bit sketchy
+  currently im allocating data on the main thread, passing that to the audio threads event queue, then posting the old array back to the main thread to be garbage collected
+  In theory this should all work, but I'm getting errors within Windows libc implementation of 'free'
+  Libc is a black box that I cannot debug. This may be the final straw, it's time to use a free list style allocator that I actually haev the source to and can properly debug.
+  Sure, the bug is likely on my side, but how do I begin debugging this? The galaxy brains who made the C standard lacked the foresight to enforce error codes in free which may have made this problem trivial to solve.
+  (new idea as I've been writing this)
+  Just hold a spin lock when updating point values. If performance is good enough IDGAFOS
+  Use arena allocator on the audio thread to copy LFO points over into scratch data. Lock / unlock before and after the copying
