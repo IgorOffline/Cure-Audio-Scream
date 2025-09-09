@@ -79,26 +79,30 @@ typedef struct GUI
     int      logo_width;
     int      logo_height;
 
-    // TODO: rather than cache a line of points, cache the vertices from NanoVG.
-    // This will require some editing of NanoVG.
-    bool      lfo_cached_path_dirty;
-    imgui_pt* lfo_cached_path;
+    // If false, should copy over the points array from the audio thread
+    bool gui_lfo_points_valid;
+    // Used to queue changes made to LFO points on the audio thread
+    // Coordinates are in beat time, exactly like the lfo
+    LFOPoint* main_lfo_points;
 
-    // Draggable points
-    bool      lfo_points_dirty;
-    imgui_pt* lfo_points;
-    imgui_pt* lfo_skew_points;
+    // Draggable points (widgets)
+    // Cordinates are in window space
+    bool      should_update_points;
+    imgui_pt* points;
+    imgui_pt* skew_points;
+    // Used as backup while doing non-destructive preview editing of points
+    imgui_pt* points_copy;
+    imgui_pt* skew_points_copy;
 
     // Point multiselect
     xvec2f selection_start;
     xvec2f selection_end;
     int*   selected_point_indexes;
-    // Used as backup while doing non-destructive preview editing of points
-    imgui_pt* points_copy;
-    imgui_pt* skew_points_copy;
     // Used for hacks to make the current selection & hover work properly when previewing edits to points with the
     // drag-auto-erase feature
     int selected_point_idx;
+
+    imgui_pt* lfo_cached_path;
 
     Tooltip tooltip;
 

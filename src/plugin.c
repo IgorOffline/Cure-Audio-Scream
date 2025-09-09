@@ -68,8 +68,19 @@ void* cplug_createPlugin(CplugHostContext* ctx)
     g_is_main_thread = true;
     library_load_platform();
 
-    struct Plugin* p = MY_CALLOC(1, sizeof(*p));
-    p->cplug_ctx     = ctx;
+    struct Plugin* p                   = NULL;
+    size_t         expected_max_memory = sizeof(*p);
+
+    // For audio
+    // max block size * max sample rate * num LFOs
+    expected_max_memory += sizeof(float) * 2048 * 9600 * 2;
+    // just to be safe
+    expected_max_memory += 1024 * 1024; // 1mb
+
+    LinkedArena* arena = linked_arena_create(expected_max_memory);
+    p                  = linked_arena_alloc(arena, sizeof(*p));
+    p->audio_arena     = arena;
+    p->cplug_ctx       = ctx;
 
     p->width  = GUI_INIT_WIDTH;
     p->height = GUI_INIT_HEIGHT * 2;
@@ -129,11 +140,9 @@ void cplug_destroyPlugin(void* _p)
         }
     }
 
-    xarr_free(p->mod_buffer);
-
     library_unload_platform();
 
-    MY_FREE(p);
+    linked_arena_destroy(p->audio_arena);
 }
 
 uint32_t cplug_getNumInputBusses(void* ptr) { return 1; }
@@ -154,8 +163,6 @@ void cplug_setSampleRateAndBlockSize(void* _p, double sampleRate, uint32_t maxBl
     Plugin* p         = _p;
     p->sample_rate    = sampleRate;
     p->max_block_size = maxBlockSize;
-
-    xarr_setlen(p->mod_buffer, maxBlockSize);
 
     memset(&p->state, 0, sizeof(p->state));
 
@@ -184,30 +191,35 @@ const float g_release_ms = 5.0;
 // float g_hp_Q = XM_SQRT2f;
 #endif
 
-void render_lfo(Plugin* p, int num_samples, int lfo_idx)
+void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
 {
+    LINKED_ARENA_LEAK_DETECT_BEGIN(p->audio_arena);
     xassert(lfo_idx >= 0 && lfo_idx < ARRLEN(p->lfos));
 
-    LFO*    lfo    = p->lfos + lfo_idx;
-    xvec2f* buffer = p->mod_buffer;
+    LFO* lfo = p->lfos + lfo_idx;
 
     // Inspect in debugger
-    xvec2f(*buffer_view)[512] = (void*)buffer;
+    float(*buffer_view)[512] = (void*)buffer;
 
     const double pattern_v   = p->audio_params[PARAM_PATTERN_LFO_1 + lfo_idx];
     const int    pattern_idx = xm_droundi(pattern_v * (NUM_LFO_PATTERNS - 1));
 
-    xassert(num_samples > 0 && num_samples <= xarr_len(buffer));
+    // !!!
+    xt_spinlock_lock(&lfo->spinlocks[pattern_idx]);
 
-    const double pattern_length = lfo->pattern_length[pattern_idx];
+    const int    num_points     = xarr_len(lfo->points[pattern_idx]);
+    const double pattern_length = xt_atomic_load_i32((xt_atomic_int32_t*)&lfo->pattern_length[pattern_idx]);
+    LFOPoint*    points         = linked_arena_alloc(p->audio_arena, num_points * sizeof(*points));
+    memcpy(points, lfo->points[pattern_idx], num_points * sizeof(*points));
+
+    xt_spinlock_unlock(&lfo->spinlocks[pattern_idx]);
+
+    const LFOPoint* points_start = points;
+    const LFOPoint* points_end   = points_start + num_points;
 
     double beat_position = fmod(p->beat_position, pattern_length);
     xassert(beat_position < pattern_length);
     const double beat_inc = p->beat_inc;
-
-    const int             num_points   = xarr_len(lfo->points[pattern_idx]);
-    const LFOPoint* const points_start = lfo->points[pattern_idx];
-    const LFOPoint* const points_end   = points_start + num_points;
 
     const LFOPoint* it = points_end;
     while (it-- != points_start)
@@ -241,7 +253,7 @@ void render_lfo(Plugin* p, int num_samples, int lfo_idx)
         // Calc LFO value
         float v = interp_points(rel_position, pt1.skew, pt1.y, pt2.y);
 
-        buffer[i].data[lfo_idx] = v;
+        buffer[i] = v;
 
         beat_position += beat_inc;
 
@@ -273,6 +285,9 @@ void render_lfo(Plugin* p, int num_samples, int lfo_idx)
             }
         }
     }
+
+    linked_arena_release(p->audio_arena, points);
+    LINKED_ARENA_LEAK_DETECT_END(p->audio_arena);
 }
 
 void cplug_process(void* _p, CplugProcessContext* ctx)
@@ -280,6 +295,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     DISABLE_DENORMALS
     Plugin* p                     = _p;
     bool    should_post_to_global = false;
+
+    LINKED_ARENA_LEAK_DETECT_BEGIN(p->audio_arena);
 
     // Dequeue events sent from main thread
     {
@@ -341,60 +358,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 CPLUG_LOG_ASSERT(ok);
                 break;
             }
-            case EVENT_SET_LFO_POINTS:
-            {
-                LFOEvent* e = (LFOEvent*)event;
-
-                const int lfo_idx     = e->set_points.lfo_idx;
-                const int pattern_idx = e->set_points.pattern_idx;
-
-                LFOPoint* prev_points = p->lfos[lfo_idx].points[pattern_idx];
-                void*     ptr         = xarr_header(prev_points);
-                send_to_global_event_queue(GLOBAL_EVENT_GARBAGE_COLLECT_FREE, ptr);
-
-                p->lfos[lfo_idx].points[pattern_idx]         = e->set_points.array;
-                p->lfos[lfo_idx].pattern_length[pattern_idx] = e->set_points.pattern_length;
-                break;
-            }
-            case EVENT_SET_LFO_XY:
-            {
-                LFOEvent* e = (LFOEvent*)event;
-
-                const int lfo_idx     = e->set_xy.lfo_idx;
-                const int pattern_idx = e->set_xy.pattern_idx;
-                const int pt_idx      = e->set_xy.point_idx;
-
-                LFOPoint* points = p->lfos[lfo_idx].points[pattern_idx];
-                LFOPoint* p1     = points + pt_idx;
-
-                p1->x = e->set_xy.x;
-                p1->y = e->set_xy.y;
-
-                if (pt_idx > 0)
-                {
-                    LFOPoint* p0 = p1 - 1;
-                    xassert(p0->x <= p1->x);
-                }
-                if (pt_idx + 1 < xarr_len(points))
-                {
-                    LFOPoint* p2 = p1 + 1;
-                    xassert(p1->x <= p2->x);
-                }
-
-                break;
-            }
-            case EVENT_SET_LFO_SKEW:
-                LFOEvent* e = (LFOEvent*)event;
-
-                const int lfo_idx     = e->set_skew.lfo_idx;
-                const int pattern_idx = e->set_skew.pattern_idx;
-                const int pt_idx      = e->set_skew.point_idx;
-
-                LFOPoint* points = p->lfos[lfo_idx].points[pattern_idx];
-                LFOPoint* p1     = points + pt_idx;
-
-                p1->skew = e->set_skew.skew;
-                break;
             }
         }
         cplug_atomic_exchange_i32(&p->queue_audio_tail, tail);
@@ -522,15 +485,19 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             }
 
             xvec2f last_lfo_amount = {0};
+            float* mod_buffer_1    = NULL;
+            float* mod_buffer_2    = NULL;
             if (lfo_1_mod_flags)
             {
-                render_lfo(p, num_frames, 0);
-                last_lfo_amount.left = p->mod_buffer[num_frames - 1].left;
+                mod_buffer_1 = linked_arena_alloc(p->audio_arena, num_frames * sizeof(mod_buffer_1));
+                render_lfo(p, mod_buffer_1, num_frames, 0);
+                last_lfo_amount.left = mod_buffer_1[num_frames - 1];
             }
             if (lfo_2_mod_flags)
             {
-                render_lfo(p, num_frames, 1);
-                last_lfo_amount.right = p->mod_buffer[num_frames - 1].right;
+                mod_buffer_2 = linked_arena_alloc(p->audio_arena, num_frames * sizeof(mod_buffer_2));
+                render_lfo(p, mod_buffer_2, num_frames, 1);
+                last_lfo_amount.right = mod_buffer_2[num_frames - 1];
             }
             p->last_lfo_amount = last_lfo_amount;
 
@@ -552,9 +519,9 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
             for (int ch = 0; ch < 2; ch++)
             {
-                float*             it  = output[ch] + frame;
-                const float* const end = output[ch] + event.processAudio.endFrame;
-                struct FilterState s   = p->state[ch];
+                float* audio = output[ch] + frame;
+
+                struct FilterState s = p->state[ch];
 
                 for (int i = 0; i < ARRLEN(s.values); i++)
                     smoothvalue_set_target(&s.values[i], p->audio_params[i], param_smoothing_time);
@@ -620,7 +587,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                         int   N = xm_mini(remaining_samples, PEAK_FREQUENCY_SAMPLES - p->_gui_input_read_count[ch]);
                         for (int i = 0; i < N; i++)
                         {
-                            float x = fabsf(it[i]);
+                            float x = fabsf(audio[i]);
                             if (x > peak_input)
                                 peak_input = x;
                         }
@@ -639,12 +606,10 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     }
                 }
 
-                xvec2f* mod_buffer = p->mod_buffer;
-
                 // Process
-                for (; it != end; it++, mod_buffer++)
+                for (int i = 0; i < num_frames; i++)
                 {
-                    float x = *it;
+                    float x = audio[i];
 
                     x *= in_gain;
 
@@ -666,11 +631,11 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                         y = 0;
 
                     // *it = xm_clampf(y, -1, 1);
-                    *it = wet * y + (1 - wet) * (*it);
+                    audio[i] = wet * y + (1 - wet) * audio[i];
                     // *it = x;
 
 #ifdef CPLUG_BUILD_STANDALONE
-                    *it *= xm_fast_dB_to_gain(g_output_gain_dB);
+                    audio[i] *= xm_fast_dB_to_gain(g_output_gain_dB);
 #endif
 
                     // Feedback
@@ -705,19 +670,19 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                         _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(s.values), "");
                         _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(p->lfo_mod_amounts), "");
                         float modvals[NUM_AUTOMATABLE_PARAMS];
-                        for (int i = 0; i < ARRLEN(s.values); i++)
+                        for (int j = 0; j < ARRLEN(s.values); j++)
                         {
-                            smoothvalue_tick(&s.values[i]);
+                            smoothvalue_tick(&s.values[j]);
 
-                            float v = s.values[i].current;
+                            float v = s.values[j].current;
 
                             // TODO: apply bidirectional algorithm?
-                            if (lfo_1_mod_flags & (1 << i))
-                                v += p->lfo_mod_amounts[i].data[0] * mod_buffer->data[0];
-                            if (lfo_2_mod_flags & (1 << i))
-                                v += p->lfo_mod_amounts[i].data[1] * mod_buffer->data[1];
+                            if (lfo_1_mod_flags & (1 << j))
+                                v += p->lfo_mod_amounts[j].data[0] * mod_buffer_1[i];
+                            if (lfo_2_mod_flags & (1 << j))
+                                v += p->lfo_mod_amounts[j].data[1] * mod_buffer_2[i];
 
-                            modvals[i] = xm_clampf(v, 0, 1);
+                            modvals[j] = xm_clampf(v, 0, 1);
                         }
 
                         lp_cutoff = modvals[PARAM_CUTOFF];
@@ -767,6 +732,11 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 p->beat_position -= MAX_PATTERN_LENGTH_PATTERNS;
             xassert(p->beat_position >= 0 && p->beat_position < MAX_PATTERN_LENGTH_PATTERNS);
 
+            if (mod_buffer_2)
+                linked_arena_release(p->audio_arena, mod_buffer_2);
+            if (mod_buffer_1)
+                linked_arena_release(p->audio_arena, mod_buffer_1);
+
             frame = event.processAudio.endFrame;
             break;
         }
@@ -793,4 +763,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     {
         send_to_global_event_queue(GLOBAL_EVENT_DEQUEUE_MAIN, p);
     }
+
+    LINKED_ARENA_LEAK_DETECT_END(p->audio_arena);
 }

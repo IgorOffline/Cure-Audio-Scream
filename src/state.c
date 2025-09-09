@@ -1,3 +1,4 @@
+#include "gui.h"
 #include "plugin.h"
 #include <stdio.h>
 #include <string.h>
@@ -121,5 +122,11 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
             readProc(stateCtx, &state, sizeof(state));
             state_update_params(p, state.params, ARRLEN(state.params));
         }
+    }
+
+    if (p->gui)
+    {
+        GUI* gui                  = p->gui;
+        gui->gui_lfo_points_valid = false;
     }
 }

@@ -36,9 +36,6 @@ void dequeue_global_events()
             case GLOBAL_EVENT_DEQUEUE_MAIN:
                 main_dequeue_events((Plugin*)ptr);
                 break;
-            case GLOBAL_EVENT_GARBAGE_COLLECT_FREE:
-                xfree(ptr);
-                break;
             default:
                 println("[WARNING] Unhanled global event: %u", type);
                 break;

@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include <cplug.h>
+#include <linked_arena.h>
 #include <stdint.h>
 #include <xhl/array.h>
 #include <xhl/thread.h>
@@ -64,10 +65,6 @@ typedef enum EventType
 {
     EVENT_SET_PARAMETER = 16,
     EVENT_SET_PARAMETER_NOTIFYING_HOST,
-
-    EVENT_SET_LFO_POINTS,
-    EVENT_SET_LFO_XY,
-    EVENT_SET_LFO_SKEW,
 } EventType;
 
 typedef struct LFOPoint
@@ -79,6 +76,8 @@ typedef struct LFOPoint
 
 typedef struct LFO
 {
+    xt_spinlock_t spinlocks[NUM_LFO_PATTERNS];
+
     // NOTE: the GUI will display a point on the right edge. This does not represent the final point in this array. We
     // calculate that point at runtime based off of the first point in these arrays
     LFOPoint* points[NUM_LFO_PATTERNS];
@@ -123,6 +122,7 @@ _Static_assert(sizeof(LFOEvent) == sizeof(CplugEvent), "");
 
 typedef struct Plugin
 {
+    LinkedArena*      audio_arena;
     CplugHostContext* cplug_ctx;
 
     // Retained data for GUI
@@ -151,10 +151,9 @@ typedef struct Plugin
 
     LFO lfos[2];
 
-    xvec2f* mod_buffer;
-    double  bpm;
-    double  beat_position;
-    double  beat_inc;
+    double bpm;
+    double beat_position;
+    double beat_inc;
 
     // left channel is lfo 1, right is lfo 2
     xvec2f lfo_mod_amounts[NUM_AUTOMATABLE_PARAMS];
@@ -194,7 +193,6 @@ typedef struct Plugin
 enum GlobalEvent
 {
     GLOBAL_EVENT_DEQUEUE_MAIN,
-    GLOBAL_EVENT_GARBAGE_COLLECT_FREE,
 };
 // [Any thread] Post enum to MPSC queue.
 void send_to_global_event_queue(enum GlobalEvent, void*);
