@@ -21,6 +21,9 @@ typedef enum ParamID
 
     PARAM_PATTERN_LFO_1,
     PARAM_PATTERN_LFO_2,
+    PARAM_RATE_LFO_1,
+    PARAM_RATE_LFO_2,
+    PARAM_COUNT,
 } ParamID;
 
 #define RANGE_INPUT_GAIN_MIN -72.0
@@ -29,7 +32,6 @@ typedef enum ParamID
 enum
 {
     NUM_AUTOMATABLE_PARAMS = PARAM_WET + 1,
-    NUM_PARAMS             = PARAM_PATTERN_LFO_2 + 1,
 
     NUM_LFO_PATTERNS = 8,
 
@@ -66,6 +68,50 @@ typedef enum EventType
     EVENT_SET_PARAMETER = 16,
     EVENT_SET_PARAMETER_NOTIFYING_HOST,
 } EventType;
+
+typedef enum LFORates
+{
+    LFO_RATE_4_BARS,
+    LFO_RATE_2_BARS,
+    LFO_RATE_1_BAR,
+    LFO_RATE_3_4,
+    LFO_RATE_2_3,
+    LFO_RATE_1_2,
+    LFO_RATE_3_8,
+    LFO_RATE_1_3,
+    LFO_RATE_1_4,
+    LFO_RATE_3_16,
+    LFO_RATE_1_6,
+    LFO_RATE_1_8,
+    LFO_RATE_1_12,
+    LFO_RATE_1_16,
+    LFO_RATE_1_24,
+    LFO_RATE_1_32,
+    LFO_RATE_1_48,
+    LFO_RATE_1_64,
+    LFO_RATE_COUNT,
+} LFORates;
+static const char* LFO_RATE_NAMES[] = {
+    "4 Bars",
+    "2 Bars",
+    "1 Bar",
+    "3 / 4",
+    "2 / 3",
+    "1 / 2",
+    "3 / 8",
+    "1 / 3",
+    "1 / 4",
+    "3 / 16",
+    "1 / 6",
+    "1 / 8",
+    "1 / 12",
+    "1 / 16",
+    "1 / 24",
+    "1 / 32",
+    "1 / 48",
+    "1 / 64",
+};
+_Static_assert(ARRLEN(LFO_RATE_NAMES) == LFO_RATE_COUNT, "");
 
 typedef struct LFOPoint
 {
@@ -142,8 +188,8 @@ typedef struct Plugin
     xt_atomic_float gui_osc_phase;
     xt_atomic_float gui_osc_midi;
 
-    double main_params[NUM_PARAMS];
-    double audio_params[NUM_PARAMS];
+    double main_params[PARAM_COUNT];
+    double audio_params[PARAM_COUNT];
 
     // Plugin data
     double   sample_rate;
@@ -223,6 +269,8 @@ static const char* PARAM_STR[] = {
     "PARAM_WET",
     "PARAM_PATTERN_LFO_1",
     "PARAM_PATTERN_LFO_2",
+    "PARAM_RATE_LFO_1",
+    "PARAM_RATE_LFO_2",
 };
-_Static_assert(ARRLEN(PARAM_STR) == NUM_PARAMS, "");
+_Static_assert(ARRLEN(PARAM_STR) == PARAM_COUNT, "");
 #endif

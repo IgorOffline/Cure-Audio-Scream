@@ -745,6 +745,7 @@ void draw_lfo_section(GUI* gui)
     }
 
     // Pattern Length
+    /*
     {
         static const char   label_length[]   = "LENGTH";
         static const size_t label_length_len = ARRLEN(label_length) - 1;
@@ -886,6 +887,79 @@ void draw_lfo_section(GUI* gui)
             nvgText(nvg, btn_cx, text_cy, btn_labels[btn_idx], NULL);
         }
     }
+    */
+    // LFO Rate
+    {
+        // content_r;
+        const float font_size = lm->content_scale * 14;
+
+        imgui_rect rect = {content_r - 110 * lm->content_scale, button_top, content_r, button_bottom};
+
+        int     lfo_idx  = gui->plugin->selected_lfo_idx;
+        ParamID param_id = PARAM_RATE_LFO_1 + lfo_idx;
+
+        extern double main_get_param(Plugin * p, ParamID id);
+        double        val = main_get_param(gui->plugin, param_id);
+
+        unsigned events = imgui_get_events_rect(im, 'rate', &rect);
+        if (events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
+        if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_DRAG_MOVE))
+        {
+            static float last_drag_val = 0;
+            if (events & IMGUI_EVENT_DRAG_BEGIN)
+            {
+                last_drag_val = (float)val;
+                param_change_begin(gui->plugin, param_id);
+            }
+            double range_min, range_max;
+            cplug_getParameterRange(gui->plugin, param_id, &range_min, &range_max);
+            imgui_drag_value(im, &last_drag_val, range_min, range_max, 200, IMGUI_DRAG_VERTICAL);
+            double next_val = xm_droundi(last_drag_val);
+            val             = next_val;
+            param_change_update(gui->plugin, param_id, val);
+        }
+        if (events & IMGUI_EVENT_DRAG_END)
+            param_change_end(gui->plugin, param_id);
+
+        println("%f", val);
+
+        nvgSetFontSize(nvg, font_size);
+        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
+        nvgSetColour(nvg, C_TEXT);
+        nvgText(nvg, rect.x, top_text_cy, "RATE", NULL);
+
+        char label[16] = {0};
+
+        cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), val);
+
+        nvgSetTextAlign(nvg, NVG_ALIGN_CR);
+        nvgSetColour(nvg, C_GREY_1);
+        nvgText(nvg, rect.r - 12, top_text_cy, label, 0);
+
+        // nvgBeginPath(nvg);
+        // nvgRect2(nvg, content_r - 80, button_top, content_r, button_bottom);
+        // nvgSetColour(nvg, C_WHITE);
+        // nvgFill(nvg);
+
+        // Up & down "buttons"
+        float btn_top = floor(top_text_cy - font_size * 0.4f);
+        float btn_bot = ceilf(top_text_cy + font_size * 0.35f);
+
+        nvgBeginPath(nvg);
+        nvgMoveTo(nvg, rect.r, btn_top + 3.8);
+        nvgLineTo(nvg, rect.r - 2.5, btn_top);
+        nvgLineTo(nvg, rect.r - 5, btn_top + 3.8);
+        nvgClosePath(nvg);
+
+        nvgMoveTo(nvg, rect.r, btn_bot - 3.8);
+        nvgLineTo(nvg, rect.r - 2.5, btn_bot);
+        nvgLineTo(nvg, rect.r - 5, btn_bot - 3.8);
+        nvgClosePath(nvg);
+
+        nvgSetColour(nvg, C_GREY_1);
+        nvgFill(nvg);
+    }
 
     // LFO Draw shapes
     float shape_x = content_x;
@@ -1009,9 +1083,9 @@ void draw_lfo_section(GUI* gui)
 
     // LFO pattern selector
     const imgui_rect pattern_area = {
-        .x = xm_maxf(content_r - PATTERN_WIDTH, shape_x),
+        .x = xm_maxf(content_r - PATTERN_WIDTH - 4, shape_x),
         .y = shape_y - 16,
-        .r = content_r,
+        .r = content_r - 4,
         .b = display_b - CONTENT_PADDING_Y};
     {
         const ParamID  param_id = PARAM_PATTERN_LFO_1 + gui->plugin->selected_lfo_idx;
@@ -1113,8 +1187,8 @@ void draw_lfo_section(GUI* gui)
 
     const float grid_y = display_y + CONTENT_PADDING_Y + LFO_TAB_HEIGHT + DISPLAY_PADDING_TOP;
     const float grid_b = shape_y - DISPLAY_PADDING_BOTTOM;
-    const float grid_x = lm->content_x + CONTENT_PADDING_X + 8;
-    const float grid_r = lm->content_r - CONTENT_PADDING_X - 8;
+    const float grid_x = lm->content_x + CONTENT_PADDING_X;
+    const float grid_r = lm->content_r - CONTENT_PADDING_X;
     const float grid_w = ceilf(grid_r - grid_x);
 
     imgui_rect grid_bg = {grid_x, grid_y, grid_r, grid_b};

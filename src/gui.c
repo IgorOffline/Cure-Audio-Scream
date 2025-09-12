@@ -585,12 +585,8 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     {
         float next_value = value_f;
         imgui_drag_value(im, &next_value, 0, 1, drag_range_px, IMGUI_DRAG_VERTICAL);
-        bool changed = value_f != next_value;
-        if (changed)
-        {
-            value_d = value_f = next_value;
-            param_change_update(gui->plugin, param_id, value_d);
-        }
+        value_d = value_f = next_value;
+        param_change_update(gui->plugin, param_id, value_d);
     }
     if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
     {
@@ -605,11 +601,8 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
         float next_value = xm_clampf(value_f + delta, 0, 1);
 
         bool changed = value_f != next_value;
-        if (changed)
-        {
-            value_d = value_f = next_value;
-            param_change_update(gui->plugin, param_id, value_d);
-        }
+        value_d = value_f = next_value;
+        param_change_update(gui->plugin, param_id, value_d);
     }
     if (events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
     {

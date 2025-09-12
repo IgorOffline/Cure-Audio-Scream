@@ -117,37 +117,38 @@ void param_change_update(Plugin* p, ParamID id, double value)
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
     CPLUG_LOG_ASSERT(is_main_thread());
 
-    if (value < 0)
-        value = 0;
-    if (value > 1)
-        value = 1;
-    p->main_params[id] = value;
-
-    CplugEvent e;
-    e.parameter.type  = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
-    e.parameter.id    = id;
-    e.parameter.value = value;
-
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_VST3 || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
+    double range_min, range_max;
+    cplug_getParameterRange(p, id, &range_min, &range_max);
+    value = xm_clampd(value, range_min, range_max);
+    if (value != p->main_params[id])
     {
-        p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
-    }
+        p->main_params[id] = value;
 
-    if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE ||
-        p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
-    {
-        if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
-            e.type = EVENT_SET_PARAMETER;
-        send_to_audio_event_queue(p, &e);
+        CplugEvent e;
+        e.parameter.type  = CPLUG_EVENT_PARAM_CHANGE_UPDATE;
+        e.parameter.id    = id;
+        e.parameter.value = value;
+
+        if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_VST3 || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
+        {
+            p->cplug_ctx->sendParamEvent(p->cplug_ctx, &e);
+        }
+
+        if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_CLAP || p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE ||
+            p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
+        {
+            if (p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE || p->cplug_ctx->type == CPLUG_PLUGIN_IS_AUV2)
+                e.type = EVENT_SET_PARAMETER;
+            send_to_audio_event_queue(p, &e);
+        }
     }
 }
 
 void param_set(Plugin* p, ParamID id, double value)
 {
-    if (value < 0)
-        value = 0;
-    if (value > 1)
-        value = 1;
+    double range_min = 0, range_max = 1;
+    cplug_getParameterRange(p, id, &range_min, &range_max);
+    value = xm_clampd(value, range_min, range_max);
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
     if (p->main_params[id] != value)
     {
@@ -161,7 +162,7 @@ void main_set_param(Plugin* p, ParamID id, double value)
 {
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
     CPLUG_LOG_ASSERT(is_main_thread());
-    CPLUG_LOG_ASSERT(id >= 0 && id < NUM_PARAMS);
+    CPLUG_LOG_ASSERT(id >= 0 && id < PARAM_COUNT);
     p->main_params[id] = value;
 }
 
@@ -169,7 +170,7 @@ double main_get_param(Plugin* p, ParamID id)
 {
     // println("%s %s", __FUNCTION__, PARAM_STR[id]);
     CPLUG_LOG_ASSERT(is_main_thread());
-    CPLUG_LOG_ASSERT(id >= 0 && id < NUM_PARAMS);
+    CPLUG_LOG_ASSERT(id >= 0 && id < PARAM_COUNT);
     return p->main_params[id];
 }
 
@@ -177,7 +178,7 @@ void audio_set_param(Plugin* p, ParamID id, double value)
 {
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
     CPLUG_LOG_ASSERT(!is_main_thread());
-    CPLUG_LOG_ASSERT(id >= 0 && id < NUM_PARAMS);
+    CPLUG_LOG_ASSERT(id >= 0 && id < PARAM_COUNT);
     p->audio_params[id] = value;
 }
 
@@ -265,6 +266,21 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
         if ((ok = sscanf(str, "%lf", val)))
             *val = xm_normd(*val, 1, NUM_LFO_PATTERNS);
         break;
+    case PARAM_RATE_LFO_1:
+    case PARAM_RATE_LFO_2:
+    {
+        for (int i = 0; i < LFO_RATE_COUNT; i++)
+        {
+            if (strcmp(LFO_RATE_NAMES[i], str))
+            {
+                *val = (double)i;
+                break;
+            }
+        }
+        break;
+    }
+    case PARAM_COUNT:
+        break;
     }
     if (ok)
         *val = xm_clampd(*val, 0, 1);
@@ -273,17 +289,18 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
 
 //=====================================================================================
 
-uint32_t cplug_getNumParameters(void*) { return NUM_PARAMS; }
+uint32_t cplug_getNumParameters(void*) { return PARAM_COUNT; }
 uint32_t cplug_getParameterID(void* p, uint32_t paramIndex) { return paramIndex; }
 uint32_t cplug_getParameterFlags(void* p, uint32_t paramId) { return CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE; }
 
 // NOTE: AUv2 supports a max length of 52 bytes, VST3 128, CLAP 256
 void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
 {
-    const char*        str     = "";
-    static const char* NAMES[] = {"Cutoff", "Scream", "Resonance", "Input", "Wet", "LFO 1 Pattern", "LFO 2 Pattern"};
-    _Static_assert(ARRLEN(NAMES) == NUM_PARAMS);
-    if (paramId < NUM_PARAMS)
+    const char*        str = "";
+    static const char* NAMES[] =
+        {"Cutoff", "Scream", "Resonance", "Input", "Wet", "LFO 1 Pattern", "LFO 1 Rate", "LFO 2 Pattern", "LFO 2 Rate"};
+    _Static_assert(ARRLEN(NAMES) == PARAM_COUNT);
+    if (paramId < PARAM_COUNT)
     {
         str = NAMES[paramId];
     }
@@ -294,6 +311,8 @@ void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
 {
     *min = 0;
     *max = 1;
+    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_1)
+        *max = LFO_RATE_COUNT - 1;
 }
 
 double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
@@ -320,6 +339,12 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
     case PARAM_PATTERN_LFO_1:
     case PARAM_PATTERN_LFO_2:
         // v = 0;
+        break;
+    case PARAM_RATE_LFO_1:
+    case PARAM_RATE_LFO_2:
+        v = LFO_RATE_1_4;
+        break;
+    case PARAM_COUNT:
         break;
     }
     return v;
@@ -376,8 +401,20 @@ void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
     }
 }
 // VST3 only
-double cplug_denormaliseParameterValue(void*, uint32_t paramId, double value) { return value; }
-double cplug_normaliseParameterValue(void*, uint32_t paramId, double value) { return value; }
+double cplug_denormaliseParameterValue(void*, uint32_t paramId, double value)
+{
+    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_2)
+        value *= LFO_RATE_COUNT - 1;
+
+    return value;
+}
+double cplug_normaliseParameterValue(void*, uint32_t paramId, double value)
+{
+    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_2)
+        value /= LFO_RATE_COUNT - 1;
+
+    return value;
+}
 
 double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
 {
@@ -386,7 +423,7 @@ double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
     return val;
 }
 
-void cplug_parameterValueToString(void*, uint32_t paramId, char* buf, size_t bufsize, double value)
+void cplug_parameterValueToString(void* ptr, uint32_t paramId, char* buf, size_t bufsize, double value)
 {
     switch ((ParamID)paramId)
     {
@@ -415,5 +452,15 @@ void cplug_parameterValueToString(void*, uint32_t paramId, char* buf, size_t buf
         snprintf(buf, bufsize, "%d", num);
         break;
     }
+    case PARAM_RATE_LFO_1:
+    case PARAM_RATE_LFO_2:
+    {
+        int idx = xm_droundi(value);
+        idx     = xm_clampi(idx, 0, LFO_RATE_COUNT - 1);
+        snprintf(buf, bufsize, "%s", LFO_RATE_NAMES[idx]);
+        break;
+    }
+    case PARAM_COUNT:
+        break;
     }
 }
