@@ -26,10 +26,19 @@ static inline int main_get_lfo_pattern_idx(Plugin* p)
 
 float calculate_point_skew(GUI* gui, int idx)
 {
-    xassert(idx >= 0 && idx < xarr_len(gui->points));
+    size_t num_points      = xarr_len(gui->points);
+    size_t num_skew_points = xarr_len(gui->skew_points);
+    size_t next_idx        = idx + 1;
+
+    xassert(idx >= 0 && idx < num_points);
+    xassert(idx >= 0 && next_idx < num_points);
+    xassert(idx >= 0 && idx < num_skew_points);
+
+    if (next_idx >= num_points)
+        next_idx = 0;
 
     const imgui_pt* pt      = gui->points + idx;
-    const imgui_pt* next_pt = gui->points + idx + 1;
+    const imgui_pt* next_pt = gui->points + next_idx;
     const imgui_pt* skew_pt = gui->skew_points + idx;
 
     float skew = 0.5f;
@@ -100,8 +109,6 @@ void update_skew_point(GUI* gui, int i, float skew)
 
         gui->skew_points[i].y = y;
     }
-
-    gui->main_lfo_points[i].skew = skew;
 }
 
 // Clamps target_pos to boundaries. Updates relevant skew points. Updates LFO points on audio thread
@@ -1731,7 +1738,7 @@ void draw_lfo_section(GUI* gui)
     {
         should_update_audio_lfo_points_with_gui_lfo_points = true;
         // Queue LFO points
-        int npoints = xarr_len(gui->points);
+        int npoints = xarr_len(gui->skew_points);
         xarr_setlen(gui->main_lfo_points, npoints);
         for (int i = 0; i < npoints; i++)
         {
@@ -1742,18 +1749,18 @@ void draw_lfo_section(GUI* gui)
             xassert(p1->x >= 0 && p1->x <= pattern_length);
             xassert(p1->y >= 0 && p1->y <= 1);
             xassert(p1->skew >= 0 && p1->skew <= 1);
+#ifndef NDEBUG
+            // validate we didn't do anything silly
+            if (i > 0)
+            {
+                LFOPoint* prev = gui->main_lfo_points + i - 1;
+                xassert(p1->x >= prev->x);
+            }
+#endif
+
             i += 0;
         }
         gui->main_lfo_points->x = 0;
-#ifndef NDEBUG
-        // validate we didn't do anything silly
-        for (int i = 0; i < npoints - 1; i++)
-        {
-            LFOPoint* p1 = gui->main_lfo_points + i;
-            LFOPoint* p2 = gui->main_lfo_points + i + 1;
-            xassert(p1->x <= p2->x);
-        }
-#endif
     }
 
     if (should_update_cached_path)
