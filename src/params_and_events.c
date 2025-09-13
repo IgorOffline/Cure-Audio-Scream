@@ -311,7 +311,7 @@ void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
 {
     *min = 0;
     *max = 1;
-    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_1)
+    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_2)
         *max = LFO_RATE_COUNT - 1;
 }
 
