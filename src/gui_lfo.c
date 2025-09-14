@@ -1088,16 +1088,20 @@ void draw_lfo_section(GUI* gui)
                 nvgQuadTo(nvg, inner.r, inner.y, inner.r, inner.b);
                 break;
             case SHAPE_COSINE_ASC:
+            case SHAPE_COSINE_DESC:
             {
                 float w = inner.r - inner.x;
                 float h = inner.b - inner.y;
                 // imgui_pt c = imgui_centre(&inner);
                 float cx = inner.x + w * 0.5f;
                 float cy = inner.y + h * 0.5f;
+
+                float y1 = type == SHAPE_COSINE_ASC ? inner.y : inner.b;
+                float y2 = type == SHAPE_COSINE_ASC ? inner.b : inner.y;
                 // More like a cosine
-                nvgMoveTo(nvg, inner.x, inner.b);
-                nvgQuadTo(nvg, inner.x + w * 0.25f, inner.b, cx, cy);
-                nvgQuadTo(nvg, inner.x + w * 0.75f, inner.y, inner.r, inner.y);
+                nvgMoveTo(nvg, inner.x, y2);
+                nvgQuadTo(nvg, inner.x + w * 0.25f, y2, cx, cy);
+                nvgQuadTo(nvg, inner.x + w * 0.75f, y1, inner.r, y1);
 
                 // more like a circle
                 // nvgMoveTo(nvg, inner.x, inner.b);
@@ -1105,10 +1109,6 @@ void draw_lfo_section(GUI* gui)
                 // nvgQuadTo(nvg, cx, inner.y, inner.r, inner.y);
                 break;
             }
-            case SHAPE_COSINE_DESC:
-                nvgMoveTo(nvg, inner.x, inner.y);
-                nvgQuadTo(nvg, inner.x, inner.b, inner.r, inner.b);
-                break;
             case SHAPE_TRIANGLE_UP:
                 nvgMoveTo(nvg, inner.x, inner.b);
                 nvgLineTo(nvg, (inner.x + inner.r) * 0.5f, inner.y);
