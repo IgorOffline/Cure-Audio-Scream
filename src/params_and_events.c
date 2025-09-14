@@ -325,10 +325,10 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
         // v = xm_fast_normalise_Hz2(5000);
         break;
     case PARAM_SCREAM:
-        // v = 0.25;
+        v = 0.5;
         break;
     case PARAM_RESONANCE:
-        // v = 0.5;
+        v = 0.5;
         break;
     case PARAM_INPUT_GAIN:
         v = xm_normd(0, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
