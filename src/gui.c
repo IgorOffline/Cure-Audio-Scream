@@ -786,11 +786,12 @@ void pw_tick(void* _gui)
         const float dpi = pw_get_dpi(gui->pw);
 #ifdef __APPLE__
         lm->content_scale    = dpi * 0.5;
-        lm->devicePixelRatio = dpi; // required for text to render properly...
+        lm->devicePixelRatio = 2; // required for text to render properly...
 #else
         lm->content_scale    = dpi;
         lm->devicePixelRatio = 1;
 #endif
+        nvg->devicePxRatio = lm->devicePixelRatio;
 
         lm->height_header = floorf(HEIGHT_HEADER * lm->content_scale);
         lm->height_footer = floorf(HEIGHT_FOOTER * lm->content_scale);
