@@ -1994,7 +1994,7 @@ void draw_lfo_section(GUI* gui)
             num_labels                      = ARRLEN(labels_2_3);
             break;
         case LFO_RATE_1_2:
-            static const char* labels_1_2[] = {"0", "1 / 6", "1 / 3", "1 / 2", "2 / 3"};
+            static const char* labels_1_2[] = {"0", "1 / 8", "1 / 4", "3 / 8", "1 / 2"};
             labels_arr                      = labels_2_3;
             num_labels                      = ARRLEN(labels_2_3);
             break;
