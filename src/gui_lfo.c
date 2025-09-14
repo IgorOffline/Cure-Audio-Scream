@@ -580,6 +580,17 @@ void draw_lfo_section(GUI* gui)
             const unsigned    wid    = 'tlfo' + i;
             const unsigned    events = imgui_get_events_rect(im, wid, rect);
 
+            tooltip_handle_events(
+                &gui->tooltip,
+                *rect,
+                "Toggle between controls for LFO 1 & 2",
+                gui->frame_start_time,
+                events);
+
+            if (events & IMGUI_EVENT_MOUSE_ENTER)
+            {
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+            }
             if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
                 gui->plugin->selected_lfo_idx = i;
@@ -971,7 +982,6 @@ void draw_lfo_section(GUI* gui)
     // LFO Draw shapes
     float shape_x = content_x;
     float shape_y = display_b - CONTENT_PADDING_Y - SHAPES_WIDTH;
-
     {
         imgui_rect btns[SHAPE_COUNT];
         unsigned   events[SHAPE_COUNT];
@@ -985,6 +995,24 @@ void draw_lfo_section(GUI* gui)
             unsigned wid = 'lshp' + i;
             events[i]    = imgui_get_events_rect(im, wid, rect);
 
+#if defined(_WIN32)
+#define PAINT_KEY "Ctrl"
+#elif defined(__APPLE__)
+#define PAINT_KEY "Cmd"
+#endif
+
+            tooltip_handle_events(
+                &gui->tooltip,
+                *rect,
+                "Hold the " PAINT_KEY " key on your keyboard while dragging your mouse inside empty space on the LFO "
+                "grid to paint the currently selected shape to the grid",
+                gui->frame_start_time,
+                events[i]);
+
+            if (events[i] & IMGUI_EVENT_MOUSE_ENTER)
+            {
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+            }
             if (events[i] & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
                 gui->plugin->lfo_shape_idx = i;
@@ -995,13 +1023,24 @@ void draw_lfo_section(GUI* gui)
                 rect->y += 1;
                 rect->b += 1;
             }
-        }
 
-        imgui_rect* active_area = btns + gui->plugin->lfo_shape_idx;
-        nvgBeginPath(nvg);
-        nvgSetColour(nvg, C_GREY_3);
-        nvgRoundedRect2(nvg, active_area->x, active_area->y, active_area->r, active_area->b, 4);
-        nvgFill(nvg);
+            if (events[i] & IMGUI_EVENT_MOUSE_HOVER)
+            {
+                NVGcolour col = C_GREY_2;
+                col.a         = 0.5f;
+                nvgBeginPath(nvg);
+                nvgSetColour(nvg, col);
+                nvgRoundedRect2(nvg, rect->x, rect->y, rect->r, rect->b, 4);
+                nvgFill(nvg);
+            }
+            else if (i == gui->plugin->lfo_shape_idx)
+            {
+                nvgBeginPath(nvg);
+                nvgSetColour(nvg, C_GREY_3);
+                nvgRoundedRect2(nvg, rect->x, rect->y, rect->r, rect->b, 4);
+                nvgFill(nvg);
+            }
+        }
 
         nvgBeginPath(nvg);
         for (int i = 0; i < ARRLEN(btns); i++)
@@ -1098,6 +1137,13 @@ void draw_lfo_section(GUI* gui)
         const ParamID  param_id = PARAM_PATTERN_LFO_1 + gui->plugin->selected_lfo_idx;
         const unsigned uid      = 'prm' + param_id;
         const unsigned events   = imgui_get_events_rect(im, uid, &pattern_area);
+
+        tooltip_handle_events(
+            &gui->tooltip,
+            pattern_area,
+            "Switch between custom LFO shapes for this LFO",
+            gui->frame_start_time,
+            events);
 
         float pattern_cx = 0.5f * (pattern_area.x + pattern_area.r);
         float pattern_cy = (pattern_area.y + pattern_area.b) * 0.5f;
@@ -1883,14 +1929,14 @@ void draw_lfo_section(GUI* gui)
         nvgSetColour(nvg, C_GRID_PRIMARY);
         nvgStroke(nvg, 1);
 
+        const char** labels_arr = NULL;
+        int          num_labels = 0;
+        /*
         static const char* labels_1_beat[]  = {"0", "1/4"};
         static const char* labels_2_beats[] = {"0", "1/4", "1/2"};
         static const char* labels_1_bar[]   = {"0", "1/4", "1/2", "3/4", "1 bar"};
         static const char* labels_2_bars[]  = {"0", "1/2", "1 bar", "1 1/2", "2 bar"};
         static const char* labels_4_bars[]  = {"0", "1 bar", "2 bar", "3 bar", "4 bar"};
-
-        const char** labels_arr = NULL;
-        int          num_labels = 0;
         if (pattern_length == 1)
         {
             labels_arr = labels_1_beat;
@@ -1915,6 +1961,105 @@ void draw_lfo_section(GUI* gui)
         {
             labels_arr = labels_4_bars;
             num_labels = ARRLEN(labels_4_bars);
+        }
+        */
+        ParamID       param_id = PARAM_RATE_LFO_1 + lfo_idx;
+        extern double main_get_param(Plugin * p, ParamID id);
+        LFORate       rate_type = (int)main_get_param(gui->plugin, param_id);
+        switch (rate_type)
+        {
+        case LFO_RATE_4_BARS:
+            static const char* labels_4_bars[] = {"0", "1", "2", "3", "4 bars"};
+            labels_arr                         = labels_4_bars;
+            num_labels                         = ARRLEN(labels_4_bars);
+            break;
+        case LFO_RATE_2_BARS:
+            static const char* labels_2_bars[] = {"0", "1 / 2", "1", "1 1/ 2", "2 bars"};
+            labels_arr                         = labels_2_bars;
+            num_labels                         = ARRLEN(labels_2_bars);
+            break;
+        case LFO_RATE_1_BAR:
+            static const char* labels_1_bar[] = {"0", "1 / 4", "1 / 2", "3 / 4", "1 bar"};
+            labels_arr                        = labels_1_bar;
+            num_labels                        = ARRLEN(labels_1_bar);
+            break;
+        case LFO_RATE_3_4:
+            static const char* labels_3_4[] = {"0", "1 / 4", "1 / 2", "3 / 4"};
+            labels_arr                      = labels_3_4;
+            num_labels                      = ARRLEN(labels_3_4);
+            break;
+        case LFO_RATE_2_3:
+            static const char* labels_2_3[] = {"0", "1 / 6", "1 / 3", "1 / 2", "2 / 3"};
+            labels_arr                      = labels_2_3;
+            num_labels                      = ARRLEN(labels_2_3);
+            break;
+        case LFO_RATE_1_2:
+            static const char* labels_1_2[] = {"0", "1 / 6", "1 / 3", "1 / 2", "2 / 3"};
+            labels_arr                      = labels_2_3;
+            num_labels                      = ARRLEN(labels_2_3);
+            break;
+        case LFO_RATE_3_8:
+            static const char* labels_3_8[] = {"0", "1 / 8", "1 / 4", "3 / 8"};
+            labels_arr                      = labels_3_8;
+            num_labels                      = ARRLEN(labels_3_8);
+            break;
+        case LFO_RATE_1_3:
+            static const char* labels_1_3[] = {"0", "1 / 12", "1 / 6", "1 / 3"};
+            labels_arr                      = labels_1_3;
+            num_labels                      = ARRLEN(labels_1_3);
+            break;
+        case LFO_RATE_1_4:
+            static const char* labels_1_4[] = {"0", "1 / 16", "1 / 8", "3 / 16", "1 / 4"};
+            labels_arr                      = labels_1_4;
+            num_labels                      = ARRLEN(labels_1_4);
+            break;
+        case LFO_RATE_3_16:
+            static const char* labels_3_16[] = {"0", "1 / 16", "1 / 8", "3 / 16"};
+            labels_arr                       = labels_3_16;
+            num_labels                       = ARRLEN(labels_3_16);
+            break;
+        case LFO_RATE_1_6:
+            static const char* labels_1_6[] = {"0", "1 / 24", "1 / 12", "1 / 8", "1 / 6"};
+            labels_arr                      = labels_1_6;
+            num_labels                      = ARRLEN(labels_1_6);
+            break;
+        case LFO_RATE_1_8:
+            static const char* labels_1_8[] = {"0", "1 / 32", "1 / 16", "3 / 32", "1 / 8"};
+            labels_arr                      = labels_1_8;
+            num_labels                      = ARRLEN(labels_1_8);
+            break;
+        case LFO_RATE_1_12:
+            static const char* labels_1_12[] = {"0", "1 / 48", "1 / 24", "3 / 48", "1 / 12"};
+            labels_arr                       = labels_1_12;
+            num_labels                       = ARRLEN(labels_1_12);
+            break;
+        case LFO_RATE_1_16:
+            static const char* labels_1_16[] = {"0", "1 / 64", "1 / 32", "3 / 64", "1 / 16"};
+            labels_arr                       = labels_1_16;
+            num_labels                       = ARRLEN(labels_1_16);
+            break;
+        case LFO_RATE_1_24:
+            static const char* labels_1_24[] = {"0", "1 / 96", "1 / 48", "3 / 96", "1 / 24"};
+            labels_arr                       = labels_1_24;
+            num_labels                       = ARRLEN(labels_1_24);
+            break;
+        case LFO_RATE_1_32:
+            static const char* labels_1_32[] = {"0", "1 / 128", "1 / 64", "3 / 128", "1 / 32"};
+            labels_arr                       = labels_1_32;
+            num_labels                       = ARRLEN(labels_1_32);
+            break;
+        case LFO_RATE_1_48:
+            static const char* labels_1_48[] = {"0", "1 / 192", "1 / 96", "3 / 192", "1 / 48"};
+            labels_arr                       = labels_1_48;
+            num_labels                       = ARRLEN(labels_1_48);
+            break;
+        case LFO_RATE_1_64:
+            static const char* labels_1_64[] = {"0", "1 / 256", "1 / 128", "3 / 256", "1 / 64"};
+            labels_arr                       = labels_1_64;
+            num_labels                       = ARRLEN(labels_1_64);
+            break;
+        case LFO_RATE_COUNT:
+            break;
         }
 
         if (num_labels && labels_arr)

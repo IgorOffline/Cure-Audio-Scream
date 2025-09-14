@@ -58,7 +58,6 @@ void tooltip_draw(
     d.r              = d.x + width;
     d.y             -= tt_height + TOOLTIP_ARROW_LENGTH + TOOLTIP_GAP;
     d.b              = d.y + tt_height;
-    println("Height: %f", tt_height);
 
     const float boundary_padding = scale * 8;
     const float boundary_right   = gui_width - boundary_padding;

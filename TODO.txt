@@ -25,9 +25,9 @@ x Tooltips on complicated controls
   - cutoff
   - scream
   - resonance
-  - LFO shapes
+  x LFO shapes
   - LFO grid
-  - LFO pattern select
+  x LFO pattern select
 - Add retrig to LFO. Good suggestion from 5 Steps: "Ableton's M4L LFOs for example just have a retrig button you can automate. I think that could be a viable solution that doesn't involve MIDI"
 
 - Stretch/skew points in selection? Could be visualised by a something like a yellow diamond shape in the middle of all the points. The diamond is draggable
