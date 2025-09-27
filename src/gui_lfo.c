@@ -1174,11 +1174,11 @@ void draw_lfo_section(GUI* gui)
             param_change_begin(gui->plugin, param_id);
         }
         if (events & IMGUI_EVENT_DRAG_MOVE)
-            imgui_drag_value(im, &next_value, 0, 1, PATTERN_WIDTH, IMGUI_DRAG_HORIZONTAL);
+            imgui_drag_value(im, &next_value, 0, 1, pattern_area.r - pattern_area.x, IMGUI_DRAG_HORIZONTAL);
 
         if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
         {
-            float delta = im->frame.delta_touchpad.y / PATTERN_WIDTH;
+            float delta = im->frame.delta_touchpad.x / PATTERN_WIDTH;
             if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
                 delta = -delta;
             if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
