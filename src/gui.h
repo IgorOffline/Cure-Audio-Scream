@@ -14,6 +14,7 @@ typedef struct
     int16_t u, v;
 } vertex_t;
 
+// Assortment of cached lengths of things in the GUI
 typedef struct LayoutMetrics
 {
     int width, height;
@@ -74,6 +75,12 @@ typedef struct GUI
     sg_pipeline knob_pip;
     sg_buffer   knob_vbo;
     sg_buffer   knob_ibo;
+
+    sg_pipeline lfo_vertical_grad_pip;
+    sg_buffer   lfo_vertical_grad_vbo;
+    sg_buffer   lfo_ybuffer_obj;
+    float*      lfo_ybuffer;
+    imgui_rect  lfo_grid_area;
 
     sg_image logo_id;
     int      logo_width;

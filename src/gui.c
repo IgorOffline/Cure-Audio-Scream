@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include <knob.glsl.h>
+#include <lfo.glsl.h>
 
 void gui_handle_param_change(void* _gui, ParamID param_id)
 {
@@ -296,7 +297,36 @@ void* pw_create_gui(void* _plugin, void* _pw)
         gui->knob_pip = sg_make_pipeline(&pip_desc);
     }
 
-    // Logo shader
+    // LFO shaders
+    {
+        static const sg_buffer_desc vbo_desc = {
+            .usage.vertex_buffer = true,
+            .usage.stream_update = true,
+            .size                = sizeof(vertex_t) * 6,
+            .label               = NVG_LABEL("LFO vertical grad vertices")};
+        gui->lfo_vertical_grad_vbo = sg_make_buffer(&vbo_desc);
+
+        const sg_pipeline_desc pip_desc = {
+            .shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
+            .layout =
+                {.attrs =
+                     {[ATTR_lfo_vertical_grad_position].format = SG_VERTEXFORMAT_FLOAT2,
+                      [ATTR_lfo_vertical_grad_coord].format    = SG_VERTEXFORMAT_USHORT2N}},
+            .colors[0] =
+                {.write_mask = SG_COLORMASK_RGBA,
+                 .blend =
+                     {
+                         .enabled          = true,
+                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                     }},
+            .label = NVG_LABEL("LFO vertical grad pipeline")};
+        gui->lfo_vertical_grad_pip = sg_make_pipeline(&pip_desc);
+    }
+
+    // Logo
     {
         void*  file_data     = NULL;
         size_t file_data_len = 0;
@@ -376,6 +406,7 @@ void pw_destroy_gui(void* _gui)
     xarr_free(gui->selected_point_indexes);
     xarr_free(gui->points_copy);
     xarr_free(gui->skew_points_copy);
+    xarr_free(gui->lfo_ybuffer);
 
     sg_set_global(gui->sg);
 
@@ -693,7 +724,7 @@ void do_knob_shader(void* uptr)
 
     xassert(sg_isvalid());
 
-    sg_draw(0, 6 * 3, 1);
+    sg_draw(0, 6 * NUM_KNOBS, 1);
 }
 
 void pw_tick(void* _gui)
@@ -859,6 +890,23 @@ void pw_tick(void* _gui)
             lm->cy_param            = (rects[1].y + rects[1].b) * 0.5f;
             lm->cy_param_mod_amount = (rects[2].y + rects[2].b) * 0.5f;
             lm->cy_param_title      = (rects[3].y + rects[3].b) * 0.5f;
+        }
+
+        size_t lfo_buffer_cap = xarr_cap(gui->lfo_ybuffer);
+        if (lm->width > lfo_buffer_cap)
+        {
+            lfo_buffer_cap = lm->width * 2;
+            xarr_setcap(gui->lfo_ybuffer, lfo_buffer_cap);
+
+            if (gui->lfo_ybuffer_obj.id)
+                sg_destroy_buffer(gui->lfo_ybuffer_obj);
+
+            gui->lfo_ybuffer_obj = sg_make_buffer(&(sg_buffer_desc){
+                .usage.storage_buffer = true,
+                .usage.stream_update  = true,
+                .size                 = lfo_buffer_cap * sizeof(*gui->lfo_ybuffer),
+                .label                = "lfo_ybuffer",
+            });
         }
 
         imgui_rect lfo_btn;

@@ -2,6 +2,7 @@
 #include "gui.h"
 
 #include <layout.h>
+#include <lfo.glsl.h>
 #include <sort.h>
 #include <stdio.h>
 
@@ -498,6 +499,74 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
 
     copy_points(gui);
     copy_skew_points(gui);
+}
+
+void do_lfo_shaders(void* uptr)
+{
+    GUI*           gui = uptr;
+    LayoutMetrics* lm  = &gui->layout;
+
+    // TODO: setup vertices here. Also setup the vertex layout in gui_create()
+    // clang-format off
+    vertex_t verts[] = {
+        // Quad with indices 0,1,2,0,2,3
+        // {-1.0f,  1.0f, -32767,  32767},
+        // { 1.0f,  1.0f,  32767,  32767},
+        // { 1.0f, -1.0f,  32767, -32767},
+        // {-1.0f, -1.0f, -32767, -32767},
+
+        {-1.0f,  1.0f, 0,          UINT16_MAX}, // 0
+        { 1.0f,  1.0f, UINT16_MAX, UINT16_MAX}, // 1
+        { 1.0f, -1.0f, UINT16_MAX, 0},          // 2
+
+        {-1.0f,  1.0f, 0,          UINT16_MAX}, // 0
+        { 1.0f, -1.0f, UINT16_MAX, 0},          // 2
+        {-1.0f, -1.0f, 0,          0},          // 3
+    };
+    _Static_assert(ARRLEN(verts) == 6, "");
+    // clang-format on
+
+    float left   = xm_mapf(gui->lfo_grid_area.x, 0, lm->width, -1, 1);
+    float right  = xm_mapf(gui->lfo_grid_area.r, 0, lm->width, -1, 1);
+    float top    = xm_mapf(gui->lfo_grid_area.y, 0, lm->height, 1, -1);
+    float bottom = xm_mapf(gui->lfo_grid_area.b, 0, lm->height, 1, -1);
+
+    verts[0].x = left; // 0
+    verts[0].y = top;
+    verts[1].x = right; // 1
+    verts[1].y = top;
+    verts[2].x = right; // 2
+    verts[2].y = bottom;
+
+    verts[3].x = left; // 0
+    verts[3].y = top;
+    verts[4].x = right; // 2
+    verts[4].y = bottom;
+    verts[5].x = left; // 3
+    verts[5].y = bottom;
+
+    size_t len = xarr_len(gui->lfo_ybuffer);
+    xassert(len > 0);
+    sg_range range = {.ptr = gui->lfo_ybuffer, .size = len * sizeof(*gui->lfo_ybuffer)};
+
+    sg_update_buffer(gui->lfo_vertical_grad_vbo, &SG_RANGE(verts));
+    sg_update_buffer(gui->lfo_ybuffer_obj, &range);
+    sg_apply_pipeline(gui->lfo_vertical_grad_pip);
+
+    sg_bindings bind                              = {0};
+    bind.storage_buffers[SBUF_lfo_storage_buffer] = gui->lfo_ybuffer_obj;
+    bind.vertex_buffers[0]                        = gui->lfo_vertical_grad_vbo;
+
+    lfo_vertical_grad_uniforms_t uniforms = {
+        .colour1    = hexcol(0xBDEBF754),
+        .colour2    = hexcol(0x92C6D400),
+        .buffer_len = len,
+    };
+
+    sg_apply_bindings(&bind);
+    sg_apply_uniforms(UB_lfo_vertical_grad_uniforms, &SG_RANGE(uniforms));
+
+    sg_draw(0, 6, 1);
 }
 
 void draw_lfo_section(GUI* gui)
@@ -1828,6 +1897,7 @@ void draw_lfo_section(GUI* gui)
 
         imgui_pt* points  = gui->lfo_cached_path;
         int       npoints = 0;
+        int       ny      = 0;
 
         imgui_pt pos = {grid_x, grid_b};
 
@@ -1860,15 +1930,27 @@ void draw_lfo_section(GUI* gui)
                 // control points). I am not a smart person who can do that.
                 pos.y = interp_points(norm_pos, skew_amt, pt->y, next_pt->y);
 
+                xassert(ny < xarr_cap(gui->lfo_ybuffer));
+
+                float y_norm           = xm_normf(pos.y, grid_b, grid_y);
+                gui->lfo_ybuffer[ny++] = xm_clampf(y_norm, 0, 1);
+
                 points[npoints++] = pos;
 
                 pos.x += 1.0f;
             }
+
+            xarr_header(gui->lfo_ybuffer)->length = ny;
         }
 
         imgui_pt(*view_points)[1024] = (void*)gui->lfo_cached_path;
 
         xarr_header(gui->lfo_cached_path)->length = npoints;
+
+        gui->lfo_grid_area.x = grid_x;
+        gui->lfo_grid_area.y = grid_y;
+        gui->lfo_grid_area.r = grid_r;
+        gui->lfo_grid_area.b = grid_b;
     }
 
     // Draw cosine shape to LFO grid. Useful for approximating cosine shape
@@ -2095,6 +2177,9 @@ void draw_lfo_section(GUI* gui)
             }
         }
     }
+
+    snvg_command_custom(nvg, gui, do_lfo_shaders, NVG_LABEL("LFO shaders"));
+    snvg_command_draw_nvg(nvg, NVG_LABEL("LFO path"));
 
     // Draw path
     {

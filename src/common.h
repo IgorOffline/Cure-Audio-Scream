@@ -77,4 +77,11 @@ void println(const char* const fmt, ...);
 #define XARR_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)
 #define XARR_FREE(ptr)        MY_FREE(ptr)
 
+// clang-format off
+#define hexcol(hex) {( hex >> 24)         / 255.0f,\
+                     ((hex >> 16) & 0xff) / 255.0f,\
+                     ((hex >>  8) & 0xff) / 255.0f,\
+                     ( hex        & 0xff) / 255.0f}
+// clang-format on
+
 #endif // PLUGIN_CONFIG_H

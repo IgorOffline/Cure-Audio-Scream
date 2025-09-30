@@ -29,6 +29,7 @@ x Tooltips on complicated controls
   - LFO grid
   x LFO pattern select
 - Add retrig to LFO. Good suggestion from 5 Steps: "Ableton's M4L LFOs for example just have a retrig button you can automate. I think that could be a viable solution that doesn't involve MIDI"
+  - current thoughts: no one has time for automating params. make a smart auto trigger based on peak detection
 
 - Stretch/skew points in selection? Could be visualised by a something like a yellow diamond shape in the middle of all the points. The diamond is draggable
 - Perlin noise LFO? Leaning towards no on that idea
@@ -39,6 +40,9 @@ x Tooltips on complicated controls
 x it may be possible to create an intelligent 'auto gain' for the input by using some cleverly tuned peak detectors
   Use fast and slow peak detectors similar to what it used in the GUI to display and detect if the input gain is ideal or not
   Use that to calculate how much gain to apply, and then make sure there is a bit of an attack on the applied gain to stop any sharp pops
-- test autogain works on a variety of sound sources
-  - must be fast enough to not have awful ringing at the beginning and end of sounds
-  - must be slow enough not to have clicks
+x test autogain works on a variety of sound sources
+  x must be fast enough to not have awful ringing at the beginning and end of sounds
+  x must be slow enough not to have clicks
+
+- Add tooltip to LFO explaining the Alt/Option snap to grid behaviour
+- Allow users to manually enter rate values on the LFO
