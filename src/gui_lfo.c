@@ -644,6 +644,8 @@ void draw_lfo_section(GUI* gui)
         GRID_BUTTON_BUTTON_GAP = 8,
         GRID_BUTTON_TEXT_GAP   = 16,
 
+        CHECKBOX_HEIGHT = 12,
+
         SHAPES_WIDTH         = 40, // LFO shape buttons are square
         SHAPES_INNER_PADDING = 8,
 
@@ -1119,7 +1121,64 @@ void draw_lfo_section(GUI* gui)
 
     // Retrig Button
     {
-        imgui_rect btn_retrig = sl_rate;
+        imgui_rect btn_retrig;
+        btn_retrig.r = sl_rate.x - 20;
+        btn_retrig.x = btn_retrig.r - 80;
+        btn_retrig.y = sl_rate.y;
+        btn_retrig.b = sl_rate.b;
+
+        int     lfo_idx   = gui->plugin->selected_lfo_idx;
+        ParamID param_id  = PARAM_RETRIG_LFO_1 + lfo_idx;
+        bool    retrig_on = gui->plugin->main_params[param_id] >= 0.5;
+
+        unsigned events = imgui_get_events_rect(im, 'rtrg', &btn_retrig);
+        if (events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            retrig_on = !retrig_on;
+            param_set(gui->plugin, param_id, retrig_on);
+        }
+        // if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+        // {
+        //     btn_retrig.y += 1;
+        //     btn_retrig.b += 1;
+        // }
+        float cy = (btn_retrig.y + btn_retrig.b) * 0.5f;
+
+        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
+        nvgSetColour(nvg, C_TEXT);
+        nvgText(nvg, btn_retrig.x, cy, "RETRIG", 0);
+
+        float       checkbox_height   = snapf(lm->content_scale * CHECKBOX_HEIGHT, 2);
+        const float stroke_width      = 1;
+        const float half_stroke_width = stroke_width * 0.5f;
+
+        NVGcolour checkbox_col = retrig_on ? C_LIGHT_BLUE_2 : C_GRID_SECONDARY;
+
+        imgui_rect checkbox = {
+            btn_retrig.r - checkbox_height,
+            cy - checkbox_height * 0.5f - 1, // -1 to sit well with text vertical alignment
+            btn_retrig.r,
+            cy + checkbox_height * 0.5f - 1};
+
+        nvgBeginPath(nvg);
+        nvgRect2(
+            nvg,
+            checkbox.x + half_stroke_width,
+            checkbox.y + half_stroke_width,
+            checkbox.r - half_stroke_width,
+            checkbox.b - half_stroke_width);
+        nvgSetColour(nvg, checkbox_col);
+        nvgStroke(nvg, stroke_width);
+
+        if (retrig_on)
+        {
+            nvgBeginPath(nvg);
+            nvgRect2(nvg, checkbox.x + 3, checkbox.y + 3, checkbox.r - 3, checkbox.b - 3);
+            nvgFill(nvg);
+        }
     }
 
     // LFO Draw shapes
