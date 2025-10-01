@@ -1399,6 +1399,17 @@ void draw_lfo_section(GUI* gui)
     // const int   num_grid_y     = gui->plugin->lfos[lfo_idx].grid_y[pattern_idx];
     const int num_grid_y = num_grid_x;
 
+    bool should_clear = false;
+    if (im->frame.events & IMGUI_FLAGS_PW_MOUSE_DOWN_EVENTS)
+    {
+        bool hit = imgui_hittest_rect(im->pos_mouse_down, &grid_bg);
+        if (!hit)
+            should_clear = true;
+    }
+    should_clear |= !!(im->frame.events & (1 << PW_EVENT_RESIZE));
+    if (should_clear)
+        clear_selection(gui);
+
     if (!gui->gui_lfo_points_valid)
     {
         gui->gui_lfo_points_valid = !gui->gui_lfo_points_valid;
