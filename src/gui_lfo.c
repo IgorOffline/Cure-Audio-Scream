@@ -650,7 +650,7 @@ void draw_lfo_section(GUI* gui)
         CONTENT_PADDING_X = 32,
         CONTENT_PADDING_Y = 16,
 
-        PATTERN_WIDTH                = 196,
+        PATTERN_WIDTH                = 200,
         PATTERN_NUMBER_LABEL_PADDING = 32,
         PATTERN_SLIDER_WIDTH         = PATTERN_WIDTH - 2 * PATTERN_NUMBER_LABEL_PADDING,
         PATTERN_TRIANGLE_HEIGHT      = 12,
@@ -670,7 +670,8 @@ void draw_lfo_section(GUI* gui)
     bool should_clear_lfo_trail                             = false;
     int  next_pattern_length                                = 0;
 
-    float bot_content_height = lm->content_b - lm->top_content_bottom;
+    const float bot_content_height = lm->content_b - lm->top_content_bottom;
+    const float font_size          = lm->content_scale * 14;
 
     const float display_y   = lm->top_content_bottom + 8;
     const float display_w   = (lm->content_r - lm->content_x) - 2 * 8;
@@ -834,7 +835,7 @@ void draw_lfo_section(GUI* gui)
     {
         imgui_rect rect;
         rect.x = content_x;
-        rect.r = ceilf(content_x + lm->content_scale * 80);
+        rect.r = ceilf(content_x + lm->content_scale * 76);
         rect.y = button_top;
         rect.b = button_bottom;
 
@@ -859,8 +860,6 @@ void draw_lfo_section(GUI* gui)
 
             gui->plugin->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
         }
-
-        const float font_size = lm->content_scale * 14;
 
         nvgSetFontSize(nvg, font_size);
         nvgSetColour(nvg, C_TEXT);
@@ -1038,11 +1037,8 @@ void draw_lfo_section(GUI* gui)
     // LFO Rate
 
     // Rate
+    imgui_rect sl_rate = {content_r - 100 * lm->content_scale, button_top, content_r, button_bottom};
     {
-        // content_r;
-        const float font_size = lm->content_scale * 14;
-
-        imgui_rect rect = {content_r - 110 * lm->content_scale, button_top, content_r, button_bottom};
 
         int     lfo_idx  = gui->plugin->selected_lfo_idx;
         ParamID param_id = PARAM_RATE_LFO_1 + lfo_idx;
@@ -1050,7 +1046,7 @@ void draw_lfo_section(GUI* gui)
         extern double main_get_param(Plugin * p, ParamID id);
         double        val = main_get_param(gui->plugin, param_id);
 
-        unsigned events = imgui_get_events_rect(im, 'rate', &rect);
+        unsigned events = imgui_get_events_rect(im, 'rate', &sl_rate);
         if (events & IMGUI_EVENT_MOUSE_ENTER)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
 
@@ -1087,7 +1083,7 @@ void draw_lfo_section(GUI* gui)
         nvgSetFontSize(nvg, font_size);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
         nvgSetColour(nvg, C_TEXT);
-        nvgText(nvg, rect.x, top_text_cy, "RATE", NULL);
+        nvgText(nvg, sl_rate.x, top_text_cy, "RATE", NULL);
 
         char label[16] = {0};
 
@@ -1095,7 +1091,7 @@ void draw_lfo_section(GUI* gui)
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CR);
         nvgSetColour(nvg, C_GREY_1);
-        nvgText(nvg, rect.r - 12, top_text_cy, label, 0);
+        nvgText(nvg, sl_rate.r - 12, top_text_cy, label, 0);
 
         // nvgBeginPath(nvg);
         // nvgRect2(nvg, content_r - 80, button_top, content_r, button_bottom);
@@ -1107,18 +1103,23 @@ void draw_lfo_section(GUI* gui)
         float btn_bot = ceilf(top_text_cy + font_size * 0.35f);
 
         nvgBeginPath(nvg);
-        nvgMoveTo(nvg, rect.r, btn_top + 3.8);
-        nvgLineTo(nvg, rect.r - 2.5, btn_top);
-        nvgLineTo(nvg, rect.r - 5, btn_top + 3.8);
+        nvgMoveTo(nvg, sl_rate.r, btn_top + 3.8);
+        nvgLineTo(nvg, sl_rate.r - 2.5, btn_top);
+        nvgLineTo(nvg, sl_rate.r - 5, btn_top + 3.8);
         nvgClosePath(nvg);
 
-        nvgMoveTo(nvg, rect.r, btn_bot - 3.8);
-        nvgLineTo(nvg, rect.r - 2.5, btn_bot);
-        nvgLineTo(nvg, rect.r - 5, btn_bot - 3.8);
+        nvgMoveTo(nvg, sl_rate.r, btn_bot - 3.8);
+        nvgLineTo(nvg, sl_rate.r - 2.5, btn_bot);
+        nvgLineTo(nvg, sl_rate.r - 5, btn_bot - 3.8);
         nvgClosePath(nvg);
 
         nvgSetColour(nvg, C_GREY_1);
         nvgFill(nvg);
+    }
+
+    // Retrig Button
+    {
+        imgui_rect btn_retrig = sl_rate;
     }
 
     // LFO Draw shapes
@@ -1276,16 +1277,30 @@ void draw_lfo_section(GUI* gui)
         .r = content_r - 4,
         .b = display_b - CONTENT_PADDING_Y};
     {
-        const ParamID  param_id = PARAM_PATTERN_LFO_1 + gui->plugin->selected_lfo_idx;
-        const unsigned uid      = 'prm' + param_id;
-        const unsigned events   = imgui_get_events_rect(im, uid, &pattern_area);
+        imgui_rect sl_pattern  = pattern_area;
+        imgui_rect btn_pattern = pattern_area;
+
+        float pattern_area_height = pattern_area.b - pattern_area.y;
+        float third_height        = pattern_area_height / 3;
+        sl_pattern.b              = sl_pattern.y + third_height;
+
+        btn_pattern.y = sl_pattern.b;
+        btn_pattern.b = btn_pattern.y + third_height;
+
+        const ParamID  param_id   = PARAM_PATTERN_LFO_1 + gui->plugin->selected_lfo_idx;
+        const unsigned uid        = 'prm' + param_id;
+        const unsigned sl_events  = imgui_get_events_rect(im, uid, &sl_pattern);
+        const unsigned btn_events = imgui_get_events_rect(im, uid + 'btn', &btn_pattern);
+
+        float w  = sl_pattern.r - sl_pattern.x;
+        float w8 = w / NUM_LFO_PATTERNS;
 
         tooltip_handle_events(
             &gui->tooltip,
             pattern_area,
             "Switch between custom LFO shapes for this LFO",
             gui->frame_start_time,
-            events);
+            sl_events);
 
         float pattern_cx = 0.5f * (pattern_area.x + pattern_area.r);
         float pattern_cy = (pattern_area.y + pattern_area.b) * 0.5f;
@@ -1294,17 +1309,26 @@ void draw_lfo_section(GUI* gui)
 
         float next_value = value_f;
 
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_WE);
+        int btn_idx = -1;
+        if (btn_events & IMGUI_EVENT_MOUSE_HOVER)
+        {
+            float diff = im->pos_mouse_move.x - sl_pattern.x;
+            btn_idx    = diff / w8;
+        }
 
-        if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_TOUCHPAD_BEGIN))
+        if (sl_events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_WE);
+        if (btn_events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+
+        if (sl_events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_TOUCHPAD_BEGIN))
         {
             param_change_begin(gui->plugin, param_id);
         }
-        if (events & IMGUI_EVENT_DRAG_MOVE)
+        if (sl_events & IMGUI_EVENT_DRAG_MOVE)
             imgui_drag_value(im, &next_value, 0, 1, pattern_area.r - pattern_area.x, IMGUI_DRAG_HORIZONTAL);
 
-        if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
+        if (sl_events & IMGUI_EVENT_TOUCHPAD_MOVE)
         {
             float delta = im->frame.delta_touchpad.x / PATTERN_WIDTH;
             if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
@@ -1316,6 +1340,12 @@ void draw_lfo_section(GUI* gui)
 
             next_value = xm_clampf(value_f + delta, 0, 1);
         }
+
+        if (btn_events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            xassert(btn_idx > -1);
+            next_value = (float)btn_idx / (NUM_LFO_PATTERNS - 1);
+        }
         bool changed = value_f != next_value;
         if (changed)
         {
@@ -1325,7 +1355,7 @@ void draw_lfo_section(GUI* gui)
             should_clear_lfo_trail    = true;
         }
 
-        if (events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
+        if (sl_events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
         {
             int vi  = xm_droundi(xm_lerpd(value_f, 1, NUM_LFO_PATTERNS));
             value_f = xm_normf(vi, 1, NUM_LFO_PATTERNS);
@@ -1335,7 +1365,7 @@ void draw_lfo_section(GUI* gui)
             gui->gui_lfo_points_valid = false;
         }
 
-        if (events & IMGUI_EVENT_MOUSE_WHEEL)
+        if (sl_events & IMGUI_EVENT_MOUSE_WHEEL)
         {
             int vi  = xm_droundi(xm_lerpd(value_f, 1, NUM_LFO_PATTERNS));
             vi     += im->frame.delta_mouse_wheel;
@@ -1343,7 +1373,7 @@ void draw_lfo_section(GUI* gui)
 
             value_f = xm_normd(vi, 1, NUM_LFO_PATTERNS);
 
-            if (events & IMGUI_EVENT_MOUSE_WHEEL)
+            if (sl_events & IMGUI_EVENT_MOUSE_WHEEL)
                 param_set(gui->plugin, param_id, value_f);
 
             gui->gui_lfo_points_valid = false;
@@ -1352,21 +1382,38 @@ void draw_lfo_section(GUI* gui)
         int vi  = xm_droundi(xm_lerpd(value_f, 1, NUM_LFO_PATTERNS));
         value_f = xm_normd(vi, 1, NUM_LFO_PATTERNS);
 
+        if (btn_idx > -1)
+        {
+            nvgBeginPath(nvg);
+            float y = btn_pattern.y;
+            if (btn_events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+                y += 1;
+            nvgRoundedRect(nvg, btn_pattern.x + w8 * btn_idx, y, w8, third_height, 2);
+            nvgSetColour(nvg, (NVGcolour){1, 1, 1, 0.1});
+            nvgFill(nvg);
+        }
+
         nvgSetTextAlign(nvg, NVG_ALIGN_BC);
         nvgSetColour(nvg, C_TEXT);
         nvgText(nvg, pattern_cx, pattern_area.b, "PATTERN", NULL);
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-        const float x_inc = (pattern_area.r - pattern_area.x) / (float)(NUM_LFO_PATTERNS - 1);
+        float btn_text_x         = pattern_area.x + w8 * 0.5f;
+        int   btn_mouse_down_idx = -1;
+        if (btn_events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+            btn_mouse_down_idx = btn_idx;
         for (int i = 0; i < NUM_LFO_PATTERNS; i++)
         {
             char label[4]  = {'1', 0, 0, 0};
             label[0]      += i;
             xassert(i < 8); // oops you might be incrementing "1" past 10
-            nvgText(nvg, pattern_area.x + i * x_inc, pattern_cy, label, label + 1);
+            float y = pattern_cy + 1;
+            if (i == btn_mouse_down_idx)
+                y += 1;
+            nvgText(nvg, btn_text_x + i * w8, y, label, label + 1);
         }
 
-        const float pattern_pos_x = xm_lerpf(value_f, pattern_area.x, pattern_area.r);
+        const float pattern_pos_x = xm_lerpf(value_f, pattern_area.x + w8 * 0.5f, pattern_area.r - w8 * 0.5f);
 
         float tri_y = floorf(pattern_area.y);
         float tri_b = tri_y + PATTERN_TRIANGLE_HEIGHT;
