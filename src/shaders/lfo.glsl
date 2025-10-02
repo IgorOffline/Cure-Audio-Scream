@@ -21,15 +21,18 @@ layout(binding=0) uniform lfo_vertical_grad_uniforms {
     float buffer_len;
 };
 
-struct lfo_buffer_item {
+struct lfo_line_buffer_item {
+    float y;
+};
+struct lfo_trail_buffer_item {
     float y;
 };
 
 layout(binding=0) readonly buffer lfo_line_storage_buffer {
-    lfo_buffer_item lfo_y_buffer[];
+    lfo_line_buffer_item lfo_y_buffer[];
 };
 layout(binding=1) readonly buffer lfo_trail_storage_buffer {
-    lfo_buffer_item lfo_trail_buffer[];
+    lfo_trail_buffer_item lfo_trail_buffer[];
 };
 
 vec4 src_over_blend(vec4 dst, vec4 src, float alpha)

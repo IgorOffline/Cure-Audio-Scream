@@ -570,13 +570,13 @@ void do_lfo_shaders(void* uptr)
         // { 1.0f, -1.0f,  32767, -32767},
         // {-1.0f, -1.0f, -32767, -32767},
 
-        {-1.0f,  1.0f, 0,          UINT16_MAX}, // 0
-        { 1.0f,  1.0f, UINT16_MAX, UINT16_MAX}, // 1
-        { 1.0f, -1.0f, UINT16_MAX, 0},          // 2
+        {-1.0f,  1.0f, 0,      0xffff}, // 0
+        { 1.0f,  1.0f, 0xffff, 0xffff}, // 1
+        { 1.0f, -1.0f, 0xffff, 0},      // 2
 
-        {-1.0f,  1.0f, 0,          UINT16_MAX}, // 0
-        { 1.0f, -1.0f, UINT16_MAX, 0},          // 2
-        {-1.0f, -1.0f, 0,          0},          // 3
+        {-1.0f,  1.0f, 0,      0xffff}, // 0
+        { 1.0f, -1.0f, 0xffff, 0},      // 2
+        {-1.0f, -1.0f, 0,      0},      // 3
     };
     _Static_assert(ARRLEN(verts) == 6, "");
     // clang-format on
