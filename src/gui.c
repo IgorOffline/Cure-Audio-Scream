@@ -1087,6 +1087,28 @@ void pw_tick(void* _gui)
                 {
                     imgui_drag_value(im, pValue, -1, 1, 300, IMGUI_DRAG_VERTICAL);
                 }
+                if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
+                {
+                    float delta = im->frame.delta_touchpad.y / 300;
+                    if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
+                        delta = -delta;
+                    if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
+                        delta *= 0.1f;
+                    if (im->frame.modifiers_touchpad & PW_MOD_KEY_SHIFT)
+                        delta *= 0.1f;
+
+                    *pValue = xm_clampf(*pValue + delta, -1, 1);
+                }
+                if (events & IMGUI_EVENT_MOUSE_WHEEL)
+                {
+                    double delta = im->frame.delta_mouse_wheel * 0.1;
+                    if (im->frame.modifiders_mouse_wheel & PW_MOD_PLATFORM_KEY_CTRL)
+                        delta *= 0.1;
+                    if (im->frame.modifiders_mouse_wheel & PW_MOD_KEY_SHIFT)
+                        delta *= 0.1;
+
+                    *pValue = xm_clampf(*pValue + delta, -1, 1);
+                }
 
                 char label  = '1';
                 label      += j;
