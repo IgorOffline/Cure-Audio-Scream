@@ -19,10 +19,9 @@ enum
 
 static inline int main_get_lfo_pattern_idx(Plugin* p)
 {
-    int           lfo_idx = p->selected_lfo_idx;
-    extern double main_get_param(Plugin * p, ParamID id);
-    double        v  = main_get_param(p, PARAM_PATTERN_LFO_1 + lfo_idx);
-    v               *= NUM_LFO_PATTERNS - 1;
+    int    lfo_idx  = p->selected_lfo_idx;
+    double v        = main_get_param(p, PARAM_PATTERN_LFO_1 + lfo_idx);
+    v              *= NUM_LFO_PATTERNS - 1;
     return xm_droundi(v);
 }
 
@@ -1039,14 +1038,43 @@ void draw_lfo_section(GUI* gui)
     // LFO Rate
 
     // Rate
-    imgui_rect sl_rate = {content_r - 100 * lm->content_scale, button_top, content_r, button_bottom};
+    imgui_rect sl_rate = {content_r - 128 * lm->content_scale, button_top, content_r, button_bottom};
+    imgui_rect btn_rate_type;
+    btn_rate_type.r = sl_rate.x - 20;
+    btn_rate_type.x = btn_rate_type.r - 80;
+    btn_rate_type.y = sl_rate.y;
+    btn_rate_type.b = sl_rate.b;
+    imgui_rect btn_retrig;
+    btn_retrig.r = btn_rate_type.x - 20;
+    btn_retrig.x = btn_retrig.r - 80;
+    btn_retrig.y = btn_rate_type.y;
+    btn_retrig.b = btn_rate_type.b;
+    // Rate type buttons
     {
-
         int     lfo_idx  = gui->plugin->selected_lfo_idx;
-        ParamID param_id = PARAM_RATE_LFO_1 + lfo_idx;
+        ParamID param_id = PARAM_RATE_TYPE_LFO_1 + lfo_idx;
+    }
 
-        extern double main_get_param(Plugin * p, ParamID id);
-        double        val = main_get_param(gui->plugin, param_id);
+    // Rate slider
+    {
+        int     lfo_idx  = gui->plugin->selected_lfo_idx;
+        ParamID param_id = 0;
+
+        bool is_sync = false;
+        // Find rate type
+        {
+            ParamID rate_type_id = PARAM_RATE_TYPE_LFO_1 + lfo_idx;
+            double  rate_type_d  = main_get_param(gui->plugin, rate_type_id);
+
+            is_sync = rate_type_d < 0.5;
+        }
+        if (is_sync)
+            param_id = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
+        else
+            param_id = PARAM_SEC_RATE_LFO_1 + lfo_idx;
+
+        xassert(param_id);
+        double val = main_get_param(gui->plugin, param_id);
 
         unsigned events = imgui_get_events_rect(im, 'rate', &sl_rate);
         if (events & IMGUI_EVENT_MOUSE_ENTER)
@@ -1074,8 +1102,13 @@ void draw_lfo_section(GUI* gui)
             double range_min, range_max;
             cplug_getParameterRange(gui->plugin, param_id, &range_min, &range_max);
             imgui_drag_value(im, &last_drag_val, range_min, range_max, 200, IMGUI_DRAG_VERTICAL);
-            double next_val = xm_droundi(last_drag_val);
-            val             = next_val;
+            if (is_sync)
+            {
+                double next_val = xm_droundi(last_drag_val);
+                val             = next_val;
+            }
+            else
+                val = last_drag_val;
             param_change_update(gui->plugin, param_id, val);
             val += 0;
         }
@@ -1121,12 +1154,6 @@ void draw_lfo_section(GUI* gui)
 
     // Retrig Button
     {
-        imgui_rect btn_retrig;
-        btn_retrig.r = sl_rate.x - 20;
-        btn_retrig.x = btn_retrig.r - 80;
-        btn_retrig.y = sl_rate.y;
-        btn_retrig.b = sl_rate.b;
-
         int     lfo_idx   = gui->plugin->selected_lfo_idx;
         ParamID param_id  = PARAM_RETRIG_LFO_1 + lfo_idx;
         bool    retrig_on = gui->plugin->main_params[param_id] >= 0.5;
@@ -2236,9 +2263,8 @@ void draw_lfo_section(GUI* gui)
             num_labels = ARRLEN(labels_4_bars);
         }
         */
-        ParamID       param_id = PARAM_RATE_LFO_1 + lfo_idx;
-        extern double main_get_param(Plugin * p, ParamID id);
-        LFORate       rate_type = (int)main_get_param(gui->plugin, param_id);
+        ParamID param_id  = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
+        LFORate rate_type = (int)main_get_param(gui->plugin, param_id);
         switch (rate_type)
         {
         case LFO_RATE_4_BARS:

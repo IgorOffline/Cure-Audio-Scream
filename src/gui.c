@@ -1032,8 +1032,6 @@ void pw_tick(void* _gui)
             }
             else
             {
-                extern double main_get_param(Plugin * p, ParamID id);
-
                 char   label[24];
                 double value = main_get_param(gui->plugin, param_id);
                 cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);

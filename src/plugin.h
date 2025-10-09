@@ -23,8 +23,12 @@ typedef enum ParamID
 
     PARAM_PATTERN_LFO_1,
     PARAM_PATTERN_LFO_2,
-    PARAM_RATE_LFO_1,
-    PARAM_RATE_LFO_2,
+    PARAM_RATE_TYPE_LFO_1,
+    PARAM_RATE_TYPE_LFO_2,
+    PARAM_SYNC_RATE_LFO_1,
+    PARAM_SYNC_RATE_LFO_2,
+    PARAM_SEC_RATE_LFO_1,
+    PARAM_SEC_RATE_LFO_2,
     PARAM_RETRIG_LFO_1,
     PARAM_RETRIG_LFO_2,
     PARAM_COUNT,
@@ -40,8 +44,12 @@ static const char* PARAM_STR[] = {
     "PARAM_OUTPUT_GAIN",
     "PARAM_PATTERN_LFO_1",
     "PARAM_PATTERN_LFO_2",
-    "PARAM_RATE_LFO_1",
-    "PARAM_RATE_LFO_2",
+    "PARAM_RATE_TYPE_LFO_1",
+    "PARAM_RATE_TYPE_LFO_2",
+    "PARAM_SYNC_RATE_LFO_1",
+    "PARAM_SYNC_RATE_LFO_2",
+    "PARAM_SEC_RATE_LFO_1",
+    "PARAM_SEC_RATE_LFO_2",
     "PARAM_RETRIG_LFO_1",
     "PARAM_RETRIG_LFO_2",
 };
@@ -253,8 +261,8 @@ typedef struct Plugin
         Tanh_ADAA2 tanh_1;
         Tanh_ADAA2 tanh_2;
 
-        float fb_yn_1;
-        float peak_xn_1;
+        float fb_yn_1;   // y n-1. Used in feedback loop to get overdriven sound
+        float peak_xn_1; // x n-1. Used by peak detector to gate feedback and prevent ringing
 
         float lp[2];
         float hp[2];
@@ -301,3 +309,5 @@ void param_change_end(Plugin* p, ParamID id);
 void param_change_update(Plugin* p, ParamID id, double value);
 // Calls begin > update > end
 void param_set(Plugin* p, ParamID id, double value);
+// [main thread]
+double main_get_param(Plugin* p, ParamID id);

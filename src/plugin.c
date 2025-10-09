@@ -302,7 +302,7 @@ void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
     // xassert(beat_position < pattern_length);
     // const double beat_inc = p->beat_inc;
 
-    ParamID       rate_param_idx = PARAM_RATE_LFO_1 + lfo_idx;
+    ParamID       rate_param_idx = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
     const LFORate lfo_rate_idx   = (int)p->audio_params[rate_param_idx];
     xassert(lfo_rate_idx >= 0 && lfo_rate_idx < ARRLEN(SYNC_VALUES));
     const double rate_hz  = p->bpm / (SYNC_VALUES[lfo_rate_idx] * 240);
@@ -826,7 +826,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             bool retrig_on = p->audio_params[retrig_param_id] >= 0.5;
             if (!retrig_on)
             {
-                ParamID rate_param_id = PARAM_RATE_LFO_1 + lfo_idx;
+                ParamID rate_param_id = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
                 xassert(rate_param_id < ARRLEN(p->audio_params));
 
                 LFORate rate_idx = p->audio_params[rate_param_id];

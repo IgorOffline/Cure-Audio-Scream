@@ -240,6 +240,26 @@ void main_dequeue_events(Plugin* p)
     }
     p->queue_main_tail = tail;
 }
+enum
+{
+    SEC_EXPONENT_MIN = -6,
+    SEC_EXPONENT_MAX = 3,
+};
+double normalise_sec(double sec)
+{
+    double v2 = log2(sec);
+    double v1 = xm_normd(v2, SEC_EXPONENT_MIN, SEC_EXPONENT_MAX);
+    double v  = xm_clampd(v1, 0, 1);
+    xassert(v == v);
+    return v;
+}
+double denormalise_sec(double v)
+{
+    xassert(v == v);
+    double v2 = xm_lerpd(v, SEC_EXPONENT_MIN, SEC_EXPONENT_MAX);
+    double v3 = exp2(v2);
+    return v3;
+}
 
 bool param_string_to_value(uint32_t param_id, const char* str, double* val)
 {
@@ -267,8 +287,17 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
         if ((ok = sscanf(str, "%lf", val)))
             *val = xm_normd(*val, 1, NUM_LFO_PATTERNS);
         break;
-    case PARAM_RATE_LFO_1:
-    case PARAM_RATE_LFO_2:
+    case PARAM_RATE_TYPE_LFO_1:
+    case PARAM_RATE_TYPE_LFO_2:
+    {
+        if (ok == (strcmpi(str, "ms") == 0 || strcmpi(str, "s") == 0 || strcmpi(str, "sec") == 0))
+            *val = 1;
+        else if (ok == (strcmpi(str, "sync") == 0 || strcmpi(str, "beat") == 0 || strcmpi(str, "beats") == 0))
+            *val = 0;
+        break;
+    }
+    case PARAM_SYNC_RATE_LFO_1:
+    case PARAM_SYNC_RATE_LFO_2:
     {
         for (int i = 0; i < LFO_RATE_COUNT; i++)
         {
@@ -279,6 +308,12 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
             }
         }
         break;
+    }
+    case PARAM_SEC_RATE_LFO_1:
+    case PARAM_SEC_RATE_LFO_2:
+    {
+        // TODO
+        xassert(false);
     }
     case PARAM_RETRIG_LFO_1:
     case PARAM_RETRIG_LFO_2:
@@ -315,8 +350,12 @@ void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
         "Output",
         "LFO 1 Pattern",
         "LFO 2 Pattern",
-        "LFO 1 Rate",
-        "LFO 2 Rate",
+        "LFO 1 Rate Type",
+        "LFO 2 Rate Type",
+        "LFO 1 Sync Rate",
+        "LFO 2 Sync Rate",
+        "LFO 1 ms Rate",
+        "LFO 2 ms Rate",
         "LFO 1 Retrig",
         "LFO 2 Retrig",
     };
@@ -333,7 +372,7 @@ void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
 {
     *min = 0;
     *max = 1;
-    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_2)
+    if (paramId == PARAM_SYNC_RATE_LFO_1 || paramId == PARAM_SYNC_RATE_LFO_2)
         *max = LFO_RATE_COUNT - 1;
 }
 
@@ -363,11 +402,17 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
         break;
     case PARAM_PATTERN_LFO_1:
     case PARAM_PATTERN_LFO_2:
+    case PARAM_RATE_TYPE_LFO_1:
+    case PARAM_RATE_TYPE_LFO_2:
         // v = 0;
         break;
-    case PARAM_RATE_LFO_1:
-    case PARAM_RATE_LFO_2:
+    case PARAM_SYNC_RATE_LFO_1:
+    case PARAM_SYNC_RATE_LFO_2:
         v = LFO_RATE_1_4;
+        break;
+    case PARAM_SEC_RATE_LFO_1:
+    case PARAM_SEC_RATE_LFO_2:
+        v = normalise_sec(0.25); // 250ms
         break;
     case PARAM_RETRIG_LFO_1:
     case PARAM_RETRIG_LFO_2:
@@ -432,14 +477,14 @@ void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
 // VST3 only
 double cplug_denormaliseParameterValue(void*, uint32_t paramId, double value)
 {
-    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_2)
+    if (paramId == PARAM_SYNC_RATE_LFO_1 || paramId == PARAM_SYNC_RATE_LFO_2)
         value *= LFO_RATE_COUNT - 1;
 
     return value;
 }
 double cplug_normaliseParameterValue(void*, uint32_t paramId, double value)
 {
-    if (paramId == PARAM_RATE_LFO_1 || paramId == PARAM_RATE_LFO_2)
+    if (paramId == PARAM_SYNC_RATE_LFO_1 || paramId == PARAM_SYNC_RATE_LFO_2)
         value /= LFO_RATE_COUNT - 1;
 
     return value;
@@ -482,12 +527,47 @@ void cplug_parameterValueToString(void* ptr, uint32_t paramId, char* buf, size_t
         snprintf(buf, bufsize, "%d", num);
         break;
     }
-    case PARAM_RATE_LFO_1:
-    case PARAM_RATE_LFO_2:
+    case PARAM_RATE_TYPE_LFO_1:
+    case PARAM_RATE_TYPE_LFO_2:
+        if (value < 0.5)
+            snprintf(buf, bufsize, "Sync");
+        else
+            snprintf(buf, bufsize, "ms");
+        break;
+    case PARAM_SYNC_RATE_LFO_1:
+    case PARAM_SYNC_RATE_LFO_2:
     {
         int idx = xm_droundi(value);
         idx     = xm_clampi(idx, 0, LFO_RATE_COUNT - 1);
         snprintf(buf, bufsize, "%s", LFO_RATE_NAMES[idx]);
+        break;
+    }
+    case PARAM_SEC_RATE_LFO_1:
+    case PARAM_SEC_RATE_LFO_2:
+    {
+        double      sec    = denormalise_sec(value);
+        const char* fmtstr = NULL;
+        if (sec < 0.01) // < 10ms
+        {
+            sec    *= 1000;
+            fmtstr  = "%.3fms";
+        }
+        else if (sec < 0.1) // < 100ms
+        {
+            sec    *= 1000;
+            fmtstr  = "%.2fms";
+        }
+        else if (sec < 1) // < 1sec
+        {
+            sec    *= 1000;
+            fmtstr  = "%.1fms";
+        }
+        else
+        {
+            fmtstr = "%.2fs";
+        }
+        xassert(fmtstr);
+        snprintf(buf, bufsize, fmtstr, sec);
         break;
     }
     case PARAM_RETRIG_LFO_1:

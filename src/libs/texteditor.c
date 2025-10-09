@@ -1035,8 +1035,6 @@ void ted_activate(TextEditor* ted, xvec4f dimensions, xvec2f pos, float _font_si
 {
     GUI* gui = ted_shift_ptr(ted);
 
-    extern double main_get_param(Plugin * p, ParamID id);
-
     char   text[24];
     double value = main_get_param(gui->plugin, param_id);
     cplug_parameterValueToString(gui->plugin, param_id, text, sizeof(text), value);
