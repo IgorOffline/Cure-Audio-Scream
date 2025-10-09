@@ -2,6 +2,18 @@
 #include <stdio.h>
 #include <xhl/maths.h>
 
+#ifdef __APPLE__
+#define strcmpi my_strcmpi
+#include <ctype.h>
+bool my_strcmpi(const char* a, const char* ext)
+{
+    int i;
+    for (i = 0; a[i] != 0 && tolower(a[i]) == ext[i]; i++)
+        ;
+    return a[i] == ext[i];
+}
+#endif
+
 struct
 {
     union
