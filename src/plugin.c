@@ -881,11 +881,17 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             memcpy(output[1] + frame, output[0] + frame, sizeof(float) * num_frames);
 #endif // CPLUG_BUILD_STANDALONE
 
+            // Note: The slower the release times on this envelope follower, the lower a user can play a saw wave
+            // without the retrigger constantly firing off
+            // The settings of 25ms and -54dB were optimised for drum loops
+            // The setting of 35ms was optimised for a subbass saw wave. Unfortunately extending this release time
+            // breaks the drum loop settings, but we're just going to have to prioritise basses here...
             int         start_sample      = 0;
             int         remaining_samples = num_frames;
             const float pd_attack_time    = 0;
-            const float pd_release_time   = convert_compressor_time(p->sample_rate * 0.0025); // 25ms
-            const float pd_threshold      = xm_fast_dB_to_gain(-54);
+            // const float pd_release_time   = convert_compressor_time(p->sample_rate * 0.0025); // 25ms
+            const float pd_release_time = convert_compressor_time(p->sample_rate * 0.0035); // 35ms
+            const float pd_threshold    = xm_fast_dB_to_gain(-54);
             while (remaining_samples > 0)
             {
                 // Peak detect for LFO retrigger
