@@ -76,11 +76,8 @@ typedef struct GUI
     sg_swapchain swapchain;
 
     sg_pipeline knob_pip;
-    sg_buffer   knob_vbo;
-    sg_buffer   knob_ibo;
 
     sg_pipeline lfo_vertical_grad_pip;
-    sg_buffer   lfo_vertical_grad_vbo;
     sg_buffer   lfo_ybuffer_obj;
     float*      lfo_ybuffer;
     sg_buffer   lfo_playhead_trail_obj;

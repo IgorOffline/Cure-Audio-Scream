@@ -1,18 +1,42 @@
 @vs knob_vs
-in vec4 position;
-in vec2 coord;
+layout(binding = 0) uniform vs_knob_uniforms {
+    vec2 topleft;
+    vec2 bottomright;
+    vec2 size;
+};
 out vec2 uv;
 
 void main() {
-    gl_Position = position;
-    uv = coord;
+    uint v_idx = gl_VertexIndex / 6u;
+    uint i_idx = gl_VertexIndex - v_idx * 6;
+
+    // Is odd
+    bool is_right = (gl_VertexIndex & 1) == 1;
+    bool is_bottom = i_idx >= 2 && i_idx <= 4;
+
+    vec2 pos = vec2(
+        is_right  ? bottomright.x : topleft.x,
+        is_bottom ? bottomright.y : topleft.y
+    );
+    pos = (pos + pos) / size - vec2(1);
+    pos.y = -pos.y;
+
+    gl_Position = vec4(pos, 1, 1);
+    uv = vec2(
+        is_right  ? 1 : -1,
+        is_bottom ? -1 : 1
+    );
 }
 @end
 
 @fs knob_fs
 
+layout(binding = 1) uniform fs_knob_uniforms {
+    vec4 u_colour;
+};
+
 in vec2 uv;
-out vec4 frag_color;
+out vec4 frag_colour;
 
 const float PI = 3.14159265;
 const float NUM_FANS = 92;
@@ -76,10 +100,8 @@ void main() {
     float arc = 1 - smoothstep(-ring_feather, ring_feather, d);
 
     float a = arc * fan;
-    vec3 col = vec3(a);
-    col *= vec3(0.7098039215686275, 0.7450980392156863, 0.7803921568627451); // apply colour
 
-    frag_color = vec4(col, a);
+    frag_colour = vec4(u_colour.rgb, a);
 }
 
 @end

@@ -138,69 +138,12 @@ void* pw_create_gui(void* _plugin, void* _pw)
         gui->font_id = font_id;
     }
 
-    // Knob shader
+    // Shaders
     {
-        static const sg_buffer_desc knob_vbo_desc = {
-            .usage.vertex_buffer = true,
-            .usage.stream_update = true,
-            .size                = sizeof(vertex_t) * 4 * 3,
-            .label               = NVG_LABEL("knob vertices")};
-        gui->knob_vbo = sg_make_buffer(&knob_vbo_desc);
-
-        // clang-format off
-        static const uint16_t KNOB_INDICES[] = {
-            0, 1, 2,  0, 2,  3,
-            4, 5, 6,  4, 6,  7,
-            8, 9, 10, 8, 10, 11,
-        };
-        _Static_assert(ARRLEN(KNOB_INDICES) == (3 * 6), "");
-        // clang-format on
-
-        static const sg_buffer_desc knob_ibo_desc = {
-            .usage.index_buffer = true,
-            .usage.immutable    = true,
-            .data               = SG_RANGE(KNOB_INDICES),
-            .size               = sizeof(KNOB_INDICES),
-            .label              = NVG_LABEL("knob indices")};
-        gui->knob_ibo = sg_make_buffer(&knob_ibo_desc);
-
-        sg_shader              shd      = sg_make_shader(knob_shader_desc(sg_query_backend()));
-        const sg_pipeline_desc pip_desc = {
-            .shader     = shd,
-            .index_type = SG_INDEXTYPE_UINT16,
-            .layout =
-                {.attrs =
-                     {[ATTR_knob_position].format = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_knob_coord].format    = SG_VERTEXFORMAT_SHORT2N}},
-            .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                 .blend =
-                     {
-                         .enabled          = true,
-                         .src_factor_rgb   = SG_BLENDFACTOR_ONE,
-                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                         .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                     }},
-            .label = NVG_LABEL("knob pipeline")};
-        gui->knob_pip = sg_make_pipeline(&pip_desc);
-    }
-
-    // LFO shaders
-    {
-        static const sg_buffer_desc vbo_desc = {
-            .usage.vertex_buffer = true,
-            .usage.stream_update = true,
-            .size                = sizeof(vertex_t) * 6,
-            .label               = NVG_LABEL("LFO vertical grad vertices")};
-        gui->lfo_vertical_grad_vbo = sg_make_buffer(&vbo_desc);
-
-        const sg_pipeline_desc pip_desc = {
-            .shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
-            .layout =
-                {.attrs =
-                     {[ATTR_lfo_vertical_grad_position].format = SG_VERTEXFORMAT_FLOAT2,
-                      [ATTR_lfo_vertical_grad_coord].format    = SG_VERTEXFORMAT_USHORT2N}},
+        // Knob
+        sg_shader shd = sg_make_shader(knob_shader_desc(sg_query_backend()));
+        gui->knob_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .shader = shd,
             .colors[0] =
                 {.write_mask = SG_COLORMASK_RGBA,
                  .blend =
@@ -211,8 +154,22 @@ void* pw_create_gui(void* _plugin, void* _pw)
                          .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
                          .dst_factor_alpha = SG_BLENDFACTOR_ONE,
                      }},
-            .label = NVG_LABEL("LFO vertical grad pipeline")};
-        gui->lfo_vertical_grad_pip = sg_make_pipeline(&pip_desc);
+            .label = NVG_LABEL("knob pipeline")});
+
+        // LFO
+        gui->lfo_vertical_grad_pip = sg_make_pipeline(&(sg_pipeline_desc){
+            .shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
+            .colors[0] =
+                {.write_mask = SG_COLORMASK_RGBA,
+                 .blend =
+                     {
+                         .enabled          = true,
+                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                     }},
+            .label = NVG_LABEL("LFO vertical grad pipeline")});
     }
 
     // Logo
@@ -549,72 +506,33 @@ void do_knob_shader(void* uptr)
     GUI*           gui = uptr;
     LayoutMetrics* lm  = &gui->layout;
 
-    enum
-    {
-        NUM_KNOBS = 3,
-    };
-
-    // clang-format off
-    vertex_t verts[] = {
-        {-1.0f,  1.0f, -32767,  32767},
-        { 1.0f,  1.0f,  32767,  32767},
-        { 1.0f, -1.0f,  32767, -32767},
-        {-1.0f, -1.0f, -32767, -32767},
-
-        {-1.0f,  1.0f, -32767,  32767},
-        { 1.0f,  1.0f,  32767,  32767},
-        { 1.0f, -1.0f,  32767, -32767},
-        {-1.0f, -1.0f, -32767, -32767},
-
-        {-1.0f,  1.0f, -32767,  32767},
-        { 1.0f,  1.0f,  32767,  32767},
-        { 1.0f, -1.0f,  32767, -32767},
-        {-1.0f, -1.0f, -32767, -32767},
-    };
-    _Static_assert(ARRLEN(verts) == (NUM_KNOBS * 4), "");
-    // clang-format on
-
     float radius = lm->knob_outer_radius;
     xassert(radius != 0);
-    for (int i = 0; i < NUM_KNOBS; i++)
+    sg_apply_pipeline(gui->knob_pip);
+
+    for (int i = 0; i < 3; i++)
     {
         int cx_idx = 1 + i;
         xassert(cx_idx < ARRLEN(lm->param_positions_cx));
         float cx = lm->param_positions_cx[cx_idx];
 
-        float left   = cx - radius;
-        float right  = cx + radius;
-        float top    = lm->cy_param - radius;
-        float bottom = lm->cy_param + radius;
+        vs_knob_uniforms_t vs_uniforms = {
+            .topleft     = {cx - radius, lm->cy_param - radius},
+            .bottomright = {cx + radius, lm->cy_param + radius},
+            .size        = {lm->width, lm->height},
+        };
 
-        left   = xm_mapf(left, 0, lm->width, -1, 1);
-        right  = xm_mapf(right, 0, lm->width, -1, 1);
-        top    = xm_mapf(top, 0, lm->height, 1, -1);
-        bottom = xm_mapf(bottom, 0, lm->height, 1, -1);
+        fs_knob_uniforms_t fs_uniforms = {.u_colour = {0.7098039215686275, 0.7450980392156863, 0.7803921568627451, 1}};
 
-        int v_idx = i * 4;
+        sg_apply_uniforms(UB_vs_knob_uniforms, &SG_RANGE(vs_uniforms));
+        sg_apply_uniforms(UB_fs_knob_uniforms, &SG_RANGE(fs_uniforms));
 
-        verts[v_idx + 0].x = left;
-        verts[v_idx + 0].y = top;
-        verts[v_idx + 1].x = right;
-        verts[v_idx + 1].y = top;
-        verts[v_idx + 2].x = right;
-        verts[v_idx + 2].y = bottom;
-        verts[v_idx + 3].x = left;
-        verts[v_idx + 3].y = bottom;
+        sg_draw(0, 6, 1);
     }
 
-    sg_update_buffer(gui->knob_vbo, &SG_RANGE(verts));
     sg_apply_pipeline(gui->knob_pip);
 
-    sg_bindings bind       = {0};
-    bind.vertex_buffers[0] = gui->knob_vbo;
-    bind.index_buffer      = gui->knob_ibo;
-    sg_apply_bindings(&bind);
-
     xassert(sg_isvalid());
-
-    sg_draw(0, 6 * NUM_KNOBS, 1);
 }
 
 void pw_tick(void* _gui)

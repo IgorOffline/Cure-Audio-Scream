@@ -1,20 +1,40 @@
 @vs common_vs
-in vec4 position;
-in vec2 coord;
+layout(binding = 0) uniform vs_lfo_uniforms {
+    vec2 topleft;
+    vec2 bottomright;
+    vec2 size;
+};
 out vec2 uv;
 
 void main() {
-    gl_Position = position;
-    uv = coord;
+    uint v_idx = gl_VertexIndex / 6u;
+    uint i_idx = gl_VertexIndex - v_idx * 6;
+
+    // Is odd
+    bool is_right = (gl_VertexIndex & 1) == 1;
+    bool is_bottom = i_idx >= 2 && i_idx <= 4;
+
+    vec2 pos = vec2(
+        is_right  ? bottomright.x : topleft.x,
+        is_bottom ? bottomright.y : topleft.y
+    );
+    pos = (pos + pos) / size - vec2(1);
+    pos.y = -pos.y;
+
+    gl_Position = vec4(pos, 1, 1);
+    uv = vec2(
+        is_right  ? 1 : 0,
+        is_bottom ? 0 : 1
+    );
 }
 @end
 
 @fs vertical_grad_fs
 
 in vec2 uv;
-out vec4 frag_color;
+out vec4 frag_colour;
 
-layout(binding=0) uniform lfo_vertical_grad_uniforms {
+layout(binding=1) uniform fs_lfo_uniforms {
     vec4 colour1;
     vec4 colour2;
     vec4 colour_trail;
@@ -50,7 +70,7 @@ void main() {
     // apply trail
     interp_col = src_over_blend(interp_col, colour_trail, trail_y);
 
-    frag_color = uv.y < lfo_y ? interp_col : vec4(0);
+    frag_colour = uv.y < lfo_y ? interp_col : vec4(0);
 }
 
 @end

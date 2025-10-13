@@ -560,67 +560,33 @@ void do_lfo_shaders(void* uptr)
         gui->lfo_playhead_trail[idx] = y;
     }
 
-    // TODO: setup vertices here. Also setup the vertex layout in gui_create()
-    // clang-format off
-    vertex_t verts[] = {
-        // Quad with indices 0,1,2,0,2,3
-        // {-1.0f,  1.0f, -32767,  32767},
-        // { 1.0f,  1.0f,  32767,  32767},
-        // { 1.0f, -1.0f,  32767, -32767},
-        // {-1.0f, -1.0f, -32767, -32767},
-
-        {-1.0f,  1.0f, 0,      0xffff}, // 0
-        { 1.0f,  1.0f, 0xffff, 0xffff}, // 1
-        { 1.0f, -1.0f, 0xffff, 0},      // 2
-
-        {-1.0f,  1.0f, 0,      0xffff}, // 0
-        { 1.0f, -1.0f, 0xffff, 0},      // 2
-        {-1.0f, -1.0f, 0,      0},      // 3
-    };
-    _Static_assert(ARRLEN(verts) == 6, "");
-    // clang-format on
-
-    float left   = xm_mapf(gui->lfo_grid_area.x, 0, lm->width, -1, 1);
-    float right  = xm_mapf(gui->lfo_grid_area.r, 0, lm->width, -1, 1);
-    float top    = xm_mapf(gui->lfo_grid_area.y, 0, lm->height, 1, -1);
-    float bottom = xm_mapf(gui->lfo_grid_area.b, 0, lm->height, 1, -1);
-
-    verts[0].x = left; // 0
-    verts[0].y = top;
-    verts[1].x = right; // 1
-    verts[1].y = top;
-    verts[2].x = right; // 2
-    verts[2].y = bottom;
-
-    verts[3].x = left; // 0
-    verts[3].y = top;
-    verts[4].x = right; // 2
-    verts[4].y = bottom;
-    verts[5].x = left; // 3
-    verts[5].y = bottom;
-
     sg_range range_ybuf     = {.ptr = gui->lfo_ybuffer, .size = len * sizeof(*gui->lfo_ybuffer)};
     sg_range range_playhead = {.ptr = gui->lfo_playhead_trail, .size = len * sizeof(*gui->lfo_playhead_trail)};
-
-    sg_update_buffer(gui->lfo_vertical_grad_vbo, &SG_RANGE(verts));
-    sg_update_buffer(gui->lfo_ybuffer_obj, &range_ybuf);
-    sg_update_buffer(gui->lfo_playhead_trail_obj, &range_playhead);
-    sg_apply_pipeline(gui->lfo_vertical_grad_pip);
 
     sg_bindings bind                                    = {0};
     bind.storage_buffers[SBUF_lfo_line_storage_buffer]  = gui->lfo_ybuffer_obj;
     bind.storage_buffers[SBUF_lfo_trail_storage_buffer] = gui->lfo_playhead_trail_obj;
-    bind.vertex_buffers[0]                              = gui->lfo_vertical_grad_vbo;
 
-    lfo_vertical_grad_uniforms_t uniforms = {
+    vs_lfo_uniforms_t vs_uniforms = {
+        .topleft     = {gui->lfo_grid_area.x, gui->lfo_grid_area.y},
+        .bottomright = {gui->lfo_grid_area.r, gui->lfo_grid_area.b},
+        .size        = {lm->width, lm->height},
+    };
+
+    fs_lfo_uniforms_t fs_uniforms = {
         .colour1      = hexcol(0xBDEBF754),
         .colour2      = hexcol(0x92C6D400),
         .colour_trail = hexcol(0xACDEECFF),
         .buffer_len   = len,
     };
 
+    sg_update_buffer(gui->lfo_ybuffer_obj, &range_ybuf);
+    sg_update_buffer(gui->lfo_playhead_trail_obj, &range_playhead);
+
+    sg_apply_pipeline(gui->lfo_vertical_grad_pip);
     sg_apply_bindings(&bind);
-    sg_apply_uniforms(UB_lfo_vertical_grad_uniforms, &SG_RANGE(uniforms));
+    sg_apply_uniforms(UB_vs_lfo_uniforms, &SG_RANGE(vs_uniforms));
+    sg_apply_uniforms(UB_fs_lfo_uniforms, &SG_RANGE(fs_uniforms));
 
     sg_draw(0, 6, 1);
 }
