@@ -79,12 +79,15 @@ typedef struct GUI
 
     sg_pipeline lfo_vertical_grad_pip;
     sg_buffer   lfo_ybuffer_obj;
+    sg_view     lfo_ybuffer_view;
     float*      lfo_ybuffer;
     sg_buffer   lfo_playhead_trail_obj;
+    sg_view     lfo_playhead_trail_view;
     float*      lfo_playhead_trail;
     imgui_rect  lfo_grid_area;
 
     sg_image logo_id;
+    sg_view  logo_texview;
     int      logo_width;
     int      logo_height;
 

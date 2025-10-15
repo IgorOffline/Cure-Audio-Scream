@@ -563,9 +563,10 @@ void do_lfo_shaders(void* uptr)
     sg_range range_ybuf     = {.ptr = gui->lfo_ybuffer, .size = len * sizeof(*gui->lfo_ybuffer)};
     sg_range range_playhead = {.ptr = gui->lfo_playhead_trail, .size = len * sizeof(*gui->lfo_playhead_trail)};
 
-    sg_bindings bind                                    = {0};
-    bind.storage_buffers[SBUF_lfo_line_storage_buffer]  = gui->lfo_ybuffer_obj;
-    bind.storage_buffers[SBUF_lfo_trail_storage_buffer] = gui->lfo_playhead_trail_obj;
+    sg_bindings bind = {0};
+    xassert(gui->lfo_ybuffer_view.id); // TODO: make view, and udpate it on resize
+    bind.views[VIEW_lfo_line_storage_buffer]  = gui->lfo_ybuffer_view;
+    bind.views[VIEW_lfo_trail_storage_buffer] = gui->lfo_playhead_trail_view;
 
     vs_lfo_uniforms_t vs_uniforms = {
         .topleft     = {gui->lfo_grid_area.x, gui->lfo_grid_area.y},

@@ -142,34 +142,34 @@ void* pw_create_gui(void* _plugin, void* _pw)
     {
         // Knob
         sg_shader shd = sg_make_shader(knob_shader_desc(sg_query_backend()));
-        gui->knob_pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader = shd,
-            .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                 .blend =
-                     {
-                         .enabled          = true,
-                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                     }},
-            .label = NVG_LABEL("knob pipeline")});
+        gui->knob_pip =
+            sg_make_pipeline(&(sg_pipeline_desc){.shader = shd,
+                                                 .colors[0] =
+                                                     {.write_mask = SG_COLORMASK_RGBA,
+                                                      .blend =
+                                                          {
+                                                              .enabled          = true,
+                                                              .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                                              .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                                              .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                                              .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                                                          }},
+                                                 .label = NVG_LABEL("knob pipeline")});
 
         // LFO
-        gui->lfo_vertical_grad_pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
-            .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                 .blend =
-                     {
-                         .enabled          = true,
-                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                     }},
-            .label = NVG_LABEL("LFO vertical grad pipeline")});
+        gui->lfo_vertical_grad_pip = sg_make_pipeline(
+            &(sg_pipeline_desc){.shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
+                                .colors[0] =
+                                    {.write_mask = SG_COLORMASK_RGBA,
+                                     .blend =
+                                         {
+                                             .enabled          = true,
+                                             .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                             .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                             .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                             .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                                         }},
+                                .label = NVG_LABEL("LFO vertical grad pipeline")});
     }
 
     // Logo
@@ -194,31 +194,27 @@ void* pw_create_gui(void* _plugin, void* _pw)
             xassert(comp == 4);
             if (img_buf)
             {
+                println("TODO: Figure out mipmaps with new sokol_gfx...");
                 sg_image_desc img_desc = {
                     .usage.immutable = true,
                     .width           = x,
                     .height          = y,
-                    .num_mipmaps     = 5,
+                    // .num_mipmaps     = 5,
+                    .num_mipmaps     = 1,
                     .num_slices      = 1,
                     .pixel_format    = SG_PIXELFORMAT_RGBA8,
 
-                    .data.subimage[0][0] = {
+                    .data.mip_levels[0] = {
                         .ptr  = img_buf,
                         .size = x * y * comp,
                     }};
-                gui->logo_id = sg_make_image_with_mipmaps(&img_desc);
+                // gui->logo_id      = sg_make_image_with_mipmaps(&img_desc);
+                gui->logo_id      = sg_make_image(&img_desc);
+                gui->logo_texview = sg_make_view(&(sg_view_desc){.texture = gui->logo_id});
                 stbi_image_free(img_buf);
 
                 gui->logo_width  = x;
                 gui->logo_height = y;
-
-                snvgCreateImageFromHandleSokol(
-                    gui->nvg,
-                    gui->logo_id,
-                    NVG_TEXTURE_RGBA,
-                    gui->logo_width,
-                    gui->logo_height,
-                    NVG_IMAGE_IMMUTABLE);
             }
 
             XFILES_FREE(file_data);
@@ -770,9 +766,9 @@ void pw_tick(void* _gui)
     snvg_command_begin_pass(
         nvg,
         &(sg_pass){
-            .action      = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-            .attachments = gui->main_framebuffer.att,
-            .label       = NVG_LABEL("main_framebuffer"),
+            .action                = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
+            .attachments.colors[0] = gui->main_framebuffer.img_colview,
+            .label                 = NVG_LABEL("main_framebuffer"),
         },
         gui->main_framebuffer.width,
         gui->main_framebuffer.height,
@@ -805,7 +801,7 @@ void pw_tick(void* _gui)
         x         = lm->width - 16 - w;
         nvgBeginPath(nvg);
         nvgRect(nvg, x, y, w, h);
-        nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_id, 1, nvg->sampler_linear));
+        nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_texview, 1, nvg->sampler_linear));
         nvgFill(nvg);
     }
 
@@ -1898,7 +1894,7 @@ void pw_tick(void* _gui)
         0);
     snvg_command_draw_nvg(nvg, NVG_LABEL("swapchain"));
 
-    sg_image bgimg = gui->main_framebuffer.img;
+    sg_view bgimg = gui->main_framebuffer.img_texview;
     nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, lm->width, lm->height, 0, bgimg, 1, nvg->sampler_nearest));
     nvgBeginPath(nvg);
     nvgRect(nvg, 0, 0, lm->width, lm->height);
