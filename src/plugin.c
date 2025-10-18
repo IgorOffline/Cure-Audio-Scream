@@ -302,11 +302,18 @@ void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
     // xassert(beat_position < pattern_length);
     // const double beat_inc = p->beat_inc;
 
-    ParamID       rate_param_idx = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
-    const LFORate lfo_rate_idx   = (int)p->audio_params[rate_param_idx];
+    ParamID sync_param_idx = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
+    ParamID sec_param_idx  = PARAM_SEC_RATE_LFO_1 + lfo_idx;
+    ParamID type_param_idx = PARAM_RATE_TYPE_LFO_1 + lfo_idx;
+
+    const LFORate lfo_rate_idx = (int)p->audio_params[sync_param_idx];
     xassert(lfo_rate_idx >= 0 && lfo_rate_idx < ARRLEN(SYNC_VALUES));
-    const double rate_hz  = p->bpm / (SYNC_VALUES[lfo_rate_idx] * 240);
-    const double beat_inc = rate_hz / p->sample_rate;
+
+    const bool   is_ms          = p->audio_params[type_param_idx] >= 0.5;
+    const double rate_sec_as_hz = 1.0 / denormalise_sec(p->audio_params[sec_param_idx]);
+
+    const double rate_sync_as_hz = p->bpm / (SYNC_VALUES[lfo_rate_idx] * 240);
+    const double beat_inc        = (is_ms ? rate_sec_as_hz : rate_sync_as_hz) / p->sample_rate;
 
 #define beat_position lfo->phase
 
