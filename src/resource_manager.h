@@ -41,6 +41,9 @@ typedef struct ResourceHeader
 
 typedef struct ResourceList
 {
+    uint32_t num_new_items;
+    uint32_t num_accessed_items;
+
     // Last accessed index + 1
     uint32_t predict_idx;
 

@@ -8,7 +8,7 @@
 #include "libs/tooltip.h"
 #include "xhl/vector.h"
 
-#include "gui_resource_manager.h"
+#include "resource_manager.h"
 
 typedef struct
 {

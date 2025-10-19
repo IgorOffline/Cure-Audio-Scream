@@ -1,4 +1,4 @@
-#include "gui_resource_manager.h"
+#include "resource_manager.h"
 #include <string.h>
 
 ResourceHeader* resource_find(ResourceManager* rm, ResourceID id)
@@ -15,7 +15,9 @@ ResourceHeader* resource_find(ResourceManager* rm, ResourceID id)
         xassert(idx >= 0 && idx < list->num_items);
         if (list->items[idx]->id.u64 == id.u64)
         {
-            head         = list->items[idx];
+            head = list->items[idx];
+            if ((head->flags & RESOURCE_FLAG_USED_FRAME) == 0)
+                list->num_accessed_items++;
             head->flags |= RESOURCE_FLAG_USED_FRAME;
             break;
         }
@@ -24,7 +26,7 @@ ResourceHeader* resource_find(ResourceManager* rm, ResourceID id)
     return head;
 }
 
-ResourceHeader* resource_alloc(ResourceManager* rm, size_t num_bytes, ResourceID id, ResourceType type, uint32_t flags)
+ResourceHeader* resource_create(ResourceManager* rm, size_t num_bytes, ResourceID id, ResourceType type, uint32_t flags)
 {
     ResourceHeader* res;
 
@@ -56,6 +58,7 @@ ResourceHeader* resource_alloc(ResourceManager* rm, size_t num_bytes, ResourceID
         list->items = next_arr;
     }
     list->items[list->num_items++] = res;
+    list->num_new_items++;
 
     res->id    = id;
     res->type  = type;
@@ -71,7 +74,7 @@ bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc
     ResourceHeader* res = resource_find(rm, id);
     if (res == NULL)
     {
-        res = resource_alloc(rm, sizeof(sg_pipeline), id, RESOURCE_TYPE_PIPELINE, flags);
+        res = resource_create(rm, sizeof(sg_pipeline), id, RESOURCE_TYPE_PIPELINE, flags);
 
         sg_pipeline* pip = (void*)&res->payload;
         *pip             = sg_make_pipeline(&(sg_pipeline_desc){.shader    = sg_make_shader(method(sg_query_backend())),
@@ -93,9 +96,9 @@ bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc
 }
 
 // TODO
+bool resource_get_texture();
 bool resource_get_framebuffer();
 bool resource_get_storagebuffer();
-bool resource_get_texture();
 
 void _resource_destroy(ResourceHeader* res)
 {
@@ -142,6 +145,10 @@ void resources_end_frame(ResourceManager* rm)
     ResourceList* src = rm->list_current;
     ResourceList* dst = rm->list_current == &rm->list_a ? &rm->list_b : &rm->list_a;
 
+    // no meaningful changes to resources
+    if (src->num_accessed_items == src->num_items && src->num_new_items == 0)
+        return;
+
     linked_arena_clear(dst->arena);
     _Static_assert(offsetof(ResourceList, arena) == sizeof(ResourceList) - sizeof(void*));
     memset(dst, 0, sizeof(ResourceList) - sizeof(void*)); // clear all but arena ptr
@@ -163,6 +170,8 @@ void resources_end_frame(ResourceManager* rm)
             ResourceHeader* dst_res = linked_arena_alloc(dst->arena, src_res->size);
             memcpy(dst_res, src_res, src_res->size);
             dst->items[dst->num_items++] = dst_res;
+
+            dst_res->flags &= ~RESOURCE_FLAG_USED_FRAME;
         }
     }
 
