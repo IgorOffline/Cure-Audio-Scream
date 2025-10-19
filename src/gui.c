@@ -104,6 +104,8 @@ void* pw_create_gui(void* _plugin, void* _pw)
     gui->nvg = nvgCreateContext(NVG_ANTIALIAS);
     xassert(gui->nvg);
 
+    resources_init(&gui->resource_manager, 4096);
+
     // Load font
     {
         char path[1024];
@@ -140,51 +142,22 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     // Shaders
     {
-        // This should be a nvgImagePattern draw call but somehow I keep breaking nanovg...
-        sg_shader logo_shd = sg_make_shader(logo_shader_desc(sg_query_backend()));
-        gui->logo_pip      = sg_make_pipeline(&(sg_pipeline_desc){
-                 .shader = logo_shd,
-                 .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                      .blend =
-                          {
-                              .enabled          = true,
-                              .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                              .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                              .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                              .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                     }},
-                 .label = NVG_LABEL("logo pipeline")});
         // Knob
-        sg_shader knob_shd = sg_make_shader(knob_shader_desc(sg_query_backend()));
-        gui->knob_pip      = sg_make_pipeline(&(sg_pipeline_desc){
-                 .shader = knob_shd,
-                 .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                      .blend =
-                          {
-                              .enabled          = true,
-                              .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                              .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                              .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                              .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                     }},
-                 .label = NVG_LABEL("knob pipeline")});
 
         // LFO
-        gui->lfo_vertical_grad_pip = sg_make_pipeline(&(sg_pipeline_desc){
-            .shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
-            .colors[0] =
-                {.write_mask = SG_COLORMASK_RGBA,
-                 .blend =
-                     {
-                         .enabled          = true,
-                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                     }},
-            .label = NVG_LABEL("LFO vertical grad pipeline")});
+        gui->lfo_vertical_grad_pip = sg_make_pipeline(
+            &(sg_pipeline_desc){.shader = sg_make_shader(lfo_vertical_grad_shader_desc(sg_query_backend())),
+                                .colors[0] =
+                                    {.write_mask = SG_COLORMASK_RGBA,
+                                     .blend =
+                                         {
+                                             .enabled          = true,
+                                             .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                             .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                             .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                             .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                                         }},
+                                .label = NVG_LABEL("LFO vertical grad pipeline")});
     }
 
     // Logo
@@ -262,6 +235,8 @@ void pw_destroy_gui(void* _gui)
     xarr_free(gui->lfo_playhead_trail);
 
     sg_set_global(gui->sg);
+
+    resources_deinit(&gui->resource_manager);
 
     snvgDestroyFramebuffer(gui->nvg, &gui->main_framebuffer);
 
@@ -512,58 +487,72 @@ void do_knob_shader(void* uptr)
     GUI*           gui = uptr;
     LayoutMetrics* lm  = &gui->layout;
 
-    float radius = lm->knob_outer_radius;
-    xassert(radius != 0);
-    sg_apply_pipeline(gui->knob_pip);
-
-    for (int i = 0; i < 3; i++)
+    sg_pipeline pip;
+    bool ok = resource_get_pipeline(&gui->resource_manager, &pip, knob_shader_desc, RESOURCE_FLAG_NODESTROY_ENDFRAME);
+    xassert(ok);
+    if (ok)
     {
-        int cx_idx = 1 + i;
-        xassert(cx_idx < ARRLEN(lm->param_positions_cx));
-        float cx = lm->param_positions_cx[cx_idx];
+        sg_apply_pipeline(pip);
 
-        vs_knob_uniforms_t vs_uniforms = {
-            .topleft     = {cx - radius, lm->cy_param - radius},
-            .bottomright = {cx + radius, lm->cy_param + radius},
-            .size        = {lm->width, lm->height},
-        };
+        float radius = lm->knob_outer_radius;
+        xassert(radius != 0);
 
-        fs_knob_uniforms_t fs_uniforms = {.u_colour = {0.7098039215686275, 0.7450980392156863, 0.7803921568627451, 1}};
+        for (int i = 0; i < 3; i++)
+        {
+            int cx_idx = 1 + i;
+            xassert(cx_idx < ARRLEN(lm->param_positions_cx));
+            float cx = lm->param_positions_cx[cx_idx];
 
-        sg_apply_uniforms(UB_vs_knob_uniforms, &SG_RANGE(vs_uniforms));
-        sg_apply_uniforms(UB_fs_knob_uniforms, &SG_RANGE(fs_uniforms));
+            vs_knob_uniforms_t vs_uniforms = {
+                .topleft     = {cx - radius, lm->cy_param - radius},
+                .bottomright = {cx + radius, lm->cy_param + radius},
+                .size        = {lm->width, lm->height},
+            };
 
-        sg_draw(0, 6, 1);
+            fs_knob_uniforms_t fs_uniforms = {
+                .u_colour = {0.7098039215686275, 0.7450980392156863, 0.7803921568627451, 1}};
+
+            sg_apply_uniforms(UB_vs_knob_uniforms, &SG_RANGE(vs_uniforms));
+            sg_apply_uniforms(UB_fs_knob_uniforms, &SG_RANGE(fs_uniforms));
+
+            sg_draw(0, 6, 1);
+        }
+
+        xassert(sg_isvalid());
     }
-
-    xassert(sg_isvalid());
 }
 
+// This should be a nvgImagePattern draw call but somehow I keep breaking nanovg...
 void do_logo_shader(void* uptr)
 {
     GUI*           gui = uptr;
     LayoutMetrics* lm  = &gui->layout;
 
-    float x, y, w, h, img_scale;
-    y         = 4;
-    h         = lm->height_header - y;
-    img_scale = h / (float)gui->logo_height;
-    w         = (float)gui->logo_width * img_scale;
-    x         = lm->width - 16 - w;
-    sg_apply_pipeline(gui->logo_pip);
-    sg_apply_bindings(&(sg_bindings){
-        .views[VIEW_logo_tex]   = gui->logo_texview,
-        .samplers[SMP_logo_smp] = gui->nvg->sampler_linear,
-    });
+    sg_pipeline pip;
+    bool ok = resource_get_pipeline(&gui->resource_manager, &pip, logo_shader_desc, RESOURCE_FLAG_NODESTROY_ENDFRAME);
+    xassert(ok);
+    if (ok)
+    {
+        float x, y, w, h, img_scale;
+        y                              = 4;
+        h                              = lm->height_header - y;
+        img_scale                      = h / (float)gui->logo_height;
+        w                              = (float)gui->logo_width * img_scale;
+        x                              = lm->width - 16 - w;
+        vs_logo_uniforms_t vs_uniforms = {
+            .topleft     = {x, y},
+            .bottomright = {x + w, y + h},
+            .size        = {lm->width, lm->height},
+        };
 
-    vs_logo_uniforms_t vs_uniforms = {
-        .topleft     = {x, y},
-        .bottomright = {x + w, y + h},
-        .size        = {lm->width, lm->height},
-    };
-
-    sg_apply_uniforms(UB_vs_logo_uniforms, &SG_RANGE(vs_uniforms));
-    sg_draw(0, 6, 1);
+        sg_apply_pipeline(pip);
+        sg_apply_bindings(&(sg_bindings){
+            .views[VIEW_logo_tex]   = gui->logo_texview,
+            .samplers[SMP_logo_smp] = gui->nvg->sampler_linear,
+        });
+        sg_apply_uniforms(UB_vs_logo_uniforms, &SG_RANGE(vs_uniforms));
+        sg_draw(0, 6, 1);
+    }
 }
 
 void pw_tick(void* _gui)
@@ -2017,9 +2006,9 @@ void pw_tick(void* _gui)
     snvg_command_end_pass(nvg, NVG_LABEL("end swapchain"));
     nvgEndFrame(gui->nvg);
     sg_commit();
-    sg_set_global(NULL);
-
+    resources_end_frame(&gui->resource_manager);
     imgui_end_frame(&gui->imgui);
 
+    sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 }

@@ -18,7 +18,7 @@ x display LFO range on the mod amount parameter
 x display pattern 1-8 better. Try adding each number
 x Make grid buttons a slider
 x Add rate knob
-- unsynced LFO, eg. ms or hz
+x unsynced LFO, eg. ms or hz
 x Paintable sine shape in the LFO
 x Tooltips on complicated controls
   x input
@@ -34,7 +34,7 @@ x Tooltips on complicated controls
 - Stretch/skew points in selection? Could be visualised by a something like a yellow diamond shape in the middle of all the points. The diamond is draggable
 - Perlin noise LFO? Leaning towards no on that idea
 
-- make lfo look better
+x make lfo look better
 - save LFO state (DAW project load/save)
 
 x it may be possible to create an intelligent 'auto gain' for the input by using some cleverly tuned peak detectors

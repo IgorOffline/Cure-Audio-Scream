@@ -8,6 +8,8 @@
 #include "libs/tooltip.h"
 #include "xhl/vector.h"
 
+#include "gui_resource_manager.h"
+
 typedef struct
 {
     float   x, y;
@@ -63,6 +65,8 @@ typedef struct GUI
     int         font_id;
     float       scale;
 
+    ResourceManager resource_manager;
+
     TextEditor texteditor;
 
     struct imgui_context imgui;
@@ -75,8 +79,6 @@ typedef struct GUI
 
     sg_swapchain swapchain;
 
-    sg_pipeline knob_pip;
-
     sg_pipeline lfo_vertical_grad_pip;
     sg_buffer   lfo_ybuffer_obj;
     sg_view     lfo_ybuffer_view;
@@ -86,11 +88,10 @@ typedef struct GUI
     float*      lfo_playhead_trail;
     imgui_rect  lfo_grid_area;
 
-    sg_pipeline logo_pip;
-    sg_image    logo_id;
-    sg_view     logo_texview;
-    int         logo_width;
-    int         logo_height;
+    sg_image logo_id;
+    sg_view  logo_texview;
+    int      logo_width;
+    int      logo_height;
 
     // If false, should copy over the points array from the audio thread
     bool gui_lfo_points_valid;

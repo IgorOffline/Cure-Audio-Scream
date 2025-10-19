@@ -4,40 +4,51 @@
 #include <nanovg2.h>
 #include <xhl/debug.h>
 
-enum ResourceType
+typedef enum ResourceType
 {
+    // sg_pipeline
     RESOURCE_TYPE_PIPELINE,
     RESOURCE_TYPE_FRAMEBUFFER,
+    // sg_buffer + sg_view
     RESOURCE_TYPE_STORAGEBUFFER,
+    // // Nanovg have their own 'Image' type, but I want to replace it with this
     // sg_image + sg_view + width _ height
-    RESOURCE_TYPE_TEXTURE, // Nanovg have their own 'Image' type, but I want to replace it with this
-};
+    RESOURCE_TYPE_TEXTURE,
+} ResourceType;
 
 enum
 {
-    RESOURCE_FLAG_NODELETE, // Will not delete resource at end of frame when not used
+    RESOURCE_FLAG_USED_FRAME         = 1 << 0,
+    RESOURCE_FLAG_DESTROYED          = 1 << 1, //
+    RESOURCE_FLAG_NODESTROY_ENDFRAME = 1 << 2, // Never destroy resource at end of frame
 };
+
+typedef union ResourceID
+{
+    void*    ptr;
+    uint64_t u64;
+} ResourceID;
 
 typedef struct ResourceHeader
 {
-    enum ResourceType type;
-    uint32_t          id;
-    uint32_t          size;
-    uint32_t          flags;
+    ResourceID   id;
+    ResourceType type;
+    uint32_t     flags;
+    size_t       size;
 
     unsigned char payload[];
 } ResourceHeader;
 
-typedef struct
+typedef struct ResourceList
 {
-    // Cache the idx of the previous item we searched for.
-    // In most cases, the item we will need next will be at the next index
-    uint32_t count;
-    uint32_t prev_idx;
-    void*    prev_header;
+    // Last accessed index + 1
+    uint32_t predict_idx;
 
-    // List or variably sized objects
-    ResourceHeader* data
+    uint32_t         num_items;
+    uint32_t         cap_items;
+    ResourceHeader** items;
+
+    LinkedArena* arena;
 } ResourceList;
 
 typedef struct ResourceManager
@@ -48,49 +59,12 @@ typedef struct ResourceManager
     ResourceList* list_current; // a or b
 } ResourceManager;
 
-// Private
-void* _resource_find(ResourceManager* rm, uint32_t id)
-{
-    ResourceList*   list = rm->list_current;
-    ResourceHeader* head = list->prev_header;
-    if (head == NULL)
-        head = list->data;
+void resources_init(ResourceManager* rm, size_t init_size);
+void resources_deinit(ResourceManager* rm);
+void resources_end_frame(ResourceManager* rm);
 
-    xassert(head);
-    uint32_t       i    = 0;
-    uint32_t       idx  = list->prev_idx;
-    const uint32_t prev = list->prev_idx;
-    const uint32_t N    = list->count;
-
-    while (i < N && head->id != id)
-    {
-        i++;
-        head = (void*)head + head->size;
-
-        idx = i + prev;
-        if (idx == N)
-            head = list->data;
-        if (idx >= N)
-            idx -= N;
-    }
-    list->prev_idx    = idx;
-    list->prev_header = head;
-
-    return i < N ? &head->payload : NULL;
-}
-
-// TODO
-void resource_get_pipeline();
-void resource_get_framebuffer();
-void resource_get_storagebuffer();
-void resource_get_texture();
-
-void resources_drop_type(ResourceManager* rm, enum ResourceType type)
-{
-    // TODO: drop everything matching that type
-}
-
-void resources_frame_end(ResourceManager* rm)
-{
-    // TODO: Defrag & destroy unused resources
-}
+typedef const sg_shader_desc* (*sokol_shdc_shader_t)(sg_backend backend);
+bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc_shader_t method, uint32_t flags);
+bool resource_get_framebuffer();
+bool resource_get_storagebuffer();
+bool resource_get_texture();

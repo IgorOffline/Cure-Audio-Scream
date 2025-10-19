@@ -107,6 +107,7 @@ set(PLUGIN_SOURCES
     src/plugin.c
     src/gui.c
     src/gui_lfo.c
+    src/resource_manager.c
     src/libs/texteditor.c
     src/libs/tooltip.c
 
