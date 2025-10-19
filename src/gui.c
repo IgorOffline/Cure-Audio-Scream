@@ -236,9 +236,7 @@ void pw_destroy_gui(void* _gui)
 
     sg_set_global(gui->sg);
 
-    resources_deinit(&gui->resource_manager);
-
-    snvgDestroyFramebuffer(gui->nvg, &gui->main_framebuffer);
+    resources_deinit(&gui->resource_manager, gui->nvg);
 
     nvgDestroyContext(gui->nvg);
     sg_shutdown(gui->sg);
@@ -766,9 +764,6 @@ void pw_tick(void* _gui)
         lfo_btn.b              = lm->top_content_bottom;
         gui->lfo_toggle_button = lfo_btn;
 
-        snvgDestroyFramebuffer(nvg, &gui->main_framebuffer);
-        gui->main_framebuffer = snvgCreateFramebuffer(nvg, lm->width, lm->height);
-
         gui->should_update_points = false;
     }
 
@@ -794,16 +789,20 @@ void pw_tick(void* _gui)
     imgui_begin_frame(im);
     nvgBeginFrame(nvg, lm->devicePixelRatio);
 
+    SGNVGframebuffer fb_main = {0};
+    bool ok = resource_get_framebuffer(&gui->resource_manager, 'main', &fb_main, nvg, lm->width, lm->height, 0);
+    xassert(ok);
+
     snvg_command_begin_pass(
         nvg,
         &(sg_pass){
             .action                    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-            .attachments.colors[0]     = gui->main_framebuffer.img_colview,
-            .attachments.depth_stencil = gui->main_framebuffer.depth_view,
+            .attachments.colors[0]     = fb_main.img_colview,
+            .attachments.depth_stencil = fb_main.depth_view,
             .label                     = NVG_LABEL("main_framebuffer"),
         },
-        gui->main_framebuffer.width,
-        gui->main_framebuffer.height,
+        fb_main.width,
+        fb_main.height,
         NVG_LABEL("main framebuffer begin pass"));
     snvg_command_draw_nvg(nvg, NVG_LABEL("main framebuffer"));
 
@@ -1918,10 +1917,11 @@ void pw_tick(void* _gui)
         0);
     snvg_command_draw_nvg(nvg, NVG_LABEL("swapchain"));
 
-    sg_view bgimg = gui->main_framebuffer.img_texview;
     nvgBeginPath(nvg);
     nvgRect(nvg, 0, 0, lm->width, lm->height);
-    nvgSetPaint(nvg, nvgImagePattern(nvg, 0, 0, lm->width, lm->height, 0, bgimg, 1, nvg->sampler_nearest));
+    nvgSetPaint(
+        nvg,
+        nvgImagePattern(nvg, 0, 0, lm->width, lm->height, 0, fb_main.img_texview, 1, nvg->sampler_nearest));
     nvgFill(nvg);
 
     // Footer
@@ -2005,8 +2005,8 @@ void pw_tick(void* _gui)
 
     snvg_command_end_pass(nvg, NVG_LABEL("end swapchain"));
     nvgEndFrame(gui->nvg);
-    sg_commit();
-    resources_end_frame(&gui->resource_manager);
+    sg_commit(); // flip swapchain
+    resources_end_frame(&gui->resource_manager, gui->nvg);
     imgui_end_frame(&gui->imgui);
 
     sg_set_global(NULL);

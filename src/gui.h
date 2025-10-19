@@ -126,8 +126,6 @@ typedef struct GUI
 
     uint64_t gui_create_time;
     uint64_t last_resize_time;
-
-    SGNVGframebuffer main_framebuffer;
 } GUI;
 
 static const NVGcolour C_WHITE = nvgHexColour(0xffffffff);

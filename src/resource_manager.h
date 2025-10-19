@@ -27,6 +27,11 @@ typedef union ResourceID
 {
     void*    ptr;
     uint64_t u64;
+    struct
+    {
+        unsigned u32_1;
+        unsigned u32_2;
+    };
 } ResourceID;
 
 typedef struct ResourceHeader
@@ -63,11 +68,20 @@ typedef struct ResourceManager
 } ResourceManager;
 
 void resources_init(ResourceManager* rm, size_t init_size);
-void resources_deinit(ResourceManager* rm);
-void resources_end_frame(ResourceManager* rm);
+void resources_deinit(ResourceManager* rm, NVGcontext* nvg);
+void resources_end_frame(ResourceManager* rm, NVGcontext* nvg);
 
 typedef const sg_shader_desc* (*sokol_shdc_shader_t)(sg_backend backend);
 bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc_shader_t method, uint32_t flags);
-bool resource_get_framebuffer();
-bool resource_get_storagebuffer();
-bool resource_get_texture();
+
+bool resource_get_framebuffer(
+    ResourceManager*  rm,
+    uint32_t          id,
+    SGNVGframebuffer* fb,
+    NVGcontext*       nvg,
+    unsigned          w,
+    unsigned          h,
+    uint32_t          flags);
+
+bool resource_get_storagebuffer(uint32_t flags);
+bool resource_get_texture(uint32_t flags);
