@@ -73,8 +73,7 @@ ResourceHeader* resource_create(ResourceManager* rm, size_t num_bytes, ResourceI
 
 bool resource_get_shader(ResourceManager* rm, sg_shader* shader, sokol_shdc_shader_t method, uint32_t flags)
 {
-    ResourceID id  = {.ptr = method};
-    id.u64        += RESOURCE_TYPE_SHADER;
+    ResourceID id = resource_make_id_shader(method);
 
     ResourceHeader* res = resource_find(rm, id);
     if (res == NULL)
@@ -94,9 +93,8 @@ bool resource_get_shader(ResourceManager* rm, sg_shader* shader, sokol_shdc_shad
 
 bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc_shader_t method, uint32_t flags)
 {
-    ResourceID id        = {.ptr = method};
-    id.u64              += RESOURCE_TYPE_PIPELINE;
-    ResourceHeader* res  = resource_find(rm, id);
+    ResourceID      id  = resource_make_id_pipeline(method);
+    ResourceHeader* res = resource_find(rm, id);
     if (res == NULL)
     {
         sg_shader shd;
@@ -152,6 +150,21 @@ bool resource_get_framebuffer(
     return res != NULL;
 }
 
+bool resource_get_data_fixed(ResourceManager* rm, ResourceID id, void** data, size_t size, uint32_t flags)
+{
+    ResourceHeader* res = resource_find(rm, id);
+    if (res == NULL)
+    {
+        // println("Create Data (fixed)");
+        res = resource_create(rm, size, id, RESOURCE_TYPE_DATA_FIXED, flags);
+    }
+
+    xassert(res->type == RESOURCE_TYPE_DATA_FIXED);
+    *data = &res->payload;
+
+    return res != NULL;
+}
+
 // TODO
 // bool resource_get_texture();
 // bool resource_get_storagebuffer();
@@ -184,12 +197,14 @@ void _resource_destroy(ResourceHeader* res, NVGcontext* nvg)
         snvgDestroyFramebuffer(nvg, fb);
         break;
     }
-    case RESOURCE_TYPE_STORAGEBUFFER:
-        xassert(false); // TODO
+    case RESOURCE_TYPE_DATA_FIXED:
         break;
-    case RESOURCE_TYPE_TEXTURE:
-        xassert(false); // TODO
-        break;
+        // case RESOURCE_TYPE_STORAGEBUFFER:
+        //     xassert(false); // TODO
+        //     break;
+        // case RESOURCE_TYPE_TEXTURE:
+        //     xassert(false); // TODO
+        //     break;
     }
     res->flags |= RESOURCE_FLAG_DESTROYED;
 }

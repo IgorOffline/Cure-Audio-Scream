@@ -17,6 +17,8 @@ enum
     LFO_POINT_DRAG_ERASE_DISTANCE = 24,
 };
 
+const ResourceID RID_LFO_GRID_AREA = {.u32_1 = 'grid', .u32_2 = 'area'};
+
 static inline int main_get_lfo_pattern_idx(Plugin* p)
 {
     int    lfo_idx  = p->selected_lfo_idx;
@@ -542,9 +544,8 @@ void do_lfo_shaders(void* uptr)
     size_t playhead_diff     = current_playhead_idx - last_playhead_idx;
     float  inc               = (target_playhead_y - start_y) / (float)playhead_diff;
 
-    float(*view_trail)[512] = (void*)gui->lfo_playhead_trail;
-
-    view_trail += 0;
+    float(*view_trail)[512]  = (void*)gui->lfo_playhead_trail;
+    view_trail              += 0;
 
     for (size_t i = 1; i <= playhead_diff; i++)
     {
@@ -561,9 +562,12 @@ void do_lfo_shaders(void* uptr)
     }
 
     sg_pipeline pip;
-    bool        ok = resource_get_pipeline(&gui->resource_manager, &pip, lfo_vertical_grad_shader_desc, 0);
-    xassert(ok);
-    if (ok)
+    imgui_rect* grid_area          = NULL;
+    bool        have_all_resources = true;
+    have_all_resources &= resource_get_pipeline(&gui->resource_manager, &pip, lfo_vertical_grad_shader_desc, 0);
+    have_all_resources &=
+        resource_get_data_fixed(&gui->resource_manager, RID_LFO_GRID_AREA, (void**)&grid_area, sizeof(*grid_area), 0);
+    if (have_all_resources)
     {
         sg_range range_ybuf     = {.ptr = gui->lfo_ybuffer, .size = len * sizeof(*gui->lfo_ybuffer)};
         sg_range range_playhead = {.ptr = gui->lfo_playhead_trail, .size = len * sizeof(*gui->lfo_playhead_trail)};
@@ -574,8 +578,8 @@ void do_lfo_shaders(void* uptr)
         bind.views[VIEW_lfo_trail_storage_buffer] = gui->lfo_playhead_trail_view;
 
         vs_lfo_uniforms_t vs_uniforms = {
-            .topleft     = {gui->lfo_grid_area.x, gui->lfo_grid_area.y},
-            .bottomright = {gui->lfo_grid_area.r, gui->lfo_grid_area.b},
+            .topleft     = {grid_area->x, grid_area->y},
+            .bottomright = {grid_area->r, grid_area->b},
             .size        = {lm->width, lm->height},
         };
 
@@ -2188,10 +2192,21 @@ void draw_lfo_section(GUI* gui)
 
         xarr_header(gui->lfo_cached_path)->length = npoints;
 
-        gui->lfo_grid_area.x = grid_x;
-        gui->lfo_grid_area.y = grid_y;
-        gui->lfo_grid_area.r = grid_r;
-        gui->lfo_grid_area.b = grid_b;
+        // I don't believe this is good KISS code
+        // But it is an interesting proof of concept
+        imgui_rect* grid_area = NULL;
+        if (resource_get_data_fixed(
+                &gui->resource_manager,
+                RID_LFO_GRID_AREA,
+                (void**)&grid_area,
+                sizeof(*grid_area),
+                0))
+        {
+            grid_area->x = grid_x;
+            grid_area->y = grid_y;
+            grid_area->r = grid_r;
+            grid_area->b = grid_b;
+        }
     }
 
     // Draw cosine shape to LFO grid. Useful for approximating cosine shape

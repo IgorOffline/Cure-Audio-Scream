@@ -1,6 +1,16 @@
 #pragma once
-// Quick and dirty attempt at adding "automatic garbage collection" or "immediate mode assets/resources" to the GUI
-// Resources may include
+/*
+Quick and dirty attempt at adding "automatic garbage collection" or "immediate mode state/resources" to the GUI
+Helps to solve retained mode problems like:
+- Automatic resizing of framebuffers
+- Detects abd destroying resources not in use. Useful for dynamic content, such as tabbed and modal content
+- State used by deprecated code/procedures in your program is never allocated, and you never need to remember to
+  remove that state from structs later.
+Inspired by ideas from this video: https://www.youtube.com/watch?v=-cWJRZhALD
+NOTE: this does not implement every idea in the video
+How it works:
+*/
+
 #include <nanovg2.h>
 #include <xhl/debug.h>
 
@@ -12,11 +22,14 @@ typedef enum ResourceType
     RESOURCE_TYPE_PIPELINE,
     // SGNVGframebuffer
     RESOURCE_TYPE_FRAMEBUFFER,
+    // void*, size-t
+    RESOURCE_TYPE_DATA_FIXED,
+    // RESOURCE_TYPE_DATA_DYNAMIC,
     // sg_buffer + sg_view
-    RESOURCE_TYPE_STORAGEBUFFER,
+    // RESOURCE_TYPE_STORAGEBUFFER,
     // Nanovg have their own 'NVGtexture' type, but I may want to replace it with this
     // sg_image + sg_view + width _ height
-    RESOURCE_TYPE_TEXTURE,
+    // RESOURCE_TYPE_TEXTURE,
 } ResourceType;
 
 enum
@@ -74,6 +87,8 @@ void resources_init(ResourceManager* rm, size_t init_size);
 void resources_deinit(ResourceManager* rm, NVGcontext* nvg);
 void resources_end_frame(ResourceManager* rm, NVGcontext* nvg);
 
+ResourceHeader* resource_find(ResourceManager* rm, ResourceID id);
+
 typedef const sg_shader_desc* (*sokol_shdc_shader_t)(sg_backend backend);
 bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc_shader_t method, uint32_t flags);
 
@@ -86,5 +101,17 @@ bool resource_get_framebuffer(
     unsigned          h,
     uint32_t          flags);
 
-bool resource_get_storagebuffer(uint32_t flags);
-bool resource_get_texture(uint32_t flags);
+bool resource_get_data_fixed(ResourceManager* rm, ResourceID id, void** data, size_t size, uint32_t flags);
+
+static inline ResourceID resource_make_id_shader(sokol_shdc_shader_t method)
+{
+    ResourceID id  = {.ptr = method};
+    id.u64        += RESOURCE_TYPE_SHADER;
+    return id;
+}
+static inline ResourceID resource_make_id_pipeline(sokol_shdc_shader_t method)
+{
+    ResourceID id  = {.ptr = method};
+    id.u64        += RESOURCE_TYPE_PIPELINE;
+    return id;
+}
