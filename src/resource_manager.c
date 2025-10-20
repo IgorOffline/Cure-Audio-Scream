@@ -104,16 +104,17 @@ bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc
             res = resource_create(rm, sizeof(*pipelne), id, RESOURCE_TYPE_PIPELINE, flags);
 
             sg_pipeline* pip = (void*)&res->payload;
-            *pip             = sg_make_pipeline(&(sg_pipeline_desc){.shader    = shd,
-                                                                    .colors[0] = {
-                                                                        .write_mask = SG_COLORMASK_RGBA,
-                                                                        .blend      = {
-                                                                                 .enabled          = true,
-                                                                                 .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
-                                                                                 .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                                                                                 .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                                                                                 .dst_factor_alpha = SG_BLENDFACTOR_ONE,
-                                                            }}});
+            *pip             = sg_make_pipeline(&(sg_pipeline_desc){
+                            .shader    = shd,
+                            .colors[0] = {
+                                .write_mask = SG_COLORMASK_RGBA,
+                                .blend      = {
+                                         .enabled          = true,
+                                         .src_factor_rgb   = SG_BLENDFACTOR_SRC_ALPHA,
+                                         .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                                         .dst_factor_rgb   = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                         .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+                    }}});
         }
     }
 
@@ -264,7 +265,8 @@ void resources_end_frame(ResourceManager* rm, NVGcontext* nvg)
 void resources_init(ResourceManager* rm, size_t init_size)
 {
     rm->list_a.arena = linked_arena_create_ex(0, init_size);
-    rm->list_b.arena = linked_arena_create_ex(rm->list_a.arena, init_size);
+    void* hint       = linked_arena_make_hint(rm->list_a.arena);
+    rm->list_b.arena = linked_arena_create_ex(hint, init_size);
     rm->list_current = &rm->list_a;
 }
 
