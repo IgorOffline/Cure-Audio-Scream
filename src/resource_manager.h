@@ -60,6 +60,9 @@ IDEA:   This same system, or something like could be used for clever automatic c
         reads flag and makes sure its rendered last, and clears the flag when its done.
         Presumably new framebuffers that are created this way will ALWAYS be expected to have the highest z-order at the
         time
+
+TODO: Build up a seperate array of pointers to items in the order they are accessed. Use this when defragging memory in
+      order to ensure data access is contiguous in future frames.
 */
 
 #include <nanovg2.h>
