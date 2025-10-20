@@ -9,6 +9,57 @@ Helps to solve retained mode problems like:
 Inspired by ideas from this video: https://www.youtube.com/watch?v=-cWJRZhALD
 NOTE: this does not implement every idea in the video
 How it works:
+- User calls resource_get_xxx
+    - if it doesnt exist, its allocated and initialised
+    - if it already exists, its loaded from cache
+    - resourced is flagged "used"
+- At the end of every frame, all resources without the "used" flag are destroyed. Memeory is copied from one pool to
+  another in a flipping A>B B>A system. Resources are uninitialised and dropped and memory is defragged in one pass
+- When your app shuts down, all resources are destroyed. This means you never ever have to manually manage memory
+- Additional persistance flags exist for objects with more complicated lifetimes that need to persist multiple frames
+  when not in use
+- You can manually find or destroy resources if you need using resource_find() & _resource_destroy(), although at that
+  point it may be worth wondering whether a retained mode solution is better.
+
+IDEA:   This same system, or something like could be used for clever automatic compositing
+        Consider that the wip_libs/imgui.h lib requires that widgets with a higher z-order request their events first.
+        This forces structure on the developer, to write their code for the topmost widgets first.
+        Rendering on the other hand is done back to front.
+        This intriduces a problem for modal "views" (a popup window with its own background colour and foreground
+        widgets).
+        One way to tackle that problem may be to render all these modal views to a seperate framebuffer, and composite
+        them later. If we can depend on this strict order, and all framebuffers are stored in this resource manager, we
+        could safely loop backwards through all "used" framebuffers and handle our compositing that way.
+        This will require a rigid structure on behalf of the developer, but it's possible that its always fine in
+        practice.
+        One criticism of the above idea is that say a clicked button opens up a popup menu modal. The button sets a
+        flag, but presumably the code for rendering that modal lives at the top:
+
+        // tick()
+        if (gui->modal_open)
+        {
+            // ... draw contents
+        }
+        ....
+        if (do_button(width, height))
+        {
+            gui->modal_open = true;
+        }
+        ...
+        // do auto compositing
+
+        The above code will cause the modal to render on the next frame, rather than the one being rendered.
+        When code is written quickly and the author doesn't care that much about polish, that may be fine, but if every
+        other action in the GUI happens that frame without any additional frame latency, this delay stands out a little,
+        even if it's still crazy fast in the grand scheme of things (eg. VSCode, the code editor I'm writing this with
+        has an input -> render latency of 33ms last time I checked, which is probably 1 frame (16.6ms) longer than it
+        should be).
+
+        A solution to that may be to wrap `gui->modal_open = true;` in a fucntion that will set that `modal_open` flag,
+        and then render the contents of the modal to a framebuffer which is created with a special flag. The compositor
+        reads flag and makes sure its rendered last, and clears the flag when its done.
+        Presumably new framebuffers that are created this way will ALWAYS be expected to have the highest z-order at the
+        time
 */
 
 #include <nanovg2.h>
@@ -22,7 +73,7 @@ typedef enum ResourceType
     RESOURCE_TYPE_PIPELINE,
     // SGNVGframebuffer
     RESOURCE_TYPE_FRAMEBUFFER,
-    // void*, size-t
+    // void*, size_t
     RESOURCE_TYPE_DATA_FIXED,
     // RESOURCE_TYPE_DATA_DYNAMIC,
     // sg_buffer + sg_view
@@ -88,6 +139,8 @@ void resources_deinit(ResourceManager* rm, NVGcontext* nvg);
 void resources_end_frame(ResourceManager* rm, NVGcontext* nvg);
 
 ResourceHeader* resource_find(ResourceManager* rm, ResourceID id);
+void            _resource_destroy(ResourceHeader* res, NVGcontext* nvg);
+void            resources_destroy_type(ResourceManager* rm, NVGcontext* nvg, ResourceType type);
 
 typedef const sg_shader_desc* (*sokol_shdc_shader_t)(sg_backend backend);
 bool resource_get_pipeline(ResourceManager* rm, sg_pipeline* pipelne, sokol_shdc_shader_t method, uint32_t flags);
