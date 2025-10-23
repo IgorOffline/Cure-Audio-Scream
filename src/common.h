@@ -32,6 +32,7 @@
 #include <xhl/debug.h>
 
 #define ARRLEN(arr) (sizeof(arr) / sizeof(arr[0]))
+#define STRLEN(str) (ARRLEN(str) - 1)
 
 #ifndef NDEBUG
 void println(const char* const fmt, ...);

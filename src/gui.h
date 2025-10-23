@@ -86,10 +86,12 @@ typedef struct GUI
     sg_view   lfo_playhead_trail_view;
     float*    lfo_playhead_trail;
 
-    sg_image logo_id;
-    sg_view  logo_texview;
-    int      logo_width;
-    int      logo_height;
+    sg_image   logo_id;
+    sg_view    logo_texview;
+    int        logo_width;
+    int        logo_height;
+    unsigned   logo_events;
+    imgui_rect logo_area;
 
     // If false, should copy over the points array from the audio thread
     bool gui_lfo_points_valid;

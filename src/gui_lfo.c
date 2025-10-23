@@ -1524,7 +1524,7 @@ void draw_lfo_section(GUI* gui)
 
         nvgSetTextAlign(nvg, NVG_ALIGN_BC);
         nvgSetColour(nvg, C_TEXT);
-        nvgText(nvg, pattern_cx, pattern_area.b, "PATTERN", NULL);
+        nvgText(nvg, pattern_cx, pattern_area.b + 4, "PATTERN", NULL);
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
         float btn_text_x         = pattern_area.x + w8 * 0.5f;

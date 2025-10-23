@@ -501,7 +501,6 @@ void do_knob_shader(void* uptr)
 }
 
 // This should be a nvgImagePattern draw call but somehow I keep breaking nanovg...
-/*
 void do_logo_shader(void* uptr)
 {
     GUI*           gui = uptr;
@@ -512,17 +511,20 @@ void do_logo_shader(void* uptr)
     xassert(ok);
     if (ok)
     {
-        float x, y, w, h, img_scale;
-        y                              = 4;
-        h                              = lm->height_header - y;
-        img_scale                      = h / (float)gui->logo_height;
-        w                              = (float)gui->logo_width * img_scale;
-        x                              = lm->width - 16 - w;
         vs_logo_uniforms_t vs_uniforms = {
-            .topleft     = {x, y},
-            .bottomright = {x + w, y + h},
+            .topleft     = {gui->logo_area.x, gui->logo_area.y},
+            .bottomright = {gui->logo_area.r, gui->logo_area.b},
             .size        = {lm->width, lm->height},
         };
+
+        const bool hover = gui->logo_events & IMGUI_EVENT_MOUSE_HOVER;
+
+        fs_logo_uniforms_t fs_uniforms = {.u_col = {1, 1, 1, 1}};
+        if (hover)
+            memcpy(fs_uniforms.u_col, &C_WHITE, sizeof(C_WHITE));
+        else
+            memcpy(fs_uniforms.u_col, &C_TEXT, sizeof(C_TEXT));
+        _Static_assert(sizeof(fs_uniforms.u_col) == sizeof(C_TEXT), "");
 
         sg_apply_pipeline(pip);
         sg_apply_bindings(&(sg_bindings){
@@ -530,10 +532,35 @@ void do_logo_shader(void* uptr)
             .samplers[SMP_logo_smp] = gui->nvg->sampler_linear,
         });
         sg_apply_uniforms(UB_vs_logo_uniforms, &SG_RANGE(vs_uniforms));
+        sg_apply_uniforms(UB_fs_logo_uniforms, &SG_RANGE(fs_uniforms));
         sg_draw(0, 6, 1);
     }
 }
-*/
+
+int thread_run_hyperlink(void* data)
+{
+    const char* url = data;
+
+#if defined(_WIN32)
+#define OPEN_URL_COMMAND "start"
+#elif defined(__APPLE__)
+#define OPEN_URL_COMMAND "open"
+#endif
+    char buf[256];
+    snprintf(buf, sizeof(buf), OPEN_URL_COMMAND " %s", url);
+
+    // TODO: create wrapper for system() that doesn't spawn a console on Windows
+    system(buf);
+
+    return 0;
+}
+
+void open_hyperlink(const char* url)
+{
+    // non blocking
+    xt_thread_ptr_t thread = xthread_create(thread_run_hyperlink, (void*)url, XTHREAD_STACK_SIZE_DEFAULT);
+    xthread_detach(thread); // auto-destroy resources when thread ends
+}
 
 void pw_tick(void* _gui)
 {
@@ -552,6 +579,9 @@ void pw_tick(void* _gui)
             gui->imgui.num_duplicate_backbuffers = 0;
         main_dequeue_events(gui->plugin);
     }
+
+    bool click_curelogo = false;
+    bool click_devtag   = false;
 
 #if defined(_WIN32)
     // Using the CPLUG window extension, we have configured our DXGI backbuffer count to a maximum of 2
@@ -576,9 +606,15 @@ void pw_tick(void* _gui)
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
 
     // #ifndef NDEBUG
+
+    const uint64_t last_frame_draw_time = gui->frame_end_time - gui->frame_start_time;
+    fprintf(stderr, "%llu\n", last_frame_draw_time);
+
     gui->last_frame_start_time = gui->frame_start_time;
     gui->frame_start_time      = xtime_now_ns();
     // #endif
+
+    const uint64_t time_since_last_frame = gui->frame_start_time - gui->last_frame_start_time;
 
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
@@ -806,19 +842,25 @@ void pw_tick(void* _gui)
         nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
 
         // Logo
-        // snvg_command_custom(nvg, gui, do_logo_shader, NVG_LABEL("Knob shader"));
-        // snvg_command_draw_nvg(nvg, NVG_LABEL("main framebuffer 2"));
+        snvg_command_custom(nvg, gui, do_logo_shader, NVG_LABEL("Logo shader"));
+        snvg_command_draw_nvg(nvg, NVG_LABEL("main framebuffer 2"));
 
         float x, y, w, h, img_scale;
-        y         = 4;
-        h         = lm->height_header - y;
-        img_scale = h / (float)gui->logo_height;
-        w         = (float)gui->logo_width * img_scale;
-        x         = lm->width - 16 - w;
-        nvgBeginPath(nvg);
-        nvgRect(nvg, x, y, w, h);
-        nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_texview, 1, nvg->sampler_linear));
-        nvgFill(nvg);
+        y                = 4;
+        h                = lm->height_header - y;
+        img_scale        = h / (float)gui->logo_height;
+        w                = (float)gui->logo_width * img_scale;
+        x                = lm->width - 16 - w;
+        gui->logo_area   = (imgui_rect){x, y, x + w, y + h};
+        gui->logo_events = imgui_get_events_rect(im, 'logo', &gui->logo_area);
+        if (gui->logo_events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+        if (gui->logo_events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+            click_curelogo = true;
+        // nvgBeginPath(nvg);
+        // nvgRect(nvg, x, y, w, h);
+        // nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_texview, 1, nvg->sampler_linear));
+        // nvgFill(nvg);
     }
 
     // Main content background
@@ -1919,38 +1961,11 @@ void pw_tick(void* _gui)
 
     // Footer
     {
-        uint64_t frame_time_end         = xtime_now_ns();
-        uint64_t frame_time_duration_ns = frame_time_end - gui->frame_start_time;
-
-        uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
-
-        // limit accuracy from nanoseconds to approximately microseconds
-        uint64_t cpu_numerator   = frame_time_duration_ns >> 10; // fast integer divide by 1024
-        uint64_t cpu_denominator = max_frame_time_ns >> 10;      // fast integer divide by 1024
-
-        double cpu_amt       = (double)cpu_numerator / (double)cpu_denominator;
-        double frame_time_ms = (double)cpu_numerator * 1024e-6; // correct for 1024 int 'division'
-        // double approx_fps    = 1000 / frame_time_ms; // Potential FPS
-
-        // uint64_t actual
-        uint64_t diff_last_frame = frame_time_end - gui->frame_end_time;
-        gui->frame_end_time      = frame_time_end;
-        double actual_fps        = 1000.0 / ((diff_last_frame >> 10) * 1024e-6);
-
-        nvgSetFontSize(nvg, 12 * lm->content_scale);
         NVGcolour footer_col = C_BG_LIGHT;
         footer_col.a         = 0.5f;
         nvgSetColour(nvg, footer_col);
         char text[64] = {0};
-        int  len      = snprintf(
-            text,
-            sizeof(text),
-            "GUI CPU: %.2lf%% Frame Time: %.3lfms. FPS: %.lf",
-            (cpu_amt * 100),
-            frame_time_ms,
-            actual_fps);
-        nvgSetTextAlign(nvg, NVG_ALIGN_TL);
-        nvgText(nvg, 8, 8, text, text + len);
+        int  len      = 0;
 
         // TODO: remove after release
         const char*    plugin_type_name = "";
@@ -1972,17 +1987,83 @@ void pw_tick(void* _gui)
         nvgSetTextAlign(nvg, NVG_ALIGN_BL);
         nvgText(nvg, 8, lm->height - 8, text, text + len);
 
-        // Show window dimensions w/h
-        uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
-        uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
-        uint64_t threshold_1sec         = 1000000000;
-        uint64_t threshold_1_2sec       = 1200000000;
-        if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
         {
-            len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
-            nvgSetTextAlign(nvg, NVG_ALIGN_BR);
-            nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
+#define DEV_TAG "Developed by exacoustics"
+            const char*       devtag             = DEV_TAG;
+            const int         devtag_len         = STRLEN(DEV_TAG);
+            const int         devtag_company_len = STRLEN("exacoustics");
+            NVGglyphPosition* glyphs             = linked_arena_alloc(gui->arena, sizeof(*glyphs) * devtag_len);
+            nvgTextGlyphPositions(nvg, 0, 0, devtag, devtag + devtag_len, glyphs, devtag_len);
+
+            const NVGglyphPosition* name_start = &glyphs[devtag_len - devtag_company_len];
+            const NVGglyphPosition* name_end   = &glyphs[devtag_len - 1];
+            const float             name_width = name_end->maxx - name_start->minx;
+            const float             tag_width  = name_end->maxx - glyphs[0].minx;
+
+            imgui_rect tag_click_area = {lm->width - 8 - name_width, lm->content_b, lm->width - 8, lm->height};
+            unsigned   events         = imgui_get_events_rect(im, 'dtag', &tag_click_area);
+            if (events & IMGUI_EVENT_MOUSE_ENTER)
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+            if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                click_devtag = true;
+
+            nvgSetTextAlign(nvg, NVG_ALIGN_BL);
+            nvgText(nvg, lm->width - 8 - tag_width, lm->height - 8, devtag, devtag + devtag_len - devtag_company_len);
+
+            if (events & IMGUI_EVENT_MOUSE_HOVER)
+                nvgSetColour(nvg, C_GREY_1);
+            nvgText(
+                nvg,
+                lm->width - 8 - name_width,
+                lm->height - 8,
+                devtag + devtag_len - devtag_company_len,
+                devtag + devtag_len);
+
+            linked_arena_release(gui->arena, glyphs);
         }
+
+#ifndef NDEBUG
+        // uint64_t frame_time_end         = xtime_now_ns();
+        // uint64_t frame_time_duration_ns = frame_time_end - gui->frame_start_time;
+
+        uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
+
+        // limit accuracy from nanoseconds to approximately microseconds
+        uint64_t cpu_numerator   = last_frame_draw_time >> 10; // fast integer divide by 1024
+        uint64_t cpu_denominator = max_frame_time_ns >> 10;    // fast integer divide by 1024
+
+        double cpu_amt       = (double)cpu_numerator / (double)cpu_denominator;
+        double frame_time_ms = (double)cpu_numerator * 1024e-6; // correct for 1024 int 'division'
+        // double approx_fps    = 1000 / frame_time_ms; // Potential FPS
+
+        // uint64_t actual
+        // uint64_t diff_last_frame = frame_time_end - gui->frame_end_time;
+        // gui->frame_end_time      = frame_time_end;
+        double actual_fps = 1000.0 / ((time_since_last_frame >> 10) * 1024e-6);
+
+        nvgSetFontSize(nvg, 12 * lm->content_scale);
+        len = snprintf(
+            text,
+            sizeof(text),
+            "GUI CPU: %.2lf%% Frame Time: %.3lfms. FPS: %.lf",
+            (cpu_amt * 100),
+            frame_time_ms,
+            actual_fps);
+        nvgSetTextAlign(nvg, NVG_ALIGN_TL);
+        nvgText(nvg, 8, 8, text, text + len);
+#endif
+
+        // Show window dimensions w/h
+        // uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
+        // uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
+        // uint64_t threshold_1sec         = 1000000000;
+        // uint64_t threshold_1_2sec       = 1200000000;
+        // if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
+        // {
+        //     len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
+        //     nvgSetTextAlign(nvg, NVG_ALIGN_BR);
+        //     nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
+        // }
     }
 
     if (gui->tooltip.text)
@@ -2004,4 +2085,11 @@ void pw_tick(void* _gui)
 
     sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
+
+    gui->frame_end_time = xtime_now_ns();
+
+    if (click_curelogo)
+        open_hyperlink("https://cure.audio");
+    if (click_devtag)
+        open_hyperlink("https://exacoustics.com");
 }
