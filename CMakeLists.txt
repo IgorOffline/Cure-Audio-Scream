@@ -44,6 +44,7 @@ set(PLUGIN_OPTIONS "")
 # https://clang.llvm.org/docs/ClangCommandLineReference.html
 if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
     list(APPEND PLUGIN_OPTIONS
+        -Werror=switch
         -Werror=absolute-value
         -Werror=return-type
         -Werror=shadow

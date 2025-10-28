@@ -620,7 +620,7 @@ void pw_tick(void* _gui)
     // #ifndef NDEBUG
 
     const uint64_t last_frame_draw_time = gui->frame_end_time - gui->frame_start_time;
-    fprintf(stderr, "%llu\n", last_frame_draw_time);
+    // fprintf(stderr, "%llu\n", last_frame_draw_time);
 
     gui->last_frame_start_time = gui->frame_start_time;
     gui->frame_start_time      = xtime_now_ns();

@@ -269,6 +269,7 @@ void drag_and_draw_lfo_points(GUI* gui, imgui_pt pos, const imgui_rect* area)
     float pt_y_left = y, pt_y_right = y;
     switch (shape_type)
     {
+    case SHAPE_POINT:
     case SHAPE_FLAT:
         break;
     case SHAPE_LINEAR_ASC:
@@ -1315,6 +1316,8 @@ void draw_lfo_section(GUI* gui)
         }
 
         nvgBeginPath(nvg);
+        nvgSetColour(nvg, C_WHITE);
+
         for (int i = 0; i < ARRLEN(btns); i++)
         {
             const imgui_rect* rect = btns + i;
@@ -1328,6 +1331,11 @@ void draw_lfo_section(GUI* gui)
             const enum ShapeButtonType type = i;
             switch (type)
             {
+            case SHAPE_POINT:
+                nvgCircle(nvg, (inner.x + inner.r) * 0.5f, (inner.y + inner.b) * 0.5f, 2);
+                nvgFill(nvg);
+                nvgBeginPath(nvg);
+                break;
             case SHAPE_FLAT:
             {
                 float cy = floorf((inner.y + inner.b) * 0.5f) + 0.5f;
@@ -1395,7 +1403,6 @@ void draw_lfo_section(GUI* gui)
                 break;
             }
         }
-        nvgSetColour(nvg, C_WHITE);
         nvgStroke(nvg, 1.2f);
     }
 
@@ -1672,6 +1679,7 @@ void draw_lfo_section(GUI* gui)
     int delete_pt_idx     = -1;
 
     // Point events
+    if (gui->plugin->lfo_shape_idx == SHAPE_POINT)
     {
         const int num_points    = xarr_len(gui->points_copy);
         bool      backup_points = false;
@@ -1948,6 +1956,7 @@ void draw_lfo_section(GUI* gui)
     }
 
     // Skew point events
+    if (gui->plugin->lfo_shape_idx == SHAPE_POINT)
     {
         const int num_skew_points = xarr_len(gui->skew_points);
         for (int pt_idx = 0; pt_idx < num_skew_points; pt_idx++)
@@ -2009,7 +2018,8 @@ void draw_lfo_section(GUI* gui)
         pos.x = floorf(im->pos_mouse_down.x);
         pos.y = floorf(im->pos_mouse_down.y);
 
-        bool should_draw_shape = im->frame.modifiers_mouse_move & PW_MOD_PLATFORM_KEY_CTRL;
+        // bool should_draw_shape = im->frame.modifiers_mouse_move & PW_MOD_PLATFORM_KEY_CTRL;
+        bool should_draw_shape = gui->plugin->lfo_shape_idx != SHAPE_POINT;
         if (should_draw_shape)
         {
             im->left_click_counter = 0;
@@ -2067,7 +2077,8 @@ void draw_lfo_section(GUI* gui)
     }
     if (grid_events & IMGUI_EVENT_DRAG_MOVE)
     {
-        bool     should_draw_shape = im->frame.modifiers_mouse_move & PW_MOD_PLATFORM_KEY_CTRL;
+        // bool     should_draw_shape = im->frame.modifiers_mouse_move & PW_MOD_PLATFORM_KEY_CTRL;
+        bool     should_draw_shape = gui->plugin->lfo_shape_idx != SHAPE_POINT;
         imgui_pt pos;
         pos.x = floorf(im->pos_mouse_move.x);
         pos.y = floorf(im->pos_mouse_move.y);

@@ -79,6 +79,7 @@ enum
 
 enum ShapeButtonType
 {
+    SHAPE_POINT,
     SHAPE_FLAT,
     SHAPE_LINEAR_ASC,
     SHAPE_LINEAR_DESC,
