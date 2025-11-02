@@ -290,9 +290,12 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
             *val *= 0.01;
         break;
     case PARAM_INPUT_GAIN:
-    case PARAM_OUTPUT_GAIN:
         if ((ok = sscanf(str, "%lfdB", val)))
             *val = xm_normd(*val, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        break;
+    case PARAM_OUTPUT_GAIN:
+        if ((ok = sscanf(str, "%lfdB", val)))
+            *val = xm_normd(*val, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
         break;
     case PARAM_PATTERN_LFO_1:
     case PARAM_PATTERN_LFO_2:
@@ -406,11 +409,11 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
     case PARAM_INPUT_GAIN:
         v = xm_normd(0, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
         break;
+    case PARAM_OUTPUT_GAIN:
+        v = xm_normd(-6, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
+        break;
     case PARAM_WET:
         v = 1;
-        break;
-    case PARAM_OUTPUT_GAIN:
-        v = 0.5;
         break;
     case PARAM_PATTERN_LFO_1:
     case PARAM_PATTERN_LFO_2:
@@ -526,9 +529,14 @@ void cplug_parameterValueToString(void* ptr, uint32_t paramId, char* buf, size_t
         snprintf(buf, bufsize, "%.2f%%", value * 100);
         break;
     case PARAM_INPUT_GAIN:
-    case PARAM_OUTPUT_GAIN:
     {
         double dB = xm_lerpd(value, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        snprintf(buf, bufsize, "%.2fdB", dB);
+        break;
+    }
+    case PARAM_OUTPUT_GAIN:
+    {
+        double dB = xm_lerpd(value, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
         snprintf(buf, bufsize, "%.2fdB", dB);
         break;
     }

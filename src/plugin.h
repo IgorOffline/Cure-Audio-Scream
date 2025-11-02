@@ -19,7 +19,7 @@ typedef enum ParamID
     PARAM_RESONANCE,
     PARAM_INPUT_GAIN,
     PARAM_WET,
-    PARAM_OUTPUT_GAIN, // Currently not used...
+    PARAM_OUTPUT_GAIN,
 
     PARAM_PATTERN_LFO_1,
     PARAM_PATTERN_LFO_2,
@@ -58,6 +58,9 @@ _Static_assert(ARRLEN(PARAM_STR) == PARAM_COUNT, "");
 
 #define RANGE_INPUT_GAIN_MIN -72.0
 #define RANGE_INPUT_GAIN_MAX 24.0
+
+#define RANGE_OUTPUT_GAIN_MIN -36.0
+#define RANGE_OUTPUT_GAIN_MAX 0
 
 enum
 {

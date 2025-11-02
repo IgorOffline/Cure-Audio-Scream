@@ -461,6 +461,7 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         float resonance = s.values[PARAM_RESONANCE].current;
         float in_gain   = s.values[PARAM_INPUT_GAIN].current;
         float wet       = s.values[PARAM_WET].current;
+        float out_gain  = s.values[PARAM_OUTPUT_GAIN].current;
 
 // #define CUTOFF_MAX    MIDI_NOTE_NUM_20kHz
 #define CUTOFF_MAX (MIDI_NOTE_NUM_20kHz)
@@ -491,15 +492,17 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         float feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
         feedback_gain       = xm_fast_dB_to_gain(feedback_gain);
 
-        in_gain = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-        in_gain = xm_fast_dB_to_gain(in_gain);
+        in_gain  = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        in_gain  = xm_fast_dB_to_gain(in_gain);
+        out_gain = xm_lerpf(out_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        out_gain = xm_fast_dB_to_gain(out_gain);
 
         Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
         Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
 
         const bool smooth_params = s.values[PARAM_CUTOFF].remaining | s.values[PARAM_SCREAM].remaining |
                                    s.values[PARAM_RESONANCE].remaining | s.values[PARAM_INPUT_GAIN].remaining |
-                                   s.values[PARAM_WET].remaining;
+                                   s.values[PARAM_WET].remaining | s.values[PARAM_OUTPUT_GAIN].remaining;
 
         const bool has_modulation_or_smoothing = lfo_1_mod_flags || lfo_2_mod_flags || smooth_params;
 
@@ -598,7 +601,8 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
                 y = 0;
 
             // *it = xm_clampf(y, -1, 1);
-            audio[i] = wet * y + (1 - wet) * audio[i];
+            audio[i]  = wet * y + (1 - wet) * audio[i];
+            audio[i] *= out_gain;
             // *it = x;
 
 #ifdef CPLUG_BUILD_STANDALONE
@@ -657,6 +661,7 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
                 resonance = modvals[PARAM_RESONANCE];
                 in_gain   = modvals[PARAM_INPUT_GAIN];
                 wet       = modvals[PARAM_WET];
+                out_gain  = modvals[PARAM_OUTPUT_GAIN];
 
                 lp_Q = xm_lerpf(resonance, LP_Q_MIN, LP_Q_MAX);
                 hp_Q = xm_lerpf(resonance, HP_Q_MIN, HP_Q_MAX);
@@ -673,8 +678,10 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
                 feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
                 feedback_gain = xm_fast_dB_to_gain(feedback_gain);
 
-                in_gain = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-                in_gain = xm_fast_dB_to_gain(in_gain);
+                in_gain  = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+                in_gain  = xm_fast_dB_to_gain(in_gain);
+                out_gain = xm_lerpf(out_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+                out_gain = xm_fast_dB_to_gain(out_gain);
 
                 lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
                 hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);

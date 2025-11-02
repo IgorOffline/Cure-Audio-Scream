@@ -709,7 +709,7 @@ void pw_tick(void* _gui)
 
         {
             _Static_assert(
-                ARRLEN(lm->param_positions_cx) == 5,
+                ARRLEN(lm->param_positions_cx) == 6,
                 "You've changed the number of params and we assumed there were only 5");
             imgui_rect rects[ARRLEN(lm->param_positions_cx)] = {0};
 
@@ -718,6 +718,7 @@ void pw_tick(void* _gui)
             rects[2].r = knob_diameter;
             rects[3].r = knob_diameter;
             rects[4].r = veritcal_slider_width;
+            rects[5].r = veritcal_slider_width;
             layout_horizontal_fill(
                 rects,
                 ARRLEN(rects),
@@ -725,7 +726,7 @@ void pw_tick(void* _gui)
                 &(imgui_rect){param_boundary_left, 0, param_boundary_right, 0});
             for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
                 lm->param_positions_cx[i] = 0.5f * (rects[i].x + rects[i].r);
-            xassert(lm->param_positions_cx[4] < param_boundary_right);
+            xassert(lm->param_positions_cx[5] < param_boundary_right);
         }
 
         lm->knob_outer_radius = knob_diameter * 0.5f;
@@ -952,7 +953,8 @@ void pw_tick(void* _gui)
 
     // Params
     {
-        static const ParamID param_ids[] = {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET};
+        static const ParamID param_ids[] =
+            {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET, PARAM_OUTPUT_GAIN};
         _Static_assert(ARRLEN(param_ids) == ARRLEN(lm->param_positions_cx), "");
 
         // Param labels
@@ -960,7 +962,7 @@ void pw_tick(void* _gui)
         const float param_font_size = 14 * lm->content_scale;
         nvgSetFontSize(nvg, param_font_size);
 
-        static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET"};
+        static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET", "OUTPUT"};
         _Static_assert(ARRLEN(NAMES) == ARRLEN(lm->param_positions_cx));
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
@@ -1334,6 +1336,7 @@ void pw_tick(void* _gui)
             }
             case PARAM_INPUT_GAIN:
             case PARAM_WET:
+            case PARAM_OUTPUT_GAIN:
             {
                 float       param_width  = param_id == PARAM_INPUT_GAIN ? INPUT_WIDTH : WET_WIDTH;
                 const float meter_width  = snapf(param_width * lm->param_scale, 2);
@@ -1679,7 +1682,7 @@ void pw_tick(void* _gui)
                     snprintf(peak_label, sizeof(peak_label), "%.2f", peak_dB);
                     nvgText(nvg, (rect.x + rect.r) * 0.5f, rect.y + peak_label_height * 0.5f, peak_label, NULL);
                 }
-                else // param_id == PARAM_WET
+                else // param_id == PARAM_WET || param_id == PARAM_OUTPUT_GAIN
                 {
                     // BG colour
                     nvgBeginPath(nvg);
@@ -1718,7 +1721,7 @@ void pw_tick(void* _gui)
                     float drag_height  = drag_b - drag_y;
 
                     uint32_t events  = imgui_get_events_rect(im, wid, &rect);
-                    double   value_d = handle_param_events(gui, PARAM_WET, events, drag_height);
+                    double   value_d = handle_param_events(gui, param_id, events, drag_height);
 
                     // Draw BG notches
                     enum
