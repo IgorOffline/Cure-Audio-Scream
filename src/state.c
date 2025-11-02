@@ -185,7 +185,12 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
     // TODO: init LFO points
     // xassert(false);
 
-    extern void reset_state(Plugin * p);
+    // Before v0.2.5, the "output gain" param existed but wasn't used.
+    // Since v0.2.5 the default value was changed, so old saved projects will likely load with the old
+    // and undesirable default value. Here we set the output gain to 100%, or 0dB so the user continues
+    // to get the same gain
+    p->main_params[PARAM_OUTPUT_GAIN]  = 1;
+    p->audio_params[PARAM_OUTPUT_GAIN] = 1;
 
     if (ret != 0 && ret != sizeof(header))
     {
@@ -255,6 +260,14 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
             }
             else
             {
+                if (header.version.u32 <= v0_2_4.u32)
+                {
+                    // Before v0.2.5, the "output gain" param existed but wasn't used.
+                    // Since v0.2.5 the default value was changed, so old saved projects will likely load with the old
+                    // and undesirable default value. Here we set the output gain to 100%, or 0dB so the user continues
+                    // to get the same gain
+                    state->params[5] = 1; // PARAM_OUTPUT_GAIN
+                }
                 state_update_params(p, state->params, ARRLEN(state->params));
 
                 _Static_assert(sizeof(state->lfo_mod_amounts) == sizeof(p->lfo_mod_amounts), "");
