@@ -494,7 +494,7 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
 
         in_gain  = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
         in_gain  = xm_fast_dB_to_gain(in_gain);
-        out_gain = xm_lerpf(out_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        out_gain = xm_lerpf(out_gain, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
         out_gain = xm_fast_dB_to_gain(out_gain);
 
         Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
@@ -680,7 +680,7 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
 
                 in_gain  = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
                 in_gain  = xm_fast_dB_to_gain(in_gain);
-                out_gain = xm_lerpf(out_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+                out_gain = xm_lerpf(out_gain, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
                 out_gain = xm_fast_dB_to_gain(out_gain);
 
                 lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
