@@ -517,10 +517,12 @@ void do_lfo_shaders(void* uptr)
     uint64_t time_delta_ns = gui->frame_start_time - gui->last_frame_start_time;
     if (gui->last_frame_start_time == gui->gui_create_time)
         time_delta_ns = 0;
-    double       time_delta_sec       = xtime_convert_ns_to_sec(time_delta_ns);
-    const double reduction_per_second = -48;
-    double       reduction_dB         = time_delta_sec * reduction_per_second;
-    float        scale                = xm_fast_dB_to_gain(reduction_dB);
+    double time_delta_sec = xtime_convert_ns_to_sec(time_delta_ns);
+    // const double reduction_per_second = -48;
+    const double reduction_per_second = -60;
+    // const double reduction_per_second = -72;
+    double reduction_dB = time_delta_sec * reduction_per_second;
+    float  scale        = xm_fast_dB_to_gain(reduction_dB);
 
     for (int i = 0; i < len; i++)
     {
