@@ -970,8 +970,8 @@ void pw_tick(void* _gui)
             nvgCircle(nvg, points[i].x, points[i].y, DOT_RADIUS);
         }
         nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
-
         nvgFill(nvg);
+
         nvgBeginPath(nvg);
         for (int i = 0; i < ARRLEN(points); i++)
         {
@@ -2136,6 +2136,8 @@ void pw_tick(void* _gui)
     sg_commit(); // flip swapchain
     resources_end_frame(&gui->resource_manager, gui->nvg);
     imgui_end_frame(&gui->imgui);
+
+    // println("GPU upload: %llu", gui->nvg->frame_stats.uploaded_bytes);
 
     sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
