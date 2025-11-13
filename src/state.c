@@ -30,8 +30,8 @@ typedef struct PluginStatev0_0_4
 
 XALIGN(8) typedef struct LFOPointArrayHeaderv0_2_4
 {
-    int array_length; // num 'LFOPoint'
-    int blob_offset;  // LFOPoint* array = PluginStatev0_2_4.blob + blob_offset;
+    int array_length; // num lfo points
+    int blob_offset;  // xvec3f* array = PluginStatev0_2_4.blob + blob_offset;
 } LFOPointArrayHeaderv0_2_4;
 
 typedef struct LFOv0_2_4
@@ -218,10 +218,10 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
             // Reset all of the new state between v0.0.3 and v0.2.4
             memset(p->lfo_mod_amounts, 0, sizeof(p->lfo_mod_amounts));
 
-            float    x1  = 0;
-            float    x2  = x1 + 0.5;
-            LFOPoint pt1 = {x1, 0, 0.5};
-            LFOPoint pt2 = {x2, 1, 0.5};
+            float  x1  = 0;
+            float  x2  = x1 + 0.5;
+            xvec3f pt1 = {x1, 0, 0.5};
+            xvec3f pt2 = {x2, 1, 0.5};
 
             for (int i = 0; i < ARRLEN(p->lfos); i++)
             {
@@ -272,7 +272,7 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
                 memcpy(p->lfo_mod_amounts, state->lfo_mod_amounts, sizeof(p->lfo_mod_amounts));
 
                 // spare array
-                LFOPoint* dst_points = NULL;
+                xvec3f* dst_points = NULL;
 
                 for (int lfo_idx = 0; lfo_idx < ARRLEN(state->lfos); lfo_idx++)
                 {
@@ -287,8 +287,8 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
                     {
                         LFOPointArrayHeaderv0_2_4* arrheader = &state->lfos[lfo_idx].patterns[pattern_idx];
 
-                        size_t    src_npoints = arrheader->array_length;
-                        LFOPoint* src_points  = (LFOPoint*)(state->blob + arrheader->blob_offset);
+                        size_t  src_npoints = arrheader->array_length;
+                        xvec3f* src_points  = (xvec3f*)(state->blob + arrheader->blob_offset);
 
                         xarr_setlen(dst_points, src_npoints);
 
@@ -318,7 +318,7 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
 
     if (p->gui)
     {
-        GUI* gui                  = p->gui;
-        gui->gui_lfo_points_valid = false;
+        GUI* gui                      = p->gui;
+        gui->lfo.gui_lfo_points_valid = false;
     }
 }

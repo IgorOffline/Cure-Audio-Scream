@@ -10,6 +10,8 @@
 
 #include "resource_manager.h"
 
+#include "gui_lfo_points.h"
+
 typedef struct
 {
     float   x, y;
@@ -93,30 +95,7 @@ typedef struct GUI
     unsigned   logo_events;
     imgui_rect logo_area;
 
-    // If false, should copy over the points array from the audio thread
-    bool gui_lfo_points_valid;
-    // Used to queue changes made to LFO points on the audio thread
-    // Coordinates are in beat time, exactly like the lfo
-    LFOPoint* main_lfo_points;
-
-    // Draggable points (widgets)
-    // Cordinates are in window space
-    bool      should_update_points;
-    imgui_pt* points;
-    imgui_pt* skew_points;
-    // Used as backup while doing non-destructive preview editing of points
-    imgui_pt* points_copy;
-    imgui_pt* skew_points_copy;
-
-    // Point multiselect
-    xvec2f selection_start;
-    xvec2f selection_end;
-    int*   selected_point_indexes;
-    // Used for hacks to make the current selection & hover work properly when previewing edits to points with the
-    // drag-auto-erase feature
-    int selected_point_idx;
-
-    imgui_pt* lfo_cached_path;
+    GUILFOPoints lfo;
 
     Tooltip tooltip;
 

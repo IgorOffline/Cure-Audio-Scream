@@ -42,7 +42,7 @@ void gui_handle_param_change(void* _gui, ParamID param_id)
 {
     GUI* gui = _gui;
     if (param_id == PARAM_PATTERN_LFO_1 || param_id == PARAM_PATTERN_LFO_2)
-        gui->gui_lfo_points_valid = false;
+        gui->lfo.gui_lfo_points_valid = false;
 }
 
 static void my_sg_logger(
@@ -213,13 +213,8 @@ void pw_destroy_gui(void* _gui)
     // }
 
     ted_deinit(&gui->texteditor);
-    xarr_free(gui->main_lfo_points);
-    xarr_free(gui->points);
-    xarr_free(gui->skew_points);
-    xarr_free(gui->lfo_cached_path);
-    xarr_free(gui->selected_point_indexes);
-    xarr_free(gui->points_copy);
-    xarr_free(gui->skew_points_copy);
+
+    gui_lfo_deinit(&gui->lfo);
     xarr_free(gui->lfo_ybuffer);
     xarr_free(gui->lfo_playhead_trail);
 
@@ -804,7 +799,7 @@ void pw_tick(void* _gui)
         lfo_btn.b              = lm->top_content_bottom;
         gui->lfo_toggle_button = lfo_btn;
 
-        gui->should_update_points = false;
+        gui->lfo.points_valid = false;
     }
 
     // Note: The 'id<CAMetalDrawable>' pointer can change every frame.
@@ -2013,6 +2008,8 @@ void pw_tick(void* _gui)
 
     // Footer
     {
+        nvgSetFontSize(nvg, 12 * lm->content_scale);
+
         NVGcolour footer_col = C_BG_LIGHT;
         footer_col.a         = 0.5f;
         nvgSetColour(nvg, footer_col);
@@ -2058,7 +2055,6 @@ void pw_tick(void* _gui)
         // gui->frame_end_time      = frame_time_end;
         double actual_fps = 1000.0 / ((time_since_last_frame >> 10) * 1024e-6);
 
-        nvgSetFontSize(nvg, 12 * lm->content_scale);
         len = snprintf(
             text,
             sizeof(text),

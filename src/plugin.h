@@ -80,23 +80,6 @@ enum
     EVENT_QUEUE_MASK = 255,
 };
 
-enum ShapeButtonType
-{
-    SHAPE_POINT,
-    SHAPE_FLAT,
-    SHAPE_LINEAR_ASC,
-    SHAPE_LINEAR_DESC,
-    SHAPE_CONVEX_ASC,
-    SHAPE_CONCAVE_DESC,
-    SHAPE_CONCAVE_ASC,
-    SHAPE_CONVEX_DESC,
-    SHAPE_COSINE_ASC,
-    SHAPE_COSINE_DESC,
-    SHAPE_TRIANGLE_UP,
-    SHAPE_TRIANGLE_DOWN,
-    SHAPE_COUNT,
-};
-
 typedef enum EventType
 {
     EVENT_SET_PARAMETER = 16,
@@ -147,20 +130,19 @@ static const char* LFO_RATE_NAMES[] = {
 };
 _Static_assert(ARRLEN(LFO_RATE_NAMES) == LFO_RATE_COUNT, "");
 
-typedef struct LFOPoint
-{
-    float x;    // 0-pattern_length. Values are in beat time
-    float y;    // 0,1
-    float skew; // 0,1, default 0.5
-} LFOPoint;
-
 typedef struct LFO
 {
     xt_spinlock_t spinlocks[NUM_LFO_PATTERNS];
 
+    // struct
+    // {
+    //     float x;    // 0-pattern_length. Values are in beat time
+    //     float y;    // 0,1
+    //     float skew; // 0,1, default 0.5
+    // } points;
     // NOTE: the GUI will display a point on the right edge. This does not represent the final point in this array. We
     // calculate that point at runtime based off of the first point in these arrays
-    LFOPoint* points[NUM_LFO_PATTERNS];
+    xvec3f* points[NUM_LFO_PATTERNS];
 
     double phase;
 

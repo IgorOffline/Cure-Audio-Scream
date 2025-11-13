@@ -10,7 +10,6 @@
 #include <xhl/time.h>
 
 #include "params_and_events.c"
-#include "state.c"
 #include <xhl/array.h>
 #include <xhl/debug.h>
 #include <xhl/vector.h>
@@ -134,14 +133,14 @@ void* cplug_createPlugin(CplugHostContext* ctx)
             // for (int k = 0; k < lfo->pattern_length[j]; k++)
             // {
             // float    x1  = k;
-            float    x1  = 0;
-            float    x2  = x1 + 0.5;
-            LFOPoint pt1 = {x1, 0, 0.5};
-            LFOPoint pt2 = {x2, 1, 0.5};
+            float  x1  = 0;
+            float  x2  = x1 + 0.5;
+            xvec3f pt1 = {x1, 0, 0.5};
+            xvec3f pt2 = {x2, 1, 0.5};
             xarr_push(lfo->points[j], pt1);
             xarr_push(lfo->points[j], pt2);
             // }
-            // LFOPoint(*points_view)[32] = (void*)(lfo->points[j]);
+            // xvec3f(*points_view)[32] = (void*)(lfo->points[j]);
             // xassert(false);
         }
     }
@@ -283,8 +282,8 @@ void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
     const double pattern_v   = p->audio_params[PARAM_PATTERN_LFO_1 + lfo_idx];
     const int    pattern_idx = xm_droundi(pattern_v * (NUM_LFO_PATTERNS - 1));
 
-    LFOPoint* points     = NULL;
-    int       num_points = 0;
+    xvec3f* points     = NULL;
+    int     num_points = 0;
     // !!!
     {
         xt_spinlock_lock(&lfo->spinlocks[pattern_idx]);
@@ -297,8 +296,8 @@ void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
         xt_spinlock_unlock(&lfo->spinlocks[pattern_idx]);
     }
 
-    const LFOPoint* points_start = points;
-    const LFOPoint* points_end   = points_start + num_points;
+    const xvec3f* points_start = points;
+    const xvec3f* points_end   = points_start + num_points;
 
     // double beat_position = fmod(p->beat_position, pattern_length);
     // xassert(beat_position < pattern_length);
@@ -320,13 +319,13 @@ void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
 
 #define beat_position lfo->phase
 
-    const LFOPoint* it = points_end;
+    const xvec3f* it = points_end;
     while (it-- != points_start)
         if (beat_position >= it->x)
             break;
 
-    LFOPoint pt1 = *it;
-    xvec2f   pt2;
+    xvec3f pt1 = *it;
+    xvec2f pt2;
     if ((it + 1) == points_end)
     {
         // last point in array (wrap)
