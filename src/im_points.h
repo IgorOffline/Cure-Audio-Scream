@@ -41,22 +41,23 @@ typedef struct IMPointsData
 
     // If false, should copy over the points array from the audio thread to the main thread
     bool main_points_valid;
-    // Used to queue changes made to points on the audio thread
+    // Used to queue changes made to GUIs points before sending to the audio thread
+    // Coordinates are normalised 0-1
     xvec3f* main_points;
 
     // Draggable points (widgets)
-    // Cordinates are in window space
+    // Coordinates are in window space
     bool    points_valid; // Set to false to copy main_points > points
     xvec2f* points;
     xvec2f* skew_points;
-    // Used as backup while doing non-destructive preview editing of points
+    // Used as backup while doing non-destructive preview editing of points/skew_points
     xvec2f* points_copy;
     xvec2f* skew_points_copy;
 
     // Point multiselect
     xvec2f selection_start;
     xvec2f selection_end;
-    int*   selected_point_indexes;
+    int*   selected_point_indexes; // indexes into points_copy
     // Used for hacks to make the current selection & hover work properly when previewing edits to points with the
     // drag-auto-erase feature
     int selected_point_idx;
@@ -88,9 +89,11 @@ typedef struct IMPointsFrameContext
     struct LinkedArena*   arena; // not owned
     void*                 pw;    // not owned
 
+    // Recreate the cache
     bool should_update_cached_path;
-    bool should_update_main_points_with_points;
-    bool should_update_audio_lfo_points_with_main_points;
+    // If true, updates the main points
+    bool should_update_main_points_with_points; // place
+    bool should_update_audio_points_with_main_points;
     int  pt_hover_idx;
     int  pt_hover_skew_idx;
     int  delete_pt_idx;
@@ -1126,8 +1129,8 @@ void imp_handle_grid_events(
 
     if (fstate->should_update_main_points_with_points)
     {
-        fstate->should_update_audio_lfo_points_with_main_points = true;
-        // Queue LFO points
+        fstate->should_update_audio_points_with_main_points = true;
+        // Queue IM points
         int npoints = xarr_len(imp->skew_points);
         xarr_setlen(imp->main_points, npoints);
         for (int i = 0; i < npoints; i++)

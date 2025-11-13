@@ -548,7 +548,7 @@ void draw_lfo_section(GUI* gui)
 
                     imp->points_valid = false;
 
-                    should_update_audio_lfo_points_with_main_points = true;
+                    should_update_audio_points_with_main_points = true;
                 }
             }
 
@@ -1560,7 +1560,7 @@ void draw_lfo_section(GUI* gui)
     // x = 0.6666,      y = 0.75, skew = 0.44
     // x = 1 - (1 / 7), y = 0.96, skew = 1 - 0.731994
 
-    if (fstate.should_update_audio_lfo_points_with_main_points)
+    if (fstate.should_update_audio_points_with_main_points)
     {
         LFO*    lfo        = &gui->plugin->lfos[lfo_idx];
         xvec3f* old_array  = NULL;
