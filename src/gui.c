@@ -798,8 +798,6 @@ void pw_tick(void* _gui)
         lfo_btn.r              = lfo_btn.x + 40;
         lfo_btn.b              = lm->top_content_bottom;
         gui->lfo_toggle_button = lfo_btn;
-
-        gui->imp.points_valid = false;
     }
 
     // Note: The 'id<CAMetalDrawable>' pointer can change every frame.
@@ -2133,7 +2131,7 @@ void pw_tick(void* _gui)
     resources_end_frame(&gui->resource_manager, gui->nvg);
     imgui_end_frame(&gui->imgui);
 
-    println("GPU upload: %llu", gui->nvg->frame_stats.uploaded_bytes);
+    // println("GPU upload: %llu", gui->nvg->frame_stats.uploaded_bytes);
 
     sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);

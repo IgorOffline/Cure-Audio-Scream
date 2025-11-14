@@ -199,10 +199,12 @@ void draw_lfo_section(GUI* gui)
         imp->theme.col_point_selected = 0xffff00ff;
 
         imp->theme.col_selection_box = 0x007fffff;
+
+        imp->points_valid = false;
     }
 
     // TODO: rather than cache a line of points, cache the vertices from NanoVG.
-    IMPointsFrameContext fstate                 = imp_frame_context_new(&gui->imp, nvg, im, gui->arena, gui->pw);
+    IMPointsFrameContext fstate                 = imp_frame_context_new(imp, nvg, im, gui->arena, gui->pw);
     bool                 should_clear_lfo_trail = false;
     // int  next_pattern_length                                = 0;
 
@@ -811,11 +813,17 @@ void draw_lfo_section(GUI* gui)
 #define PAINT_KEY "Cmd"
 #endif
 
+            // Not currently how we paint to the grid
+            // tooltip_handle_events(
+            //     &gui->tooltip,
+            //     *rect,
+            //     "Hold the " PAINT_KEY " key on your keyboard while dragging your mouse inside empty space on the LFO
+            //     " "grid to paint the currently selected shape to the grid", gui->frame_start_time, events[i]);
             tooltip_handle_events(
                 &gui->tooltip,
                 *rect,
-                "Hold the " PAINT_KEY " key on your keyboard while dragging your mouse inside empty space on the LFO "
-                "grid to paint the currently selected shape to the grid",
+                "Select a draw mode and drag your mouse inside empty space on the LFO grid to paint the currently "
+                "selected shape to the grid.",
                 gui->frame_start_time,
                 events[i]);
 
