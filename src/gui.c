@@ -707,6 +707,7 @@ void pw_tick(void* _gui)
         const float PARAMS_WIDTH         = param_boundary_right - param_boundary_left;
 
         lm->param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
+        lm->param_scale = xm_maxf(lm->param_scale, lm->content_scale);
 
         const float veritcal_slider_width = snapf(VERTICAL_SLIDER_WIDTH * lm->param_scale, 2);
         const float knob_diameter         = snapf(ROTARY_PARAM_OUTER_DIAMETER * lm->param_scale, 2);
@@ -738,13 +739,13 @@ void pw_tick(void* _gui)
 
         {
             imgui_rect rects[4] = {0};
-            rects[0].b          = lm->content_scale * 20;                          // param value
-            rects[1].b          = lm->knob_outer_radius * 2;                       // param
-            rects[2].b          = lm->content_scale * PARAM_MOD_AMOUNT_RADIUS * 2; // mod amount
-            rects[3].b          = lm->content_scale * 20;                          // Param title
+            rects[0].b          = lm->param_scale * 20;                          // param value
+            rects[1].b          = lm->knob_outer_radius * 2;                     // param
+            rects[2].b          = lm->param_scale * PARAM_MOD_AMOUNT_RADIUS * 2; // mod amount
+            rects[3].b          = lm->param_scale * 20;                          // Param title
 
             imgui_rect box  = {0, lm->content_y, 0, lm->content_y + lm->top_content_height};
-            box.y          += 36 + lm->content_scale * 10;
+            box.y          += 36 + lm->param_scale * 10;
             box.b          -= 40;
             layout_vertical_fill(rects, ARRLEN(rects), LAYOUT_SPACE_BETWEEN, &box);
 
@@ -982,7 +983,7 @@ void pw_tick(void* _gui)
 
         // Param labels
         nvgSetColour(nvg, C_TEXT);
-        const float param_font_size = 14 * lm->content_scale;
+        const float param_font_size = 14 * lm->param_scale;
         nvgSetFontSize(nvg, param_font_size);
 
         static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET", "OUTPUT"};
@@ -999,8 +1000,8 @@ void pw_tick(void* _gui)
             imgui_rect rect;
             rect.x = param_cx - 50;
             rect.r = param_cx + 50;
-            rect.y = lm->cy_param_value - lm->content_scale * 10;
-            rect.b = rect.y + lm->content_scale * 20;
+            rect.y = lm->cy_param_value - lm->param_scale * 10;
+            rect.b = rect.y + lm->param_scale * 20;
 
             unsigned wid    = 'txt' + i;
             uint32_t events = imgui_get_events_rect(im, wid, &rect);
@@ -1057,6 +1058,7 @@ void pw_tick(void* _gui)
         unsigned    mod_amt_events[ARRLEN(lm->param_positions_cx)][2] = {0};
         const float mod_amt_radius                                    = lm->param_scale * PARAM_MOD_AMOUNT_RADIUS;
         const float mod_amt_gap                                       = lm->param_scale * 10;
+        const float mod_amt_stroke_width                              = lm->param_scale * 4;
         const float mod_amt_cx_delta                                  = 0.5f * mod_amt_gap + mod_amt_radius;
 
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
@@ -1128,7 +1130,7 @@ void pw_tick(void* _gui)
                 nvgBeginPath(nvg);
                 nvgCircle(nvg, c.x, c.y, mod_amt_radius - 2);
                 nvgSetColour(nvg, C_GREY_1);
-                nvgStroke(nvg, 4);
+                nvgStroke(nvg, mod_amt_stroke_width);
 
                 if (fabsf(modamt.data[j]) != 0)
                 {
@@ -1144,7 +1146,7 @@ void pw_tick(void* _gui)
                         xm_maxf(start_radians, end_radians),
                         NVG_CW);
                     nvgSetColour(nvg, C_DARK_BLUE);
-                    nvgStroke(nvg, 4);
+                    nvgStroke(nvg, mod_amt_stroke_width);
                 }
             }
         }
@@ -1447,8 +1449,8 @@ void pw_tick(void* _gui)
                 if (param_id == PARAM_INPUT_GAIN)
                 {
                     float       rect_r     = rect.r;
-                    const float icon_width = 10;
-                    float       icon_r     = rect.r + icon_width + 4;
+                    const float icon_width = 10 * lm->param_scale;
+                    float       icon_r     = rect.r + icon_width + 4 * lm->param_scale;
                     rect.r                 = icon_r;
                     uint32_t events        = imgui_get_events_rect(im, wid, &rect);
                     rect.r                 = rect_r;
@@ -1475,8 +1477,8 @@ void pw_tick(void* _gui)
                     nvgSetPaint(nvg, bg_paint);
                     nvgFill(nvg);
 
-                    const float mod_amt_padding     = 2;
-                    const float mod_amt_strokewidth = 3;
+                    const float mod_amt_padding     = floorf(2 * lm->param_scale);
+                    const float mod_amt_strokewidth = floorf(3 * lm->param_scale);
 
                     nvgBeginPath(nvg);
                     for (int j = 0; j < ARRLEN(modamts.data); j++)
@@ -1525,7 +1527,7 @@ void pw_tick(void* _gui)
 
                     float ch_w = roundf(meter_width * (7.0f / 32.0f));
 
-                    const float peak_label_height = 16 * lm->content_scale;
+                    const float peak_label_height = 16 * lm->param_scale;
 
                     const float ch_y    = rect.y + peak_label_height;
                     const float ch_b    = rect.b - 4;
@@ -1541,9 +1543,6 @@ void pw_tick(void* _gui)
 
                         float shadow_radius = 8;
 
-                        // ch_y
-                        // ch_h
-
                         float icon_y = xm_lerpf(value_d, ch_b, ch_y);
 
                         static const NVGcolour icol      = {0, 0, 0, 0.3};
@@ -1558,8 +1557,8 @@ void pw_tick(void* _gui)
 
                         nvgBeginPath(nvg);
                         nvgMoveTo(nvg, icon_x, icon_y);
-                        nvgLineTo(nvg, icon_r, icon_y - 8);
-                        nvgLineTo(nvg, icon_r, icon_y + 8);
+                        nvgLineTo(nvg, icon_r, icon_y - 8 * lm->param_scale);
+                        nvgLineTo(nvg, icon_r, icon_y + 8 * lm->param_scale);
                         nvgClosePath(nvg);
                         nvgSetColour(nvg, C_GREY_2);
                         nvgFill(nvg);
@@ -1700,7 +1699,7 @@ void pw_tick(void* _gui)
                     else
                         nvgSetColour(nvg, C_RED);
 
-                    nvgSetFontSize(nvg, 8);
+                    nvgSetFontSize(nvg, 8 * lm->param_scale);
                     char peak_label[16];
                     snprintf(peak_label, sizeof(peak_label), "%.2f", peak_dB);
                     nvgText(nvg, (rect.x + rect.r) * 0.5f, rect.y + peak_label_height * 0.5f, peak_label, NULL);

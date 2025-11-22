@@ -144,45 +144,60 @@ void draw_crotchet_svg(NVGcontext* nvg, const float scale, float x, float y)
     // clang-format on
 }
 
+void add_up_down_triangles(NVGcontext* nvg, imgui_rect rect)
+{
+    float w  = rect.r - rect.x;
+    float cy = (rect.b + rect.y) * 0.5f;
+    nvgMoveTo(nvg, rect.r, rect.y + 0.75f * w);
+    nvgLineTo(nvg, rect.x + w * 0.5f, rect.y);
+    nvgLineTo(nvg, rect.x, rect.y + 0.75f * w);
+    nvgClosePath(nvg);
+
+    nvgMoveTo(nvg, rect.r, rect.b - 0.75f * w);
+    nvgLineTo(nvg, rect.x + w * 0.5f, rect.b);
+    nvgLineTo(nvg, rect.x, rect.b - 0.75f * w);
+    nvgClosePath(nvg);
+}
+
 void draw_lfo_section(GUI* gui)
 {
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
-
-    enum
-    {
-        LFO_TAB_HEIGHT           = 28,
-        LFO_TAB_WIDTH            = 80,
-        LFO_TAB_ICON_PADDING     = 8,
-        LFO_TAB_ICON_WIDTH       = 12, // Square icon
-        LFO_TAB_ARROWHEAD_LENGTH = 3,
-        LFO_TAB_ARROWBODY_LENGTH = 4,
-
-        GRID_BUTTON_WIDTH      = 32,
-        GRID_BUTTON_HEIGHT     = 28,
-        GRID_BUTTON_BUTTON_GAP = 8,
-        GRID_BUTTON_TEXT_GAP   = 16,
-
-        CHECKBOX_HEIGHT = 12,
-
-        SHAPES_WIDTH         = 40, // LFO shape buttons are square
-        SHAPES_INNER_PADDING = 8,
-
-        CONTENT_PADDING_X = 32,
-        CONTENT_PADDING_Y = 16,
-
-        PATTERN_WIDTH                = 200,
-        PATTERN_NUMBER_LABEL_PADDING = 32,
-        PATTERN_SLIDER_WIDTH         = PATTERN_WIDTH - 2 * PATTERN_NUMBER_LABEL_PADDING,
-        PATTERN_TRIANGLE_HEIGHT      = 12,
-
-        DISPLAY_PADDING_TOP    = 48,
-        DISPLAY_PADDING_BOTTOM = 32,
-    };
 
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
     IMPointsData*  imp = &gui->imp;
+
+    const float SCALE                    = lm->param_scale;
+    const float PADDING                  = floorf(8 * lm->content_scale);
+    const float LFO_TAB_WIDTH            = floorf(80 * SCALE);
+    const float LFO_TAB_HEIGHT           = floorf(28 * SCALE);
+    const float LFO_TAB_ICON_PADDING     = floorf(8 * SCALE);
+    const float LFO_TAB_ICON_WIDTH       = floorf(12 * SCALE); // Square icon
+    const float LFO_TAB_ARROWHEAD_LENGTH = floorf(3 * SCALE);
+    const float LFO_TAB_ARROWBODY_LENGTH = floorf(4 * SCALE);
+
+    const float GRID_BUTTON_WIDTH      = floorf(32 * SCALE);
+    const float GRID_BUTTON_HEIGHT     = floorf(28 * SCALE);
+    const float GRID_BUTTON_BUTTON_GAP = floorf(8 * SCALE);
+    const float GRID_BUTTON_TEXT_GAP   = floorf(16 * SCALE);
+
+    const float CHECKBOX_HEIGHT = floorf(12 * SCALE);
+
+    const float SHAPES_WIDTH         = floorf(40 * SCALE); // LFO shape buttons are square
+    const float SHAPES_INNER_PADDING = floorf(8 * SCALE);
+
+    const float CONTENT_PADDING_X = floorf(32 * lm->content_scale);
+    const float CONTENT_PADDING_Y = floorf(16 * lm->content_scale);
+
+    const float PATTERN_WIDTH                = floorf(200 * SCALE);
+    const float PATTERN_NUMBER_LABEL_PADDING = floorf(32 * SCALE);
+    const float PATTERN_SLIDER_WIDTH         = PATTERN_WIDTH - 2 * PATTERN_NUMBER_LABEL_PADDING;
+    const float PATTERN_TRIANGLE_HEIGHT      = floorf(12 * SCALE);
+
+    const float DISPLAY_PADDING_TOP    = floorf(48 * lm->content_scale);
+    const float DISPLAY_PADDING_BOTTOM = floorf(32 * lm->content_scale);
+    const float FONT_SIZE              = 14 * SCALE;
 
     if (im->frame.events & ((1 << PW_EVENT_RESIZE) | (1 << PW_EVENT_DPI_CHANGED)))
     {
@@ -209,16 +224,15 @@ void draw_lfo_section(GUI* gui)
     // int  next_pattern_length                                = 0;
 
     const float bot_content_height = lm->content_b - lm->top_content_bottom;
-    const float font_size          = lm->content_scale * 14;
 
-    const float display_y   = lm->top_content_bottom + 8;
-    const float display_w   = (lm->content_r - lm->content_x) - 2 * 8;
-    const float display_h   = bot_content_height - 2 * 8;
+    const float display_y   = lm->top_content_bottom + PADDING;
+    const float display_w   = (lm->content_r - lm->content_x) - 2 * PADDING;
+    const float display_h   = bot_content_height - 2 * PADDING;
     const float display_b   = display_y + display_h;
-    const float top_text_cy = display_y + CONTENT_PADDING_Y + LFO_TAB_HEIGHT * 0.5f;
+    const float top_text_cy = display_y + (CONTENT_PADDING_Y + LFO_TAB_HEIGHT * 0.5f);
 
     nvgBeginPath(nvg);
-    nvgRoundedRect(nvg, lm->content_x + 8, display_y, display_w, display_h, 6);
+    nvgRoundedRect(nvg, lm->content_x + PADDING, display_y, display_w, display_h, 6);
     nvgSetPaint(
         nvg,
         nvgLinearGradient(nvg, 0, display_y, 0, display_b, nvgHexColour(0x242838FF), nvgHexColour(0x0C101DFF)));
@@ -227,18 +241,17 @@ void draw_lfo_section(GUI* gui)
     // LFO tabs
     {
         imgui_rect lfo_tabs[2];
-        float      gui_cx = lm->width / 2.0f;
 
-        lfo_tabs[0].r = gui_cx - 4;
-        lfo_tabs[0].x = lfo_tabs[0].r - LFO_TAB_WIDTH;
-        lfo_tabs[1].x = gui_cx + 4;
-        lfo_tabs[1].r = lfo_tabs[1].x + LFO_TAB_WIDTH;
-
-        // float top_padding = CONTENT_PADDING_Y;
-        lfo_tabs[0].y = display_y + CONTENT_PADDING_Y;
-        lfo_tabs[1].y = display_y + CONTENT_PADDING_Y;
-        lfo_tabs[0].b = lfo_tabs[0].y + LFO_TAB_HEIGHT;
-        lfo_tabs[1].b = lfo_tabs[1].y + LFO_TAB_HEIGHT;
+        float gui_cx = lm->width * 0.5f;
+        layout_uniform_horizontal(
+            lfo_tabs,
+            ARRLEN(lfo_tabs),
+            gui_cx,
+            display_y + CONTENT_PADDING_Y,
+            LFO_TAB_WIDTH,
+            LFO_TAB_HEIGHT,
+            LAYOUT_CENTRE,
+            PADDING);
 
         for (int i = 0; i < ARRLEN(lfo_tabs); i++)
         {
@@ -360,7 +373,7 @@ void draw_lfo_section(GUI* gui)
             char label[]  = "LFO 1";
             label[4]     += i;
 
-            nvgSetFontSize(nvg, lm->content_scale * 14);
+            nvgSetFontSize(nvg, FONT_SIZE);
             nvgSetTextAlign(nvg, NVG_ALIGN_CR);
             nvgText(nvg, rect->r - LFO_TAB_ICON_PADDING, top_text_cy, label, label + 5);
         }
@@ -375,7 +388,7 @@ void draw_lfo_section(GUI* gui)
     {
         imgui_rect rect;
         rect.x = content_x;
-        rect.r = ceilf(content_x + lm->content_scale * 76);
+        rect.r = ceilf(content_x + 76 * SCALE);
         rect.y = button_top;
         rect.b = button_bottom;
 
@@ -401,25 +414,18 @@ void draw_lfo_section(GUI* gui)
             gui->plugin->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
         }
 
-        nvgSetFontSize(nvg, font_size);
+        nvgSetFontSize(nvg, FONT_SIZE);
         nvgSetColour(nvg, C_TEXT);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
         nvgText(nvg, content_x, top_text_cy, "GRID", NULL);
 
         // Up & down "buttons"
-        float btn_top = floor(top_text_cy - font_size * 0.4f);
-        float btn_bot = ceilf(top_text_cy + font_size * 0.35f);
+        float btn_left = floor(rect.r - 5 * SCALE);
+        float btn_top  = floor(top_text_cy - FONT_SIZE * 0.4f);
+        float btn_bot  = ceilf(top_text_cy + FONT_SIZE * 0.35f);
 
         nvgBeginPath(nvg);
-        nvgMoveTo(nvg, rect.r, btn_top + 3.8);
-        nvgLineTo(nvg, rect.r - 2.5, btn_top);
-        nvgLineTo(nvg, rect.r - 5, btn_top + 3.8);
-        nvgClosePath(nvg);
-
-        nvgMoveTo(nvg, rect.r, btn_bot - 3.8);
-        nvgLineTo(nvg, rect.r - 2.5, btn_bot);
-        nvgLineTo(nvg, rect.r - 5, btn_bot - 3.8);
-        nvgClosePath(nvg);
+        add_up_down_triangles(nvg, (imgui_rect){btn_left, btn_top, rect.r, btn_bot});
 
         nvgSetColour(nvg, C_GREY_1);
         nvgFill(nvg);
@@ -427,7 +433,7 @@ void draw_lfo_section(GUI* gui)
         nvgSetTextAlign(nvg, NVG_ALIGN_CR);
         char label[8];
         snprintf(label, sizeof(label), "%d", ngrid);
-        nvgText(nvg, rect.r - 9, top_text_cy, label, 0);
+        nvgText(nvg, rect.r - 9 * SCALE, top_text_cy, label, 0);
     }
 
     // Pattern Length
@@ -438,7 +444,7 @@ void draw_lfo_section(GUI* gui)
 
         NVGglyphPosition glyphs[label_length_len];
 
-        nvgSetFontSize(nvg, lm->content_scale * 14);
+        nvgSetFontSize(nvg, FONT_SIZE);
         nvgSetColour(nvg, C_TEXT);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
 
@@ -577,15 +583,15 @@ void draw_lfo_section(GUI* gui)
     // LFO Rate
 
     // Rate
-    imgui_rect sl_rate = {content_r - 128 * lm->content_scale, button_top, content_r, button_bottom};
+    imgui_rect sl_rate = {content_r - 128 * SCALE, button_top, content_r, button_bottom};
     imgui_rect btn_rate_type;
     btn_rate_type.y = sl_rate.y;
     btn_rate_type.b = sl_rate.b;
-    btn_rate_type.r = sl_rate.x - 20;
+    btn_rate_type.r = sl_rate.x - 20 * SCALE;
     btn_rate_type.x = btn_rate_type.r - 2 * (sl_rate.b - sl_rate.y);
     imgui_rect btn_retrig;
-    btn_retrig.r = btn_rate_type.x - 20;
-    btn_retrig.x = btn_retrig.r - 80;
+    btn_retrig.r = btn_rate_type.x - 20 * SCALE;
+    btn_retrig.x = btn_retrig.r - 80 * SCALE;
     btn_retrig.y = btn_rate_type.y;
     btn_retrig.b = btn_rate_type.b;
     // Rate type buttons
@@ -624,9 +630,9 @@ void draw_lfo_section(GUI* gui)
             nvgSetColour(nvg, C_BG_LFO);
         float cx         = btn_rate_type.x + height * 0.5;
         float cy         = btn_rate_type.y + height * 0.5;
-        float crotchet_x = cx - 5 * lm->content_scale;
-        float crotchet_y = cy - 7 * lm->content_scale;
-        draw_crotchet_svg(nvg, lm->content_scale, crotchet_x, crotchet_y);
+        float crotchet_x = cx - 5 * SCALE;
+        float crotchet_y = cy - 7 * SCALE;
+        draw_crotchet_svg(nvg, SCALE, crotchet_x, crotchet_y);
 
         // Label
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
@@ -634,8 +640,8 @@ void draw_lfo_section(GUI* gui)
             nvgSetColour(nvg, C_BG_LFO);
         else
             nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        nvgSetFontSize(nvg, lm->content_scale * 12);
-        nvgText(nvg, btn_rate_type.x + height * 1.5, btn_rate_type.y + height * 0.5, "MS", NULL);
+        nvgSetFontSize(nvg, 12 * SCALE);
+        nvgText(nvg, btn_rate_type.x + height * 1.5f, btn_rate_type.y + height * 0.5f, "MS", NULL);
     }
 
     // Rate slider
@@ -698,7 +704,7 @@ void draw_lfo_section(GUI* gui)
         if (events & IMGUI_EVENT_DRAG_END)
             param_change_end(gui->plugin, param_id);
 
-        nvgSetFontSize(nvg, font_size);
+        nvgSetFontSize(nvg, FONT_SIZE);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
         nvgSetColour(nvg, C_TEXT);
         nvgText(nvg, sl_rate.x, top_text_cy, "RATE", NULL);
@@ -717,20 +723,12 @@ void draw_lfo_section(GUI* gui)
         // nvgFill(nvg);
 
         // Up & down "buttons"
-        float btn_top = floor(top_text_cy - font_size * 0.4f);
-        float btn_bot = ceilf(top_text_cy + font_size * 0.35f);
+        float btn_left = floor(sl_rate.r - 5 * SCALE);
+        float btn_top  = floor(top_text_cy - FONT_SIZE * 0.4f);
+        float btn_bot  = ceilf(top_text_cy + FONT_SIZE * 0.35f);
 
         nvgBeginPath(nvg);
-        nvgMoveTo(nvg, sl_rate.r, btn_top + 3.8);
-        nvgLineTo(nvg, sl_rate.r - 2.5, btn_top);
-        nvgLineTo(nvg, sl_rate.r - 5, btn_top + 3.8);
-        nvgClosePath(nvg);
-
-        nvgMoveTo(nvg, sl_rate.r, btn_bot - 3.8);
-        nvgLineTo(nvg, sl_rate.r - 2.5, btn_bot);
-        nvgLineTo(nvg, sl_rate.r - 5, btn_bot - 3.8);
-        nvgClosePath(nvg);
-
+        add_up_down_triangles(nvg, (imgui_rect){btn_left, btn_top, sl_rate.r, btn_bot});
         nvgSetColour(nvg, C_GREY_1);
         nvgFill(nvg);
     }
@@ -761,7 +759,7 @@ void draw_lfo_section(GUI* gui)
         nvgSetColour(nvg, C_TEXT);
         nvgText(nvg, btn_retrig.x, cy, "RETRIG", 0);
 
-        float       checkbox_height   = snapf(lm->content_scale * CHECKBOX_HEIGHT, 2);
+        float       checkbox_height   = snapf(CHECKBOX_HEIGHT, 2);
         const float stroke_width      = 1;
         const float half_stroke_width = stroke_width * 0.5f;
 
@@ -877,7 +875,7 @@ void draw_lfo_section(GUI* gui)
             switch (type)
             {
             case IMP_SHAPE_POINT:
-                nvgCircle(nvg, (inner.x + inner.r) * 0.5f, (inner.y + inner.b) * 0.5f, 2);
+                nvgCircle(nvg, (inner.x + inner.r) * 0.5f, (inner.y + inner.b) * 0.5f, 2 * SCALE);
                 nvgFill(nvg);
                 nvgBeginPath(nvg);
                 break;
@@ -948,7 +946,7 @@ void draw_lfo_section(GUI* gui)
                 break;
             }
         }
-        nvgStroke(nvg, 1.2f);
+        nvgStroke(nvg, 1.2f * SCALE);
     }
 
     // LFO pattern selector
@@ -1110,7 +1108,7 @@ void draw_lfo_section(GUI* gui)
     // Display grid
 
     // const float grid_y = display_y + CONTENT_PADDING_Y + LFO_TAB_HEIGHT + DISPLAY_PADDING_TOP;
-    const float grid_y = button_bottom + CONTENT_PADDING_Y + LFO_TAB_HEIGHT;
+    const float grid_y = button_bottom + (CONTENT_PADDING_Y + LFO_TAB_HEIGHT);
     const float grid_b = shape_y - DISPLAY_PADDING_BOTTOM;
     const float grid_x = lm->content_x + CONTENT_PADDING_X;
     const float grid_r = lm->content_r - CONTENT_PADDING_X;
