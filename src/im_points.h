@@ -657,9 +657,11 @@ void imp_handle_point_events(IMPointsFrameContext* fstate, int num_grid_x, int n
             // Properly track point position
             // We're reading out of an array of points cached at the beginning of a drag, and not the points that are
             // actually displayed
-            imgui_pt       pt        = (im->uid_mouse_hold == uid || im->frame.uid_mouse_up == uid)
-                                           ? im->pos_mouse_move
-                                           : (imgui_pt){imp->points_copy[pt_idx].x, imp->points_copy[pt_idx].y};
+            bool was_dragged_last_frame = im->uid_mouse_hold == uid || im->frame.uid_mouse_up == uid;
+
+            imgui_pt pt = was_dragged_last_frame ? im->pos_mouse_move
+                                                 : (imgui_pt){imp->points_copy[pt_idx].x, imp->points_copy[pt_idx].y};
+
             const unsigned pt_events = imgui_get_events_circle(im, uid, pt, IMP_DEFAULT_POINT_CLICK_RADIUS);
 
             if (pt_events == 0)
@@ -668,7 +670,9 @@ void imp_handle_point_events(IMPointsFrameContext* fstate, int num_grid_x, int n
             if (pt_events & IMGUI_EVENT_MOUSE_HOVER)
             {
                 fstate->pt_hover_idx = pt_idx;
-                if (imp->selected_point_idx != -1 && pt_events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+                bool hold            = !!(pt_events & IMGUI_EVENT_MOUSE_LEFT_HOLD);
+                bool is_dragging     = im->uid_drag != 0;
+                if (imp->selected_point_idx != -1 && hold && is_dragging)
                     fstate->pt_hover_idx = imp->selected_point_idx;
             }
 
@@ -679,34 +683,43 @@ void imp_handle_point_events(IMPointsFrameContext* fstate, int num_grid_x, int n
 
             if (pt_events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
-                int select_idx = pt_idx;
-                if ((pt_idx + 1) == num_points)
-                    select_idx = 0;
+                // wrap
+                const int pt_idx_2 = (pt_idx + 1) == num_points ? 0 : pt_idx;
 
-                if (im->left_click_counter == 1)
+                bool shift_key_down = !!(PW_MOD_KEY_SHIFT & im->frame.modifiers_mouse_down);
+                if (im->left_click_counter == 1 || shift_key_down)
                 {
-                    bool shift_click     = (PW_MOD_KEY_SHIFT | PW_MOD_LEFT_BUTTON) == im->frame.modifiers_mouse_down;
-                    bool idx_is_selected = false;
-                    for (int i = 0; i < xarr_len(imp->selected_point_indexes); i++)
+                    int sel_idx      = 0;
+                    int num_selected = xarr_len(imp->selected_point_indexes);
+                    for (sel_idx = 0; sel_idx < num_selected; sel_idx++)
                     {
-                        if (select_idx == imp->selected_point_indexes[i])
-                        {
-                            idx_is_selected = true;
+                        if (pt_idx_2 == imp->selected_point_indexes[sel_idx])
                             break;
-                        }
                     }
-                    if (shift_click == false && idx_is_selected == false)
+                    bool is_selected = sel_idx < num_selected;
+                    if (shift_key_down == false && is_selected == false)
                     {
                         imp_clear_selection(imp);
                     }
 
-                    _imp_add_to_selection(imp, select_idx);
-                    fstate->pt_hover_idx = select_idx;
-                    int num_selected_pts = xarr_len(imp->selected_point_indexes);
-                    xassert(num_selected_pts > 0);
+                    if (is_selected && shift_key_down)
+                    {
+                        xarr_delete(imp->selected_point_indexes, sel_idx);
+                        if (num_selected == 2)
+                            imp->selected_point_idx = imp->selected_point_indexes[0];
+                        else
+                            imp->selected_point_idx = -1;
+                    }
+                    else if (!is_selected || shift_key_down)
+                    {
+                        _imp_add_to_selection(imp, pt_idx_2);
+                        int num_selected_pts = xarr_len(imp->selected_point_indexes);
+                        xassert(num_selected_pts > 0);
+                    }
+                    fstate->pt_hover_idx = pt_idx_2;
                     pw_set_mouse_cursor(fstate->pw, PW_CURSOR_HAND_DRAGGING);
                 }
-                else if (im->left_click_counter == 2 && select_idx > 0)
+                else if (im->left_click_counter == 2 && pt_idx_2 > 0)
                 {
                     fstate->delete_pt_idx = pt_idx;
                     imgui_clear_widget(im);
@@ -1029,6 +1042,7 @@ void imp_handle_grid_events(
 
         // bool should_draw_shape = im->frame.modifiers_mouse_move & PW_MOD_PLATFORM_KEY_CTRL;
         bool should_draw_shape = selected_shape != IMP_SHAPE_POINT;
+        bool shift_key_down    = !!(PW_MOD_KEY_SHIFT & im->frame.modifiers_mouse_down);
         if (should_draw_shape)
         {
             im->left_click_counter = 0;
@@ -1041,8 +1055,7 @@ void imp_handle_grid_events(
         }
         else if (im->left_click_counter == 1)
         {
-            bool shift_click = (PW_MOD_KEY_SHIFT | PW_MOD_LEFT_BUTTON) == im->frame.modifiers_mouse_down;
-            if (shift_click == false)
+            if (shift_key_down == false)
             {
                 imp_clear_selection(imp);
                 xarr_setlen(imp->selected_point_indexes_copy, 0);
@@ -1059,7 +1072,7 @@ void imp_handle_grid_events(
             imp->area_last_click_pos.x = im->pos_mouse_down.x;
             imp->area_last_click_pos.y = im->pos_mouse_down.y;
         }
-        else if (im->left_click_counter >= 2)
+        else if (im->left_click_counter >= 2 && !shift_key_down)
         {
             // add point
             imgui_pt mouse_down = im->pos_mouse_down;

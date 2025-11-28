@@ -50,3 +50,4 @@ x test autogain works on a variety of sound sources
 - fix icons/text DPI scaling
 - keytracking option with MIDI input
 - keytracking option with audio input
+- LFO one shot mode?
