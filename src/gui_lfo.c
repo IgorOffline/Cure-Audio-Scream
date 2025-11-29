@@ -415,7 +415,7 @@ void draw_lfo_section(GUI* gui)
         }
 
         nvgSetFontSize(nvg, FONT_SIZE);
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
         nvgText(nvg, content_x, top_text_cy, "GRID", NULL);
 
@@ -445,7 +445,7 @@ void draw_lfo_section(GUI* gui)
         NVGglyphPosition glyphs[label_length_len];
 
         nvgSetFontSize(nvg, FONT_SIZE);
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
 
         nvgTextGlyphPositions(nvg, 0, 0, label_length, label_length + label_length_len, glyphs, label_length_len);
@@ -706,7 +706,7 @@ void draw_lfo_section(GUI* gui)
 
         nvgSetFontSize(nvg, FONT_SIZE);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, sl_rate.x, top_text_cy, "RATE", NULL);
 
         char label[16] = {0};
@@ -756,7 +756,7 @@ void draw_lfo_section(GUI* gui)
         float cy = (btn_retrig.y + btn_retrig.b) * 0.5f;
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, btn_retrig.x, cy, "RETRIG", 0);
 
         float       checkbox_height   = snapf(CHECKBOX_HEIGHT, 2);
@@ -1073,7 +1073,7 @@ void draw_lfo_section(GUI* gui)
         }
 
         nvgSetTextAlign(nvg, NVG_ALIGN_BC);
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, pattern_cx, pattern_area.b + 4, "PATTERN", NULL);
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);

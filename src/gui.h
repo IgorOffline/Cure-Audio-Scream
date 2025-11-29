@@ -115,8 +115,9 @@ typedef struct GUI
 #endif // SHOW_FPS
 } GUI;
 
-static const NVGcolour C_WHITE = nvgHexColour(0xffffffff);
-static const NVGcolour C_TEXT  = nvgHexColour(0x707880FF);
+static const NVGcolour C_WHITE         = nvgHexColour(0xffffffff);
+static const NVGcolour C_TEXT_LIGHT_BG = nvgHexColour(0x707880FF);
+static const NVGcolour C_TEXT_DARK_BG  = nvgHexColour(0x828A91FF);
 
 static const NVGcolour C_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
 static const NVGcolour C_BG_DARK  = nvgHexColour(0x151B32FF);
@@ -132,9 +133,9 @@ static const NVGcolour C_LIGHT_BLUE_2 = nvgHexColour(0x97E6FCFF);
 static const NVGcolour C_GREEN        = nvgHexColour(0x62E32BFF);
 static const NVGcolour C_RED          = nvgHexColour(0xFF4757FF);
 
-static const NVGcolour C_GRID_PRIMARY   = nvgHexColour(0x7E8795FF);
-static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x535A65FF);
-static const NVGcolour C_GRID_TERTIARY  = nvgHexColour(0x353941FF);
+static const NVGcolour C_GRID_PRIMARY   = nvgHexColour(0x515762FF);
+static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x40464FFF);
+static const NVGcolour C_GRID_TERTIARY  = nvgHexColour(0x2C2F35FF);
 
 // For snapping to certain pixel boundaries
 #define snapf(val, interval) (roundf((val) / (interval)) * (interval))

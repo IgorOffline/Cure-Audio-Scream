@@ -988,7 +988,7 @@ void pw_tick(void* _gui)
         _Static_assert(ARRLEN(param_ids) == ARRLEN(lm->param_positions_cx), "");
 
         // Param labels
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_LIGHT_BG);
         const float param_font_size = 14 * lm->param_scale;
         nvgSetFontSize(nvg, param_font_size);
 
@@ -1000,7 +1000,7 @@ void pw_tick(void* _gui)
             const float   param_cx = lm->param_positions_cx[i];
 
             nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-            nvgSetColour(nvg, C_TEXT);
+            nvgSetColour(nvg, C_TEXT_LIGHT_BG);
             nvgText(nvg, param_cx, lm->cy_param_title, NAMES[i], NULL);
 
             imgui_rect rect;
@@ -1052,7 +1052,7 @@ void pw_tick(void* _gui)
                 double value = main_get_param(gui->plugin, param_id);
                 cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
 
-                nvgSetColour(nvg, C_TEXT);
+                nvgSetColour(nvg, C_TEXT_LIGHT_BG);
                 nvgSetTextAlign(nvg, NVG_ALIGN_CC);
                 nvgText(nvg, param_cx, lm->cy_param_value, label, NULL);
             }
@@ -1130,7 +1130,7 @@ void pw_tick(void* _gui)
                 char label  = '1';
                 label      += j;
                 nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-                nvgSetColour(nvg, C_TEXT);
+                nvgSetColour(nvg, C_TEXT_LIGHT_BG);
                 nvgText(nvg, c.x, c.y + 1, &label, &label + 1);
 
                 nvgBeginPath(nvg);
@@ -1944,7 +1944,7 @@ void pw_tick(void* _gui)
         imgui_rect rect = gui->lfo_toggle_button;
         snvg_command_draw_nvg(nvg, NVG_LABEL("ayy lmao"));
         nvgBeginPath(nvg);
-        nvgSetColour(nvg, C_TEXT);
+        nvgSetColour(nvg, C_TEXT_LIGHT_BG);
         nvgSetFontSize(nvg, lm->content_scale * 14);
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
         float cx = (rect.x + rect.r) * 0.5f - 10;
