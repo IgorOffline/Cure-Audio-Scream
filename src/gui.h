@@ -12,6 +12,8 @@
 
 #include "im_points.h"
 
+// #define SHOW_FPS
+
 typedef struct
 {
     float   x, y;
@@ -99,12 +101,18 @@ typedef struct GUI
 
     Tooltip tooltip;
 
-    uint64_t last_frame_start_time;
-    uint64_t frame_start_time;
-    uint64_t frame_end_time;
-
     uint64_t gui_create_time;
     uint64_t last_resize_time;
+
+    uint64_t last_frame_start_time;
+    uint64_t frame_start_time;
+#ifdef SHOW_FPS
+    uint64_t frame_end_time;
+
+    uint64_t frame_diff_idx;
+    uint64_t frame_diff_running_sum;
+    uint64_t frame_diff_arr[64];
+#endif // SHOW_FPS
 } GUI;
 
 static const NVGcolour C_WHITE = nvgHexColour(0xffffffff);

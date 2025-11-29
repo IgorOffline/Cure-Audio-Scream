@@ -205,7 +205,7 @@ void ted_handle_ibeam_moved(TextEditor* ted)
         linked_arena_release(ted->undo_arena, alloc_text);
     }
 
-    ted->time_last_ibeam_move = gui->frame_end_time;
+    ted->time_last_ibeam_move = gui->frame_start_time;
     LINKED_ARENA_LEAK_DETECT_END(ted->undo_arena)
 }
 

@@ -195,8 +195,14 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     ted_init(&gui->texteditor);
 
-    gui->gui_create_time = gui->last_frame_start_time = gui->frame_start_time = gui->frame_end_time = xtime_now_ns();
-
+    uint64_t now_ns            = xtime_now_ns();
+    gui->gui_create_time       = now_ns;
+    gui->last_resize_time      = now_ns;
+    gui->last_frame_start_time = now_ns;
+    gui->frame_start_time      = now_ns;
+#ifdef SHOW_FPS
+    gui->frame_end_time = now_ns;
+#endif // SHOW_FPS
     gui->imgui.frame.events = 1 << PW_EVENT_RESIZE;
 
     return gui;
@@ -523,12 +529,13 @@ void do_logo_shader(void* uptr)
 
         const bool hover = gui->logo_events & IMGUI_EVENT_MOUSE_HOVER;
 
-        fs_logo_uniforms_t fs_uniforms = {.u_col = {1, 1, 1, 1}};
+        fs_logo_uniforms_t fs_uniforms  = {.u_col = {1, 1, 1, 1}};
+        NVGcolour          col_inactive = hexcol(0xC9D3DDFF);
         if (hover)
             memcpy(fs_uniforms.u_col, &C_WHITE, sizeof(C_WHITE));
         else
-            memcpy(fs_uniforms.u_col, &C_TEXT, sizeof(C_TEXT));
-        _Static_assert(sizeof(fs_uniforms.u_col) == sizeof(C_TEXT), "");
+            memcpy(fs_uniforms.u_col, &col_inactive, sizeof(col_inactive));
+        _Static_assert(sizeof(fs_uniforms.u_col) == sizeof(col_inactive), "");
 
         sg_apply_pipeline(pip);
         sg_apply_bindings(&(sg_bindings){
@@ -587,6 +594,12 @@ void pw_tick(void* _gui)
     if (!gui || !gui->plugin)
         return;
 
+#ifdef SHOW_FPS
+    uint64_t frame_duration_last_frame = gui->frame_end_time - gui->frame_start_time;
+#endif
+    gui->last_frame_start_time = gui->frame_start_time;
+    gui->frame_start_time      = xtime_now_ns();
+
     {
         Plugin*  p    = gui->plugin;
         uint32_t head = xt_atomic_load_u32(&p->queue_main_head) & EVENT_QUEUE_MASK;
@@ -620,15 +633,6 @@ void pw_tick(void* _gui)
         return;
 
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
-
-    // #ifndef NDEBUG
-
-    const uint64_t last_frame_draw_time = gui->frame_end_time - gui->frame_start_time;
-    // fprintf(stderr, "%llu\n", last_frame_draw_time);
-
-    gui->last_frame_start_time = gui->frame_start_time;
-    gui->frame_start_time      = xtime_now_ns();
-    // #endif
 
     const uint64_t time_since_last_frame = gui->frame_start_time - gui->last_frame_start_time;
 
@@ -882,12 +886,14 @@ void pw_tick(void* _gui)
         snvg_command_custom(nvg, gui, do_logo_shader, NVG_LABEL("Logo shader"));
         snvg_command_draw_nvg(nvg, NVG_LABEL("main framebuffer 2"));
 
-        float x, y, w, h, img_scale;
-        y                = 4;
-        h                = lm->height_header - y;
-        img_scale        = h / (float)gui->logo_height;
-        w                = (float)gui->logo_width * img_scale;
-        x                = lm->width - 16 - w;
+        float x, y, w, h, b, img_scale;
+        y         = 8;
+        b         = lm->height_header - 10 + 8;
+        h         = b - y;
+        img_scale = h / gui->logo_height;
+        w         = gui->logo_width * img_scale;
+        // x                = lm->width - 16 - w;
+        x                = 16;
         gui->logo_area   = (imgui_rect){x, y, x + w, y + h};
         gui->logo_events = imgui_get_events_rect(im, 'logo', &gui->logo_area);
         if (gui->logo_events & IMGUI_EVENT_MOUSE_ENTER)
@@ -2013,56 +2019,6 @@ void pw_tick(void* _gui)
         char text[64] = {0};
         int  len      = 0;
 
-        // TODO: remove after release
-        const char*    plugin_type_name = "";
-        const uint32_t plugin_type      = gui->plugin->cplug_ctx->type;
-        if (plugin_type == CPLUG_PLUGIN_IS_STANDALONE)
-            plugin_type_name = "Standalone";
-        if (plugin_type == CPLUG_PLUGIN_IS_VST3)
-            plugin_type_name = "VST3";
-        if (plugin_type == CPLUG_PLUGIN_IS_CLAP)
-            plugin_type_name = "CLAP";
-        if (plugin_type == CPLUG_PLUGIN_IS_AUV2)
-            plugin_type_name = "Audio Unit";
-#ifdef _WIN32
-        const char* os_name = "Windows";
-#elif __APPLE__
-        const char* os_name = "macOS";
-#endif
-        len = snprintf(text, sizeof(text), "Scream %s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
-        nvgSetTextAlign(nvg, NVG_ALIGN_BL);
-        nvgText(nvg, 8, lm->height - 8, text, text + len);
-
-#ifndef NDEBUG
-        // uint64_t frame_time_end         = xtime_now_ns();
-        // uint64_t frame_time_duration_ns = frame_time_end - gui->frame_start_time;
-
-        uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
-
-        // limit accuracy from nanoseconds to approximately microseconds
-        uint64_t cpu_numerator   = last_frame_draw_time >> 10; // fast integer divide by 1024
-        uint64_t cpu_denominator = max_frame_time_ns >> 10;    // fast integer divide by 1024
-
-        double cpu_amt       = (double)cpu_numerator / (double)cpu_denominator;
-        double frame_time_ms = (double)cpu_numerator * 1024e-6; // correct for 1024 int 'division'
-        // double approx_fps    = 1000 / frame_time_ms; // Potential FPS
-
-        // uint64_t actual
-        // uint64_t diff_last_frame = frame_time_end - gui->frame_end_time;
-        // gui->frame_end_time      = frame_time_end;
-        double actual_fps = 1000.0 / ((time_since_last_frame >> 10) * 1024e-6);
-
-        len = snprintf(
-            text,
-            sizeof(text),
-            "GUI CPU: %.2lf%% Frame Time: %.3lfms. FPS: %.lf",
-            (cpu_amt * 100),
-            frame_time_ms,
-            actual_fps);
-        nvgSetTextAlign(nvg, NVG_ALIGN_TL);
-        nvgText(nvg, 8, 8, text, text + len);
-#endif // !NDEBUG
-
         // Show window dimensions w/h on resize
         uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
         uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
@@ -2118,6 +2074,75 @@ void pw_tick(void* _gui)
         tooltip_draw(&gui->tooltip, nvg, gui->arena, gui->frame_start_time, lm->width, lm->height, lm->content_scale);
     }
 
+    // FPS HUD
+#ifdef SHOW_FPS
+    {
+        gui->frame_diff_running_sum              -= gui->frame_diff_arr[gui->frame_diff_idx];
+        gui->frame_diff_running_sum              += frame_duration_last_frame;
+        gui->frame_diff_arr[gui->frame_diff_idx]  = frame_duration_last_frame;
+        if (++gui->frame_diff_idx >= ARRLEN(gui->frame_diff_arr))
+            gui->frame_diff_idx = 0;
+
+        uint64_t avg_frame_time_duration_ns = gui->frame_diff_running_sum / ARRLEN(gui->frame_diff_arr);
+
+        uint64_t max_frame_time_ns = 16666666; // 1/60th of a second, in nanoseconds
+
+        // limit accuracy from nanoseconds to approximately microseconds
+        // uint64_t cpu_numerator   = frame_time_duration_ns >> 10; // fast integer divide by 1024
+        uint64_t cpu_numerator   = avg_frame_time_duration_ns >> 10; // fast integer divide by 1024
+        uint64_t cpu_denominator = max_frame_time_ns >> 10;          // fast integer divide by 1024
+
+        double cpu_amt       = (double)cpu_numerator / (double)cpu_denominator;
+        double frame_time_ms = (double)cpu_numerator * 1024e-6; // correct for 1024 int 'division'
+        // double approx_fps    = 1000 / frame_time_ms; // Potential FPS
+
+        // uint64_t actual
+        // uint64_t diff_last_frame = frame_time_end - gui->frame_end_time;
+        // gui->frame_end_time      = frame_time_end;
+        // double actual_fps = 1000.0 / ((frame_duration_last_frame >> 10) * 1024e-6);
+        double actual_fps = 1000.0 / ((avg_frame_time_duration_ns >> 10) * 1024e-6);
+
+        nvgSetFontSize(nvg, 14);
+        nvgSetColour(nvg, C_TEXT_PRIMARY_L);
+        char text[96] = {0};
+        int  len      = snprintf(
+            text,
+            sizeof(text),
+            "GUI AVG CPU: %.2lf%%\nAVG Frame Time: %.3lfms.\nMax FPS: %.lf",
+            (cpu_amt * 100),
+            frame_time_ms,
+            actual_fps);
+        nvgSetTextAlign(nvg, NVG_ALIGN_TL);
+
+        if (gui->plugin->audio_cpu_usage)
+        {
+            len += snprintf(text + len, sizeof(text) - len, "\nAudio CPU: %.2f%%", gui->plugin->audio_cpu_usage * 100);
+
+            uint64_t audio_time_ns = gui->plugin->audio_process_time;
+            double   audio_time_ms = xtime_convert_ns_to_ms(audio_time_ns);
+
+            len += snprintf(text + len, sizeof(text) - len, "\nAudio Time: %.3fms", audio_time_ms);
+            len += 0;
+        }
+        // nvgText(nvg, 8, 8, text, text + len);
+
+        nvgSetTextLineHeight(nvg, 1.5);
+        nvgTextBox(nvg, 8, 8, 1000, text, text + len);
+
+        // Show window dimensions w/h
+        uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
+        uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
+        uint64_t threshold_1sec         = 1000000000;
+        uint64_t threshold_1_2sec       = 1200000000;
+        if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
+        {
+            len = snprintf(text, sizeof(text), "%dx%d", gui_width, gui_height);
+            nvgSetTextAlign(nvg, NVG_ALIGN_BR);
+            nvgText(nvg, gui_width - 8, gui_height - 8, text, text + len);
+        }
+    }
+#endif // SHOW_FPS
+
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
     if (bg_events & IMGUI_EVENT_MOUSE_ENTER)
     {
@@ -2125,6 +2150,8 @@ void pw_tick(void* _gui)
     }
 
     snvg_command_end_pass(nvg, NVG_LABEL("end swapchain"));
+    // nvgEndFrame() sends data to GPU.
+    // This function is ~50% of frame time
     nvgEndFrame(gui->nvg);
     sg_commit(); // flip swapchain
     resources_end_frame(&gui->resource_manager, gui->nvg);
@@ -2135,7 +2162,9 @@ void pw_tick(void* _gui)
     sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 
+#ifdef SHOW_FPS
     gui->frame_end_time = xtime_now_ns();
+#endif
 
     if (click_curelogo)
         open_hyperlink("https://cure.audio");
