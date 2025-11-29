@@ -718,7 +718,7 @@ void pw_tick(void* _gui)
 
         {
             _Static_assert(
-                ARRLEN(lm->param_positions_cx) == 6,
+                ARRLEN(lm->param_positions_cx) == 5,
                 "You've changed the number of params and we assumed there were only 5");
             imgui_rect rects[ARRLEN(lm->param_positions_cx)] = {0};
 
@@ -727,7 +727,6 @@ void pw_tick(void* _gui)
             rects[2].r = knob_diameter;
             rects[3].r = knob_diameter;
             rects[4].r = veritcal_slider_width;
-            rects[5].r = veritcal_slider_width;
             layout_horizontal_fill(
                 rects,
                 ARRLEN(rects),
@@ -735,7 +734,6 @@ void pw_tick(void* _gui)
                 &(imgui_rect){param_boundary_left, 0, param_boundary_right, 0});
             for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
                 lm->param_positions_cx[i] = 0.5f * (rects[i].x + rects[i].r);
-            xassert(lm->param_positions_cx[5] < param_boundary_right);
         }
 
         lm->knob_outer_radius = knob_diameter * 0.5f;
@@ -904,6 +902,27 @@ void pw_tick(void* _gui)
         // nvgRect(nvg, x, y, w, h);
         // nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_texview, 1, nvg->sampler_linear));
         // nvgFill(nvg);
+
+        // Output gain
+        const int output_gain_with = 120 * lm->param_scale;
+        nvgSetFontSize(nvg, 12 * lm->param_scale);
+        imgui_rect rect = {0, 0, lm->width - 16, lm->height_header + 8};
+        rect.x          = floorf(rect.r - output_gain_with);
+        uint32_t events = imgui_get_events_rect(im, 'outg', &rect);
+        handle_param_events(gui, PARAM_OUTPUT_GAIN, events, 200);
+
+        extern int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double value);
+        char       label[16];
+        int        label_len =
+            param_value_to_string(PARAM_OUTPUT_GAIN, label, sizeof(label), gui->plugin->main_params[PARAM_OUTPUT_GAIN]);
+
+        nvgSetColour(nvg, C_GREY_1);
+        nvgSetTextAlign(nvg, NVG_ALIGN_CR);
+        nvgText(nvg, rect.r, (rect.b - rect.y) * 0.5f, label, label + label_len);
+
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
+        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
+        nvgText(nvg, rect.x, (rect.b - rect.y) * 0.5f, "OUTPUT", NULL);
     }
 
     // Main content background
@@ -983,8 +1002,7 @@ void pw_tick(void* _gui)
 
     // Params
     {
-        static const ParamID param_ids[] =
-            {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET, PARAM_OUTPUT_GAIN};
+        static const ParamID param_ids[] = {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET};
         _Static_assert(ARRLEN(param_ids) == ARRLEN(lm->param_positions_cx), "");
 
         // Param labels
@@ -992,7 +1010,7 @@ void pw_tick(void* _gui)
         const float param_font_size = 14 * lm->param_scale;
         nvgSetFontSize(nvg, param_font_size);
 
-        static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET", "OUTPUT"};
+        static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET"};
         _Static_assert(ARRLEN(NAMES) == ARRLEN(lm->param_positions_cx));
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {

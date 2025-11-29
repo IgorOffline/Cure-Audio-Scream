@@ -350,6 +350,98 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
     return ok;
 }
 
+int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double value)
+{
+    int n = 0;
+    switch (paramId)
+    {
+    case PARAM_CUTOFF:
+    {
+        double Hz = 20 * pow(2, value * 10); // Denormalise Hz
+        Hz        = xm_mind(Hz, 20000);
+        n         = snprintf(buf, bufsize, "%.2lfHz", Hz);
+        break;
+    }
+    case PARAM_SCREAM:
+    case PARAM_RESONANCE:
+    case PARAM_WET:
+        n = snprintf(buf, bufsize, "%.2f%%", value * 100);
+        break;
+    case PARAM_INPUT_GAIN:
+    {
+        double dB = xm_lerpd(value, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        n         = snprintf(buf, bufsize, "%.2fdB", dB);
+        break;
+    }
+    case PARAM_OUTPUT_GAIN:
+    {
+        double dB = xm_lerpd(value, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
+        n         = snprintf(buf, bufsize, "%.2fdB", dB);
+        break;
+    }
+    case PARAM_PATTERN_LFO_1:
+    case PARAM_PATTERN_LFO_2:
+    {
+        int num = xm_droundi(xm_lerpd(value, 1, NUM_LFO_PATTERNS));
+        n       = snprintf(buf, bufsize, "%d", num);
+        break;
+    }
+    case PARAM_RATE_TYPE_LFO_1:
+    case PARAM_RATE_TYPE_LFO_2:
+        if (value < 0.5)
+            n = snprintf(buf, bufsize, "Sync");
+        else
+            n = snprintf(buf, bufsize, "ms");
+        break;
+    case PARAM_SYNC_RATE_LFO_1:
+    case PARAM_SYNC_RATE_LFO_2:
+    {
+        int idx = xm_droundi(value);
+        idx     = xm_clampi(idx, 0, LFO_RATE_COUNT - 1);
+        n       = snprintf(buf, bufsize, "%s", LFO_RATE_NAMES[idx]);
+        break;
+    }
+    case PARAM_SEC_RATE_LFO_1:
+    case PARAM_SEC_RATE_LFO_2:
+    {
+        double      sec    = denormalise_sec(value);
+        const char* fmtstr = NULL;
+        if (sec < 0.01) // < 10ms
+        {
+            sec    *= 1000;
+            fmtstr  = "%.3fms";
+        }
+        else if (sec < 0.1) // < 100ms
+        {
+            sec    *= 1000;
+            fmtstr  = "%.2fms";
+        }
+        else if (sec < 1) // < 1sec
+        {
+            sec    *= 1000;
+            fmtstr  = "%.1fms";
+        }
+        else
+        {
+            fmtstr = "%.2fs";
+        }
+        xassert(fmtstr);
+        n = snprintf(buf, bufsize, fmtstr, sec);
+        break;
+    }
+    case PARAM_RETRIG_LFO_1:
+    case PARAM_RETRIG_LFO_2:
+    {
+        int on = xm_droundi(value);
+        n      = snprintf(buf, bufsize, "%s", on ? "On" : "Off");
+        break;
+    }
+    case PARAM_COUNT:
+        break;
+    }
+    return n;
+}
+
 //=====================================================================================
 
 uint32_t cplug_getNumParameters(void*) { return PARAM_COUNT; }
@@ -399,7 +491,8 @@ void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
 
 double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
 {
-    double v = 0.0;
+    const Plugin* p = _p;
+    double        v = 0.0;
     switch ((ParamID)paramId)
     {
     case PARAM_CUTOFF:
@@ -416,8 +509,11 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
         v = xm_normd(0, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
         break;
     case PARAM_OUTPUT_GAIN:
-        v = xm_normd(-6, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
+    {
+        double default_dB = p->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE ? -18 : -6;
+        v                 = xm_normd(default_dB, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
         break;
+    }
     case PARAM_WET:
         v = 1;
         break;
@@ -520,90 +616,5 @@ double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
 
 void cplug_parameterValueToString(void* ptr, uint32_t paramId, char* buf, size_t bufsize, double value)
 {
-    switch ((ParamID)paramId)
-    {
-    case PARAM_CUTOFF:
-    {
-        double Hz = 20 * pow(2, value * 10); // Denormalise Hz
-        Hz        = xm_mind(Hz, 20000);
-        snprintf(buf, bufsize, "%.2lfHz", Hz);
-        break;
-    }
-    case PARAM_SCREAM:
-    case PARAM_RESONANCE:
-    case PARAM_WET:
-        snprintf(buf, bufsize, "%.2f%%", value * 100);
-        break;
-    case PARAM_INPUT_GAIN:
-    {
-        double dB = xm_lerpd(value, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-        snprintf(buf, bufsize, "%.2fdB", dB);
-        break;
-    }
-    case PARAM_OUTPUT_GAIN:
-    {
-        double dB = xm_lerpd(value, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
-        snprintf(buf, bufsize, "%.2fdB", dB);
-        break;
-    }
-    case PARAM_PATTERN_LFO_1:
-    case PARAM_PATTERN_LFO_2:
-    {
-        int num = xm_droundi(xm_lerpd(value, 1, NUM_LFO_PATTERNS));
-        snprintf(buf, bufsize, "%d", num);
-        break;
-    }
-    case PARAM_RATE_TYPE_LFO_1:
-    case PARAM_RATE_TYPE_LFO_2:
-        if (value < 0.5)
-            snprintf(buf, bufsize, "Sync");
-        else
-            snprintf(buf, bufsize, "ms");
-        break;
-    case PARAM_SYNC_RATE_LFO_1:
-    case PARAM_SYNC_RATE_LFO_2:
-    {
-        int idx = xm_droundi(value);
-        idx     = xm_clampi(idx, 0, LFO_RATE_COUNT - 1);
-        snprintf(buf, bufsize, "%s", LFO_RATE_NAMES[idx]);
-        break;
-    }
-    case PARAM_SEC_RATE_LFO_1:
-    case PARAM_SEC_RATE_LFO_2:
-    {
-        double      sec    = denormalise_sec(value);
-        const char* fmtstr = NULL;
-        if (sec < 0.01) // < 10ms
-        {
-            sec    *= 1000;
-            fmtstr  = "%.3fms";
-        }
-        else if (sec < 0.1) // < 100ms
-        {
-            sec    *= 1000;
-            fmtstr  = "%.2fms";
-        }
-        else if (sec < 1) // < 1sec
-        {
-            sec    *= 1000;
-            fmtstr  = "%.1fms";
-        }
-        else
-        {
-            fmtstr = "%.2fs";
-        }
-        xassert(fmtstr);
-        snprintf(buf, bufsize, fmtstr, sec);
-        break;
-    }
-    case PARAM_RETRIG_LFO_1:
-    case PARAM_RETRIG_LFO_2:
-    {
-        int on = xm_droundi(value);
-        snprintf(buf, bufsize, "%s", on ? "On" : "Off");
-        break;
-    }
-    case PARAM_COUNT:
-        break;
-    }
+    param_value_to_string(paramId, buf, bufsize, value);
 }

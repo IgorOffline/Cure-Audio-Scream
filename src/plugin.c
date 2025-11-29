@@ -106,6 +106,7 @@ void* cplug_createPlugin(CplugHostContext* ctx)
     p->height = GUI_INIT_HEIGHT * 2;
 
     p->lfo_section_open = true;
+    p->autogain_on      = true;
 
     for (int i = 0; i < ARRLEN(p->main_params); i++)
         p->main_params[i] = cplug_getDefaultParameterValue(p, i);
@@ -221,6 +222,8 @@ void cplug_setSampleRateAndBlockSize(void* _p, double sampleRate, uint32_t maxBl
         for (int i = 0; i < ARRLEN(s->values); i++)
             smoothvalue_reset(&s->values[i], p->audio_params[i]);
     }
+
+    smoothvalue_reset(&p->output_gain, p->main_params[PARAM_OUTPUT_GAIN]);
 
 #ifdef CPLUG_BUILD_STANDALONE
     synth_prepare(&g_synth, sampleRate);
@@ -453,7 +456,6 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         float resonance = s.values[PARAM_RESONANCE].current;
         float in_gain   = s.values[PARAM_INPUT_GAIN].current;
         float wet       = s.values[PARAM_WET].current;
-        float out_gain  = s.values[PARAM_OUTPUT_GAIN].current;
 
 // #define CUTOFF_MAX    MIDI_NOTE_NUM_20kHz
 #define CUTOFF_MAX (MIDI_NOTE_NUM_20kHz)
@@ -484,17 +486,15 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         float feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
         feedback_gain       = xm_fast_dB_to_gain(feedback_gain);
 
-        in_gain  = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-        in_gain  = xm_fast_dB_to_gain(in_gain);
-        out_gain = xm_lerpf(out_gain, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
-        out_gain = xm_fast_dB_to_gain(out_gain);
+        in_gain = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+        in_gain = xm_fast_dB_to_gain(in_gain);
 
         Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
         Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
 
         const bool smooth_params = s.values[PARAM_CUTOFF].remaining | s.values[PARAM_SCREAM].remaining |
                                    s.values[PARAM_RESONANCE].remaining | s.values[PARAM_INPUT_GAIN].remaining |
-                                   s.values[PARAM_WET].remaining | s.values[PARAM_OUTPUT_GAIN].remaining;
+                                   s.values[PARAM_WET].remaining;
 
         const bool has_modulation_or_smoothing = lfo_1_mod_flags || lfo_2_mod_flags || smooth_params;
 
@@ -556,13 +556,8 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
                 y = 0;
 
             // *it = xm_clampf(y, -1, 1);
-            audio[i]  = wet * y + (1 - wet) * audio[i];
-            audio[i] *= out_gain;
+            audio[i] = wet * y + (1 - wet) * audio[i];
             // *it = x;
-
-#ifdef CPLUG_BUILD_STANDALONE
-            audio[i] *= xm_fast_dB_to_gain(g_output_gain_dB);
-#endif
 
             // Feedback
             // float feed = y;
@@ -616,7 +611,6 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
                 resonance = modvals[PARAM_RESONANCE];
                 in_gain   = modvals[PARAM_INPUT_GAIN];
                 wet       = modvals[PARAM_WET];
-                out_gain  = modvals[PARAM_OUTPUT_GAIN];
 
                 lp_Q = xm_lerpf(resonance, LP_Q_MIN, LP_Q_MAX);
                 hp_Q = xm_lerpf(resonance, HP_Q_MIN, HP_Q_MAX);
@@ -633,10 +627,8 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
                 feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
                 feedback_gain = xm_fast_dB_to_gain(feedback_gain);
 
-                in_gain  = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-                in_gain  = xm_fast_dB_to_gain(in_gain);
-                out_gain = xm_lerpf(out_gain, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
-                out_gain = xm_fast_dB_to_gain(out_gain);
+                in_gain = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+                in_gain = xm_fast_dB_to_gain(in_gain);
 
                 lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
                 hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
@@ -960,6 +952,36 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                 start_sample      += i;
                 remaining_samples -= i;
                 xassert(remaining_samples >= 0);
+            }
+
+            // Do output gain
+            {
+                smoothvalue_set_target(
+                    &p->output_gain,
+                    p->audio_params[PARAM_OUTPUT_GAIN],
+                    xm_droundi(p->sample_rate * 0.05));
+                for (unsigned ch = 0; ch < ctx->numOutputs; ch++)
+                {
+                    float* buffer = output[ch];
+
+                    SmoothedValue sv          = p->output_gain;
+                    const bool    is_updating = !!sv.remaining;
+                    float         dB          = xm_lerpf(sv.current, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
+                    float         gain        = xm_fast_dB_to_gain(dB);
+
+                    for (unsigned i = frame; i < event.processAudio.endFrame; i++)
+                    {
+                        if (is_updating)
+                        {
+                            float v = smoothvalue_tick(&sv);
+                            dB      = xm_lerpf(sv.current, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
+                            gain    = xm_fast_dB_to_gain(dB);
+                        }
+
+                        buffer[i] *= gain;
+                    }
+                }
+                smoothvalue_tickn(&p->output_gain, num_frames);
             }
 
             frame = event.processAudio.endFrame;

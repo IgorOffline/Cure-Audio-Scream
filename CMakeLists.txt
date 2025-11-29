@@ -51,6 +51,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleC
         -Werror=incompatible-pointer-types
         -Werror=parentheses
         -Werror=excess-initializers
+        -Werror=array-bounds
         # -Wunused-function
         # -Wunused-variable
         
