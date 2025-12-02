@@ -707,6 +707,8 @@ void draw_lfo_section(GUI* gui)
             if (events & IMGUI_EVENT_DRAG_BEGIN)
             {
                 last_drag_val = (float)val;
+                if (!is_sync)
+                    last_drag_val = 1 - last_drag_val;
                 param_change_begin(gui->plugin, param_id);
             }
             double range_min, range_max;
