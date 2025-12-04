@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <xhl/time.h>
 
+#define LFO_PLAYHEAD_TRAIL_MAX_OPACITY 0.5f
+
 const ResourceID RID_LFO_GRID_AREA = {.u32_1 = 'grid', .u32_2 = 'area'};
 
 static inline int main_get_lfo_pattern_idx(Plugin* p)
@@ -55,10 +57,9 @@ void do_lfo_shaders(void* uptr)
     xassert(current_playhead_idx >= last_playhead_idx);
 
     // target playhead y is 1
-    float  target_playhead_y = 0.5f;
-    float  start_y           = gui->lfo_playhead_trail[last_playhead_idx];
-    size_t playhead_diff     = current_playhead_idx - last_playhead_idx;
-    float  inc               = (target_playhead_y - start_y) / (float)playhead_diff;
+    float  start_y       = gui->lfo_playhead_trail[last_playhead_idx];
+    size_t playhead_diff = current_playhead_idx - last_playhead_idx;
+    float  inc           = (LFO_PLAYHEAD_TRAIL_MAX_OPACITY - start_y) / (float)playhead_diff;
 
     float(*view_trail)[512]  = (void*)gui->lfo_playhead_trail;
     view_trail              += 0;
@@ -71,7 +72,7 @@ void do_lfo_shaders(void* uptr)
             idx -= len;
 
         float y = start_y + inc * i;
-        // float y = target_playhead_y;
+        // float y = LFO_PLAYHEAD_TRAIL_MAX_OPACITY;
         if (y > 1)
             y = 0;
         gui->lfo_playhead_trail[idx] = y;
@@ -1339,6 +1340,15 @@ void draw_lfo_section(GUI* gui)
         size_t cap = xarr_cap(gui->lfo_playhead_trail);
         xassert(cap);
         memset(gui->lfo_playhead_trail, 0, cap * sizeof(*gui->lfo_playhead_trail));
+    }
+
+    if (retrigger_flag)
+    {
+        size_t len          = xarr_cap(gui->lfo_playhead_trail);
+        int    playhead_idx = (float)len * lm->current_lfo_playhead;
+        playhead_idx        = xm_mini(playhead_idx, len - 1);
+        for (int i = 0; i <= playhead_idx; i++)
+            gui->lfo_playhead_trail[i] = LFO_PLAYHEAD_TRAIL_MAX_OPACITY;
     }
 
     if (has_resized || fstate.should_update_audio_points_with_main_points)

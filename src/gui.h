@@ -88,7 +88,9 @@ typedef struct GUI
     float*    lfo_ybuffer;
     sg_buffer lfo_playhead_trail_obj;
     sg_view   lfo_playhead_trail_view;
-    float*    lfo_playhead_trail;
+    // An array of opacity values spanning with width of the LFO points grid
+    // The opcacity values are increased as the LFO playhead "passes over them", and they decay over time
+    float* lfo_playhead_trail;
 
     sg_image   logo_id;
     sg_view    logo_texview;
