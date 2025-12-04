@@ -268,6 +268,63 @@ void add_up_down_triangles(NVGcontext* nvg, imgui_rect rect)
     nvgClosePath(nvg);
 }
 
+struct ButtonStripIndexes
+{
+    int hover_idx;
+    int mouse_hold_idx;
+};
+struct ButtonStripIndexes handle_button_strip(
+    GUI*         gui,
+    imgui_rect   area,
+    unsigned     num_buttons,
+    float        width,
+    float        padding,
+    unsigned     events,
+    const char** descriptions,
+    unsigned     num_descriptions)
+{
+    xassert(num_buttons > 1);
+    xassert(num_descriptions > 0);
+    xassert(descriptions != NULL);
+    struct ButtonStripIndexes data;
+
+    data.hover_idx      = -1;
+    data.mouse_hold_idx = -1;
+
+    float btn_stride = width + padding;
+
+    if (events & IMGUI_EVENT_MOUSE_HOVER)
+    {
+        float rel_x     = gui->imgui.pos_mouse_move.x - area.x;
+        int   idx       = xm_clampi(rel_x / btn_stride, 0, num_buttons - 1);
+        float btn_right = area.x + idx * btn_stride + width;
+        if (gui->imgui.pos_mouse_move.x < btn_right)
+            data.hover_idx = idx;
+    }
+    if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+    {
+        float rel_x     = gui->imgui.pos_mouse_down.x - area.x;
+        int   idx       = xm_clampi(rel_x / btn_stride, 0, num_buttons - 1);
+        float btn_right = area.x + idx * btn_stride + width;
+        if (gui->imgui.pos_mouse_down.x < btn_right)
+            data.mouse_hold_idx = idx;
+    }
+    if (events & IMGUI_EVENT_MOUSE_ENTER)
+        pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+
+    int tt_offset_idx = xm_clampi(data.hover_idx, 0, num_buttons - 1);
+    int tt_desc_idx   = xm_clampi(data.hover_idx, 0, num_descriptions - 1);
+
+    imgui_rect btn;
+    btn.x = area.x + btn_stride * tt_offset_idx;
+    btn.y = area.y;
+    btn.r = area.x + btn_stride * tt_offset_idx + width;
+    btn.b = area.b;
+    tooltip_handle_events(&gui->tooltip, btn, descriptions[tt_desc_idx], gui->frame_start_time, events);
+
+    return data;
+}
+
 void draw_lfo_section(GUI* gui)
 {
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
@@ -278,14 +335,10 @@ void draw_lfo_section(GUI* gui)
     LayoutMetrics* lm  = &gui->layout;
     IMPointsData*  imp = &gui->imp;
 
-    const float SCALE                    = lm->param_scale;
-    const float PADDING                  = floorf(8 * lm->content_scale);
-    const float LFO_TAB_WIDTH            = floorf(80 * SCALE);
-    const float LFO_TAB_HEIGHT           = floorf(28 * SCALE);
-    const float LFO_TAB_ICON_PADDING     = floorf(8 * SCALE);
-    const float LFO_TAB_ICON_WIDTH       = floorf(12 * SCALE); // Square icon
-    const float LFO_TAB_ARROWHEAD_LENGTH = floorf(3 * SCALE);
-    const float LFO_TAB_ARROWBODY_LENGTH = floorf(4 * SCALE);
+    const float SCALE          = lm->param_scale;
+    const float PADDING        = floorf(8 * lm->content_scale);
+    const float LFO_TAB_WIDTH  = floorf(64 * SCALE);
+    const float LFO_TAB_HEIGHT = floorf(28 * SCALE);
 
     const float GRID_BUTTON_WIDTH      = floorf(32 * SCALE);
     const float GRID_BUTTON_HEIGHT     = floorf(28 * SCALE);
@@ -354,143 +407,82 @@ void draw_lfo_section(GUI* gui)
 
     // LFO tabs
     {
-        imgui_rect lfo_tabs[2];
+        float      gui_cx = lm->width * 0.5f;
+        imgui_rect lfo_tabs;
+        lfo_tabs.x = gui_cx - LFO_TAB_WIDTH - PADDING * 0.5f;
+        lfo_tabs.r = gui_cx + LFO_TAB_WIDTH + PADDING * 0.5f;
+        lfo_tabs.y = display_y + CONTENT_PADDING_Y;
+        lfo_tabs.b = display_y + CONTENT_PADDING_Y + LFO_TAB_HEIGHT;
 
-        float gui_cx = lm->width * 0.5f;
-        layout_uniform_horizontal(
-            lfo_tabs,
-            ARRLEN(lfo_tabs),
-            gui_cx,
-            display_y + CONTENT_PADDING_Y,
-            LFO_TAB_WIDTH,
-            LFO_TAB_HEIGHT,
-            LAYOUT_CENTRE,
-            PADDING);
+        const unsigned            events        = imgui_get_events_rect(im, 'ltab', &lfo_tabs);
+        static const char*        DESCRIPTION[] = {"Displays tabbed contents for the selected LFO"};
+        struct ButtonStripIndexes data =
+            handle_button_strip(gui, lfo_tabs, 2, LFO_TAB_WIDTH, PADDING, events, DESCRIPTION, ARRLEN(DESCRIPTION));
 
-        for (int i = 0; i < ARRLEN(lfo_tabs); i++)
+        if ((events & IMGUI_EVENT_MOUSE_LEFT_DOWN) && data.mouse_hold_idx != -1)
         {
-            const imgui_rect* rect   = &lfo_tabs[i];
-            const unsigned    wid    = 'tlfo' + i;
-            const unsigned    events = imgui_get_events_rect(im, wid, rect);
+            p->selected_lfo_idx                          = data.mouse_hold_idx;
+            imp->main_points_valid                       = false;
+            fstate.should_update_main_points_with_points = true;
+            should_clear_lfo_trail                       = true;
 
-            tooltip_handle_events(
-                &gui->tooltip,
-                *rect,
-                "Toggle between controls for LFO 1 & 2",
-                gui->frame_start_time,
-                events);
+            lm->current_lfo_playhead = lm->last_lfo_playhead = p->lfos[data.mouse_hold_idx].phase;
+        }
 
-            if (events & IMGUI_EVENT_MOUSE_ENTER)
-            {
-                pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-            }
-            if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            {
-                p->selected_lfo_idx                          = i;
-                imp->main_points_valid                       = false;
-                fstate.should_update_main_points_with_points = true;
-                should_clear_lfo_trail                       = true;
+        for (int i = 0; i < 2; i++)
+        {
+            float x = floorf(lfo_tabs.x + i * (LFO_TAB_WIDTH + PADDING));
+            float r = floorf(lfo_tabs.x + i * (LFO_TAB_WIDTH + PADDING) + LFO_TAB_WIDTH);
+            float y = lfo_tabs.y;
+            if (data.mouse_hold_idx == i)
+                y += 1;
 
-                lm->current_lfo_playhead = lm->last_lfo_playhead = p->lfos[i].phase;
-            }
+            bool is_selected = i == p->selected_lfo_idx;
+            bool is_hovering = i == data.hover_idx && data.mouse_hold_idx == -1;
 
-            NVGcolour  col1, col2;
-            const bool is_active = p->selected_lfo_idx == i;
-            if (is_active)
-            {
-                col1 = C_LIGHT_BLUE_2;
-                col2 = C_BG_LFO;
-            }
-            else
-            {
-                col1 = C_BG_LFO;
-                col2 = C_LIGHT_BLUE_2;
-            }
+            NVGcolour bg_col   = is_selected ? C_LIGHT_BLUE_2 : C_BTN_HOVER;
+            NVGcolour text_col = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
+            // NVGcolour text_col = is_selected ? C_BG_LFO : is_hovering ? C_WHITE : C_TEXT_DARK_BG;
 
-            if (is_active)
+            if (is_selected)
             {
                 NVGcolour glow_icol = C_DARK_BLUE;
                 NVGcolour glow_ocol = glow_icol;
                 glow_ocol.a         = 0;
-                float width         = rect->r - rect->x;
-                float height        = rect->b - rect->y;
                 float glow_radius   = 12;
                 // glow
-                float gx = rect->x - glow_radius;
-                float gy = rect->y - glow_radius;
-                float gw = width + 2 * glow_radius;
-                float gh = height + 2 * glow_radius;
+                float gx = x - glow_radius;
+                float gy = y - glow_radius;
+                float gw = LFO_TAB_WIDTH + 2 * glow_radius;
+                float gh = LFO_TAB_HEIGHT + 2 * glow_radius;
                 nvgBeginPath(nvg);
                 nvgRect(nvg, gx, gy, gw, gh);
                 NVGpaint paint =
-                    nvgBoxGradient(nvg, rect->x, rect->y, width, height, 4, glow_radius, glow_icol, glow_ocol);
+                    nvgBoxGradient(nvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4, glow_radius, glow_icol, glow_ocol);
                 nvgSetPaint(nvg, paint);
                 nvgFill(nvg);
 
                 // tab
                 nvgBeginPath(nvg);
-                nvgRoundedRect(nvg, rect->x, rect->y, width, height, 4);
-                nvgSetColour(nvg, col1);
+                nvgRoundedRect(nvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4);
+                nvgSetColour(nvg, bg_col);
                 nvgFill(nvg);
             }
             else
             {
                 nvgBeginPath(nvg);
-                nvgRoundedRect(nvg, rect->x + 0.5, rect->y + 0.5, rect->r - rect->x, rect->b - rect->y, 4);
-                nvgSetColour(nvg, col2);
+                nvgRoundedRect(nvg, x + 0.5f, y + 0.5f, LFO_TAB_WIDTH - 1, LFO_TAB_HEIGHT - 1, 4);
+                nvgSetColour(nvg, text_col);
                 nvgStroke(nvg, 1.1); // rounded edges looks better when stroke width >1
             }
-
-            // snap half pixel
-            float icon_x = floorf(rect->x + LFO_TAB_ICON_PADDING) + 0.5f;
-            float icon_y = floorf(rect->y + LFO_TAB_ICON_PADDING) + 0.5f;
-            float icon_r = icon_x + LFO_TAB_ICON_WIDTH - 1;
-            float icon_b = icon_y + LFO_TAB_ICON_WIDTH - 1;
-
-            // nvgSetLineCap(nvg, NVG_ROUND); // Doesn't look great when lines are so small and thin
-            nvgSetLineCap(nvg, NVG_BUTT);
-            nvgSetColour(nvg, col2);
-
-            nvgBeginPath(nvg);
-            // Top left arrow head
-            nvgMoveTo(nvg, icon_x, icon_y + LFO_TAB_ARROWHEAD_LENGTH);
-            nvgLineTo(nvg, icon_x, icon_y);
-            nvgLineTo(nvg, icon_x + LFO_TAB_ARROWHEAD_LENGTH, icon_y);
-            // Top right
-            nvgMoveTo(nvg, icon_r - LFO_TAB_ARROWHEAD_LENGTH, icon_y);
-            nvgLineTo(nvg, icon_r, icon_y);
-            nvgLineTo(nvg, icon_r, icon_y + LFO_TAB_ARROWHEAD_LENGTH);
-            // Bottom left
-            nvgMoveTo(nvg, icon_x, icon_b - LFO_TAB_ARROWHEAD_LENGTH);
-            nvgLineTo(nvg, icon_x, icon_b);
-            nvgLineTo(nvg, icon_x + LFO_TAB_ARROWHEAD_LENGTH, icon_b);
-            // Bottom right
-            nvgMoveTo(nvg, icon_r - LFO_TAB_ARROWHEAD_LENGTH, icon_b);
-            nvgLineTo(nvg, icon_r, icon_b);
-            nvgLineTo(nvg, icon_r, icon_b - LFO_TAB_ARROWHEAD_LENGTH);
-
-            // Arrow bodies
-            nvgMoveTo(nvg, icon_x, icon_y);
-            nvgLineTo(nvg, icon_x + LFO_TAB_ARROWBODY_LENGTH, icon_y + LFO_TAB_ARROWBODY_LENGTH);
-            nvgMoveTo(nvg, icon_r, icon_y);
-            nvgLineTo(nvg, icon_r - LFO_TAB_ARROWBODY_LENGTH, icon_y + LFO_TAB_ARROWBODY_LENGTH);
-            nvgMoveTo(nvg, icon_x, icon_b);
-            nvgLineTo(nvg, icon_x + LFO_TAB_ARROWBODY_LENGTH, icon_b - LFO_TAB_ARROWBODY_LENGTH);
-            nvgMoveTo(nvg, icon_r, icon_b);
-            nvgLineTo(nvg, icon_r - LFO_TAB_ARROWBODY_LENGTH, icon_b - LFO_TAB_ARROWBODY_LENGTH);
-
-            // icon/text separator
-            nvgMoveTo(nvg, icon_r + LFO_TAB_ICON_PADDING + 1, icon_y - 2.5f);
-            nvgLineTo(nvg, icon_r + LFO_TAB_ICON_PADDING + 1, icon_b + 2.5f);
-
-            nvgStroke(nvg, 1);
 
             char label[]  = "LFO 1";
             label[4]     += i;
 
+            nvgSetColour(nvg, text_col);
             nvgSetFontSize(nvg, FONT_SIZE);
-            nvgSetTextAlign(nvg, NVG_ALIGN_CR);
-            nvgText(nvg, rect->r - LFO_TAB_ICON_PADDING, top_text_cy, label, label + 5);
+            nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+            nvgText(nvg, x + LFO_TAB_WIDTH * 0.5f, y + LFO_TAB_HEIGHT * 0.5f, label, label + 5);
         }
     }
 
@@ -733,24 +725,23 @@ void draw_lfo_section(GUI* gui)
 
         unsigned events = imgui_get_events_rect(im, 'rtyp', &btn_rate_type);
 
-        int hover_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_HOVER)
-        {
-            float rel_x = im->pos_mouse_move.x - btn_rate_type.x;
-            hover_idx   = xm_clampi(rel_x / height, 0, 1);
-        }
-        int mouse_down_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        {
-            float rel_x    = im->pos_mouse_down.x - btn_rate_type.x;
-            mouse_down_idx = xm_clampi(rel_x / height, 0, 1);
-        }
+        static const char* DESCRIPTIONS[] = {
+            "Sync rate mode\n"
+            "\n"
+            "Syncs the rate of the LFO playhead to the DAWs BPM clock",
 
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+            "Time rate mode\n"
+            "\n"
+            "Change the rate of the LFO playhead in seconds/milliseconds",
+        };
+        static_assert(ARRLEN(DESCRIPTIONS) == 2, "Should be binary/boolean");
+
+        struct ButtonStripIndexes data =
+            handle_button_strip(gui, btn_rate_type, 2, height, 0, events, DESCRIPTIONS, ARRLEN(DESCRIPTIONS));
+
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
-            bool is_ms = mouse_down_idx == 1;
+            bool is_ms = data.mouse_hold_idx == 1;
             param_set(p, param_id, (double)is_ms);
         }
 
@@ -761,11 +752,11 @@ void draw_lfo_section(GUI* gui)
         {
             float x = btn_rate_type.x + height * i;
             float y = btn_rate_type.y;
-            if (mouse_down_idx == i)
+            if (data.mouse_hold_idx == i)
                 y += 1;
 
             bool is_selected = i == selected_idx;
-            bool is_hovering = i == hover_idx && mouse_down_idx == -1;
+            bool is_hovering = i == data.hover_idx && data.mouse_hold_idx == -1;
 
             if (is_selected || is_hovering)
             {
@@ -794,26 +785,6 @@ void draw_lfo_section(GUI* gui)
                 nvgText(nvg, x + height * 0.5f, y + height * 0.5f, "MS", NULL);
             }
         }
-
-        // nvgBeginPath(nvg);
-        // nvgRoundedRect(nvg, x, btn_rate_type.y, height, height, 4);
-        // nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        // nvgFill(nvg);
-
-        // // Crotchet
-        // if (is_ms)
-        //     nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        // else
-        //     nvgSetColour(nvg, C_BG_LFO);
-
-        // // Label
-        // nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-        // if (is_ms)
-        //     nvgSetColour(nvg, C_BG_LFO);
-        // else
-        //     nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        // nvgSetFontSize(nvg, 12 * SCALE);
-        // nvgText(nvg, btn_rate_type.x + height * 1.5f, btn_rate_type.y + height * 0.5f, "MS", NULL);
     }
 
     // Loop type buttons
@@ -822,31 +793,7 @@ void draw_lfo_section(GUI* gui)
 
         unsigned events = imgui_get_events_rect(im, 'loop', &btn_loop_type);
 
-        float height = btn_loop_type.b - btn_loop_type.y;
-
-        int hover_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_HOVER)
-        {
-            float rel_x = im->pos_mouse_move.x - btn_loop_type.x;
-            hover_idx   = xm_clampi(rel_x / height, 0, NUM_LOOP_TYPES - 1);
-        }
-        int mouse_down_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        {
-            float rel_x    = im->pos_mouse_down.x - btn_loop_type.x;
-            mouse_down_idx = xm_clampi(rel_x / height, 0, NUM_LOOP_TYPES - 1);
-        }
-
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-        {
-            xassert(mouse_down_idx != -1);
-            LFOLoopType loop_type     = mouse_down_idx;
-            p->lfo_loop_type[lfo_idx] = loop_type;
-        }
-
-        static const char* LOOP_TYPE_DESCRIPTIONS[] = {
+        static const char* DESCRIPTIONS[] = {
             "Loop mode\n"
             "\n"
             "Causes the LFO playhead to return to 0\% after it reaches 100%.",
@@ -864,13 +811,26 @@ void draw_lfo_section(GUI* gui)
             "keytracking is on for the most accurate results.\n"
             "\n"
             "When the LFO playhead reaches 100\% it will hang there until audio or MIDI causes it to reset to 0%."};
-        static_assert(ARRLEN(LOOP_TYPE_DESCRIPTIONS) == NUM_LOOP_TYPES, "");
+        static_assert(ARRLEN(DESCRIPTIONS) == NUM_LOOP_TYPES, "");
 
-        int        desc_idx  = xm_clampi(hover_idx, 0, NUM_LOOP_TYPES - 1);
-        imgui_rect btn       = btn_loop_type;
-        btn.x               += height * desc_idx;
-        btn.r               -= height * (NUM_LOOP_TYPES - 1 - desc_idx);
-        tooltip_handle_events(&gui->tooltip, btn, LOOP_TYPE_DESCRIPTIONS[desc_idx], gui->frame_start_time, events);
+        float height = btn_loop_type.b - btn_loop_type.y;
+
+        struct ButtonStripIndexes data = handle_button_strip(
+            gui,
+            btn_loop_type,
+            NUM_LOOP_TYPES,
+            height,
+            0,
+            events,
+            DESCRIPTIONS,
+            ARRLEN(DESCRIPTIONS));
+
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            xassert(data.mouse_hold_idx != -1);
+            LFOLoopType loop_type     = data.mouse_hold_idx;
+            p->lfo_loop_type[lfo_idx] = loop_type;
+        }
 
         const LFOLoopType current_loop_type = p->lfo_loop_type[lfo_idx];
         for (int i = 0; i < NUM_LOOP_TYPES; i++)
@@ -878,11 +838,11 @@ void draw_lfo_section(GUI* gui)
             LFOLoopType type = i;
             float       x    = btn_loop_type.x + height * i;
             float       y    = btn_loop_type.y;
-            if (mouse_down_idx == i)
+            if (data.mouse_hold_idx == i)
                 y += 1;
 
             bool is_selected = type == current_loop_type;
-            bool is_hovering = i == hover_idx && mouse_down_idx == -1;
+            bool is_hovering = i == data.hover_idx && data.mouse_hold_idx == -1;
 
             if (is_selected || is_hovering)
             {
@@ -1016,47 +976,27 @@ void draw_lfo_section(GUI* gui)
 
         unsigned events = imgui_get_events_rect(im, 'lshp', &btns);
 
-        int hover_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_HOVER)
-        {
-            float rel_x = im->pos_mouse_move.x - btns.x;
-            hover_idx   = xm_clampi(rel_x / SHAPES_WIDTH, 0, IMP_SHAPE_COUNT - 1);
-        }
-        int mouse_down_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        {
-            float rel_x    = im->pos_mouse_down.x - btns.x;
-            mouse_down_idx = xm_clampi(rel_x / SHAPES_WIDTH, 0, IMP_SHAPE_COUNT - 1);
-        }
-
-#if defined(_WIN32)
-#define PAINT_KEY "Ctrl"
-#elif defined(__APPLE__)
-#define PAINT_KEY "Cmd"
-#endif
-
-        int        desc_idx  = xm_clampi(hover_idx, 0, IMP_SHAPE_COUNT - 1);
-        imgui_rect btn       = btns;
-        btn.x               += SHAPES_WIDTH * desc_idx;
-        btn.r               -= SHAPES_WIDTH * (IMP_SHAPE_COUNT - 1 - desc_idx);
-        tooltip_handle_events(
-            &gui->tooltip,
-            btn,
+        static const char* DESCRIPTIONS[] = {
             "Select a draw mode and drag your mouse inside empty space on the LFO grid to paint the currently "
-            "selected shape to the grid.",
-            gui->frame_start_time,
-            events);
+            "selected shape to the grid."};
+        struct ButtonStripIndexes data = handle_button_strip(
+            gui,
+            btns,
+            IMP_SHAPE_COUNT,
+            SHAPES_WIDTH,
+            0,
+            events,
+            DESCRIPTIONS,
+            ARRLEN(DESCRIPTIONS));
 
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
             // It was observed that some users clicked the active shape type button hoping to "reset" the shape back to
             // default, and turn off drawing mode. They were confused when this behaviour didn't happen
             // So here we're trying it and hoping that it's good UX
-            xassert(mouse_down_idx != -1);
-            IMPShapeType next_type = mouse_down_idx;
-            if (mouse_down_idx == p->lfo_shape_idx)
+            xassert(data.mouse_hold_idx != -1);
+            IMPShapeType next_type = data.mouse_hold_idx;
+            if (data.mouse_hold_idx == p->lfo_shape_idx)
                 next_type = 0;
             p->lfo_shape_idx = next_type;
         }
@@ -1071,14 +1011,14 @@ void draw_lfo_section(GUI* gui)
             inner.y = btns.y;
             inner.b = btns.b;
 
-            if (mouse_down_idx == i)
+            if (data.mouse_hold_idx == i)
             {
                 inner.y += 1;
                 inner.b += 1;
             }
 
             bool is_selected = i == current_shape_type;
-            bool is_hovering = i == hover_idx;
+            bool is_hovering = i == data.hover_idx;
 
             if (is_selected || is_hovering)
             {
@@ -1193,31 +1133,12 @@ void draw_lfo_section(GUI* gui)
         float w  = btn_pattern.r - btn_pattern.x;
         float w8 = w / NUM_LFO_PATTERNS;
 
-        int hover_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_HOVER)
-        {
-            float rel_x = im->pos_mouse_move.x - btn_pattern.x;
-            hover_idx   = xm_clampi(rel_x / w8, 0, NUM_LFO_PATTERNS - 1);
-        }
-        int mouse_down_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        {
-            float rel_x    = im->pos_mouse_down.x - btn_pattern.x;
-            mouse_down_idx = xm_clampi(rel_x / w8, 0, NUM_LFO_PATTERNS - 1);
-        }
+        static const char* DESCRIPTIONS[] = {"Switch between custom LFO shapes for this LFO\n"
+                                             "\n"
+                                             "Try automating this parameter in your DAW"};
 
-        int        desc_idx  = xm_clampi(hover_idx, 0, NUM_LFO_PATTERNS - 1);
-        imgui_rect btn       = btn_pattern;
-        btn.x               += w8 * desc_idx;
-        btn.r               -= w8 * (NUM_LFO_PATTERNS - 1 - desc_idx);
-        tooltip_handle_events(
-            &gui->tooltip,
-            btn,
-            "Switch between custom LFO shapes for this LFO\n"
-            "\n"
-            "Try automating this parameter in your DAW",
-            gui->frame_start_time,
-            events);
+        struct ButtonStripIndexes data =
+            handle_button_strip(gui, btn_pattern, NUM_LFO_PATTERNS, w8, 0, events, DESCRIPTIONS, ARRLEN(DESCRIPTIONS));
 
         float pattern_cx = 0.5f * (btn_pattern.x + btn_pattern.r);
         float pattern_cy = 0.5f * (btn_pattern.y + btn_pattern.b);
@@ -1226,13 +1147,10 @@ void draw_lfo_section(GUI* gui)
 
         float next_value = value_f;
 
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
-            xassert(mouse_down_idx > -1);
-            next_value = (float)mouse_down_idx / (NUM_LFO_PATTERNS - 1);
+            xassert(data.mouse_hold_idx > -1);
+            next_value = (float)data.mouse_hold_idx / (NUM_LFO_PATTERNS - 1);
         }
         bool changed = value_f != next_value;
         if (changed)
@@ -1261,10 +1179,10 @@ void draw_lfo_section(GUI* gui)
 
             float x = btn_pattern.x + i * w8;
             float y = btn_pattern.y;
-            if (i == mouse_down_idx)
+            if (i == data.mouse_hold_idx)
                 y += 1;
             bool is_selected = i == pattern_idx;
-            bool is_hovering = i == hover_idx && mouse_down_idx == -1;
+            bool is_hovering = i == data.hover_idx && data.mouse_hold_idx == -1;
 
             if (is_selected || is_hovering)
             {
