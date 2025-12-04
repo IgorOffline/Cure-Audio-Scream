@@ -336,12 +336,6 @@ bool param_string_to_value(uint32_t param_id, const char* str, double* val)
         if (ok)
             *val = normalise_sec(sec);
     }
-    case PARAM_RETRIG_LFO_1:
-    case PARAM_RETRIG_LFO_2:
-    {
-        *val = 0 == strcmp(str, "On");
-        break;
-    }
     case PARAM_COUNT:
         break;
     }
@@ -429,13 +423,6 @@ int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double val
         n = snprintf(buf, bufsize, fmtstr, sec);
         break;
     }
-    case PARAM_RETRIG_LFO_1:
-    case PARAM_RETRIG_LFO_2:
-    {
-        int on = xm_droundi(value);
-        n      = snprintf(buf, bufsize, "%s", on ? "On" : "Off");
-        break;
-    }
     case PARAM_COUNT:
         break;
     }
@@ -469,8 +456,6 @@ void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
         "LFO 2 Sync Rate",
         "LFO 1 ms Rate",
         "LFO 2 ms Rate",
-        "LFO 1 Retrig",
-        "LFO 2 Retrig",
     };
     // clang-format on
     _Static_assert(ARRLEN(NAMES) == PARAM_COUNT);
@@ -530,10 +515,6 @@ double cplug_getDefaultParameterValue(void* _p, uint32_t paramId)
     case PARAM_SEC_RATE_LFO_1:
     case PARAM_SEC_RATE_LFO_2:
         v = normalise_sec(0.25); // 250ms
-        break;
-    case PARAM_RETRIG_LFO_1:
-    case PARAM_RETRIG_LFO_2:
-        v = 1;
         break;
     case PARAM_COUNT:
         break;

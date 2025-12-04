@@ -144,6 +144,114 @@ void draw_crotchet_svg(NVGcontext* nvg, const float scale, float x, float y)
     // clang-format on
 }
 
+// viewBox = 0 0 28 28
+void draw_loopicon_svg(NVGcontext* nvg, const float scale, float x, float y, NVGcolour col)
+{
+    // clang-format off
+    nvgSetColour(nvg, col);
+
+    nvgBeginPath(nvg);
+    nvgMoveTo(nvg, x + scale * 10.0f, y + scale * 9.0f);
+    nvgBezierTo(nvg, x + scale * 7.23858f, y + scale * 9.0f, x + scale * 5.0f, y + scale * 11.2386f, x + scale * 5.0f, y + scale * 14.0f);
+    nvgBezierTo(nvg, x + scale * 5.0f, y + scale * 16.7614f, x + scale * 7.23858f, y + scale * 19.0f, x + scale * 10.0f, y + scale * 19.0f);
+    nvgLineTo(nvg, x + scale * 11.0f, y + scale * 19.0f);
+    nvgLineTo(nvg, x + scale * 11.0f, y + scale * 17.0f);
+    nvgLineTo(nvg, x + scale * 10.0f, y + scale * 17.0f);
+    nvgBezierTo(nvg, x + scale * 8.34315f, y + scale * 17.0f, x + scale * 7.0f, y + scale * 15.6569f, x + scale * 7.0f, y + scale * 14.0f);
+    nvgBezierTo(nvg, x + scale * 7.0f, y + scale * 12.3431f, x + scale * 8.34315f, y + scale * 11.0f, x + scale * 10.0f, y + scale * 11.0f);
+    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 11.0f);
+    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 14.0f);
+    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 10.0f);
+    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 6.0f);
+    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 9.0f);
+    nvgLineTo(nvg, x + scale * 10.0f, y + scale * 9.0f);
+    nvgClosePath(nvg);
+    // nvgFill(nvg);
+
+    // nvgBeginPath(nvg);
+    nvgMoveTo(nvg, x + scale * 18.0f, y + scale * 19.0f);
+    nvgBezierTo(nvg, x + scale * 20.7614f, y + scale * 19.0f, x + scale * 23.0f, y + scale * 16.7614f, x + scale * 23.0f, y + scale * 14.0f);
+    nvgBezierTo(nvg, x + scale * 23.0f, y + scale * 11.2386f, x + scale * 20.7614f, y + scale * 9.0f, x + scale * 18.0f, y + scale * 9.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 9.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 11.0f);
+    nvgLineTo(nvg, x + scale * 18.0f, y + scale * 11.0f);
+    nvgBezierTo(nvg, x + scale * 19.6569f, y + scale * 11.0f, x + scale * 21.0f, y + scale * 12.3431f, x + scale * 21.0f, y + scale * 14.0f);
+    nvgBezierTo(nvg, x + scale * 21.0f, y + scale * 15.6569f, x + scale * 19.6569f, y + scale * 17.0f, x + scale * 18.0f, y + scale * 17.0f);
+    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 17.0f);
+    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 14.0f);
+    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 18.0f);
+    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 22.0f);
+    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 19.0f);
+    nvgLineTo(nvg, x + scale * 18.0f, y + scale * 19.0f);
+    nvgClosePath(nvg);
+
+    nvgFill(nvg);
+    // clang-format on
+}
+
+// viewBox = 0 0 28 28
+void draw_Retrigicon_svg(NVGcontext* nvg, const float scale, float x, float y, NVGcolour col)
+{
+    // clang-format off
+    nvgSetColour(nvg, col);
+
+    nvgBeginPath(nvg);
+
+    nvgMoveTo(nvg, x + scale * 17.0f, y + scale * 18.0f);
+    nvgBezierTo(nvg, x + scale * 19.7614f, y + scale * 18.0f, x + scale * 22.0f, y + scale * 15.7614f, x + scale * 22.0f, y + scale * 13.0f);
+    nvgBezierTo(nvg, x + scale * 22.0f, y + scale * 10.2386f, x + scale * 19.7614f, y + scale * 8.0f, x + scale * 17.0f, y + scale * 8.0f);
+    nvgLineTo(nvg, x + scale * 13.0f, y + scale * 8.0f);
+    nvgLineTo(nvg, x + scale * 13.0f, y + scale * 10.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 10.0f);
+    nvgBezierTo(nvg, x + scale * 18.6569f, y + scale * 10.0f, x + scale * 20.0f, y + scale * 11.3431f, x + scale * 20.0f, y + scale * 13.0f);
+    nvgBezierTo(nvg, x + scale * 20.0f, y + scale * 14.6569f, x + scale * 18.6569f, y + scale * 16.0f, x + scale * 17.0f, y + scale * 16.0f);
+    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 16.0f);
+    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 13.0f);
+    nvgLineTo(nvg, x + scale * 11.0f, y + scale * 17.0f);
+    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 21.0f);
+    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 18.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 18.0f);
+    nvgClosePath(nvg);
+
+    nvgMoveTo(nvg, x + scale * 6.0f, y + scale * 6.0f);
+    nvgLineTo(nvg, x + scale * 8.0f, y + scale * 6.0f);
+    nvgLineTo(nvg, x + scale * 8.0f, y + scale * 22.0f);
+    nvgLineTo(nvg, x + scale * 6.0f, y + scale * 22.0f);
+    nvgLineTo(nvg, x + scale * 6.0f, y + scale * 6.0f);
+    nvgClosePath(nvg);
+
+    nvgFill(nvg);
+    // clang-format on
+}
+
+// viewBox = 0 0 28 28
+void draw_Oneshoticon_svg(NVGcontext* nvg, const float scale, float x, float y, NVGcolour col)
+{
+    // clang-format off
+    nvgSetColour(nvg, col);
+    nvgBeginPath(nvg);
+
+    nvgMoveTo(nvg, x + scale * 10.0f, y + scale * 15.0f);
+    nvgLineTo(nvg, x + scale * 10.0f, y + scale * 13.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 13.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 9.0f);
+    nvgLineTo(nvg, x + scale * 22.0f, y + scale * 14.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 19.0f);
+    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 15.0f);
+    nvgLineTo(nvg, x + scale * 10.0f, y + scale * 15.0f);
+    nvgClosePath(nvg);
+
+    nvgMoveTo(nvg, x + scale * 6.0f, y + scale * 6.0f);
+    nvgLineTo(nvg, x + scale * 8.0f, y + scale * 6.0f);
+    nvgLineTo(nvg, x + scale * 8.0f, y + scale * 22.0f);
+    nvgLineTo(nvg, x + scale * 6.0f, y + scale * 22.0f);
+    nvgLineTo(nvg, x + scale * 6.0f, y + scale * 6.0f);
+    nvgClosePath(nvg);
+
+    nvgFill(nvg);
+    // clang-format on
+}
+
 void add_up_down_triangles(NVGcontext* nvg, imgui_rect rect)
 {
     float w  = rect.r - rect.x;
@@ -608,64 +716,198 @@ void draw_lfo_section(GUI* gui)
     btn_rate_type.b = sl_rate.b;
     btn_rate_type.r = sl_rate.x - 20 * SCALE;
     btn_rate_type.x = btn_rate_type.r - 2 * (sl_rate.b - sl_rate.y);
-    imgui_rect btn_retrig;
-    btn_retrig.r = btn_rate_type.x - 20 * SCALE;
-    btn_retrig.x = btn_retrig.r - 80 * SCALE;
-    btn_retrig.y = btn_rate_type.y;
-    btn_retrig.b = btn_rate_type.b;
-    imgui_rect btn_loop;
-    btn_loop.r = btn_retrig.x - 20 * SCALE;
-    btn_loop.x = btn_loop.r - 64 * SCALE;
-    btn_loop.y = btn_retrig.y;
-    btn_loop.b = btn_retrig.b;
+    imgui_rect btn_loop_type;
+    btn_loop_type.y = sl_rate.y;
+    btn_loop_type.b = sl_rate.b;
+    btn_loop_type.r = btn_rate_type.x - 20 * SCALE;
+    btn_loop_type.x = btn_loop_type.r - 3 * (sl_rate.b - sl_rate.y);
+
     // Rate type buttons
     {
         int     lfo_idx  = gui->plugin->selected_lfo_idx;
         ParamID param_id = PARAM_RATE_TYPE_LFO_1 + lfo_idx;
 
-        float x      = btn_rate_type.x;
         float height = btn_rate_type.b - btn_rate_type.y;
 
         unsigned events = imgui_get_events_rect(im, 'rtyp', &btn_rate_type);
+
+        int hover_idx = -1;
+        if (events & IMGUI_EVENT_MOUSE_HOVER)
+        {
+            float rel_x = im->pos_mouse_move.x - btn_rate_type.x;
+            hover_idx   = xm_clampi(rel_x / height, 0, 1);
+        }
+        int mouse_down_idx = -1;
+        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+        {
+            float rel_x    = im->pos_mouse_down.x - btn_rate_type.x;
+            mouse_down_idx = xm_clampi(rel_x / height, 0, 1);
+        }
+
         if (events & IMGUI_EVENT_MOUSE_ENTER)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
-            imgui_rect btn_ms  = btn_rate_type;
-            btn_ms.x          += height;
-            bool is_ms         = imgui_hittest_rect(im->pos_mouse_down, &btn_ms);
+            bool is_ms = mouse_down_idx == 1;
             param_set(gui->plugin, param_id, (double)is_ms);
         }
 
-        bool is_ms = gui->plugin->main_params[param_id] >= 0.5f;
+        bool is_ms        = gui->plugin->main_params[param_id] >= 0.5f;
+        int  selected_idx = is_ms ? 1 : 0;
 
-        if (is_ms)
-            x += height;
+        for (int i = 0; i < 2; i++)
+        {
+            float x = btn_rate_type.x + height * i;
+            float y = btn_rate_type.y;
+            if (mouse_down_idx == i)
+                y += 1;
 
-        nvgBeginPath(nvg);
-        nvgRoundedRect(nvg, x, btn_rate_type.y, height, height, 4);
-        nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        nvgFill(nvg);
+            bool is_selected = i == selected_idx;
+            bool is_hovering = i == hover_idx && mouse_down_idx == -1;
 
-        // Crotchet
-        if (is_ms)
-            nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        else
-            nvgSetColour(nvg, C_BG_LFO);
-        float cx         = btn_rate_type.x + height * 0.5;
-        float cy         = btn_rate_type.y + height * 0.5;
-        float crotchet_x = cx - 5 * SCALE;
-        float crotchet_y = cy - 7 * SCALE;
-        draw_crotchet_svg(nvg, SCALE, crotchet_x, crotchet_y);
+            if (is_selected || is_hovering)
+            {
+                NVGcolour bg_col = is_selected ? C_LIGHT_BLUE_2 : C_BTN_HOVER;
+                nvgBeginPath(nvg);
+                nvgRoundedRect(nvg, x, y, height, height, 4 * SCALE);
+                nvgSetColour(nvg, bg_col);
+                nvgFill(nvg);
+            }
 
-        // Label
-        nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-        if (is_ms)
-            nvgSetColour(nvg, C_BG_LFO);
-        else
-            nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        nvgSetFontSize(nvg, 12 * SCALE);
-        nvgText(nvg, btn_rate_type.x + height * 1.5f, btn_rate_type.y + height * 0.5f, "MS", NULL);
+            NVGcolour icon_col = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
+            nvgSetColour(nvg, icon_col);
+
+            if (i == 0)
+            {
+                float cx         = x + height * 0.5;
+                float cy         = y + height * 0.5;
+                float crotchet_x = cx - 5 * SCALE;
+                float crotchet_y = cy - 7 * SCALE;
+                draw_crotchet_svg(nvg, SCALE, crotchet_x, crotchet_y);
+            }
+            else
+            {
+                nvgSetFontSize(nvg, 12 * SCALE);
+                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+                nvgText(nvg, x + height * 0.5f, y + height * 0.5f, "MS", NULL);
+            }
+        }
+
+        // nvgBeginPath(nvg);
+        // nvgRoundedRect(nvg, x, btn_rate_type.y, height, height, 4);
+        // nvgSetColour(nvg, C_LIGHT_BLUE_2);
+        // nvgFill(nvg);
+
+        // // Crotchet
+        // if (is_ms)
+        //     nvgSetColour(nvg, C_LIGHT_BLUE_2);
+        // else
+        //     nvgSetColour(nvg, C_BG_LFO);
+
+        // // Label
+        // nvgSetTextAlign(nvg, NVG_ALIGN_CC);
+        // if (is_ms)
+        //     nvgSetColour(nvg, C_BG_LFO);
+        // else
+        //     nvgSetColour(nvg, C_LIGHT_BLUE_2);
+        // nvgSetFontSize(nvg, 12 * SCALE);
+        // nvgText(nvg, btn_rate_type.x + height * 1.5f, btn_rate_type.y + height * 0.5f, "MS", NULL);
+    }
+
+    // Loop type buttons
+    {
+        int lfo_idx = gui->plugin->selected_lfo_idx;
+
+        unsigned events = imgui_get_events_rect(im, 'loop', &btn_loop_type);
+
+        float height = btn_loop_type.b - btn_loop_type.y;
+
+        int hover_idx = -1;
+        if (events & IMGUI_EVENT_MOUSE_HOVER)
+        {
+            float rel_x = im->pos_mouse_move.x - btn_loop_type.x;
+            hover_idx   = xm_clampi(rel_x / height, 0, NUM_LOOP_TYPES - 1);
+        }
+        int mouse_down_idx = -1;
+        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+        {
+            float rel_x    = im->pos_mouse_down.x - btn_loop_type.x;
+            mouse_down_idx = xm_clampi(rel_x / height, 0, NUM_LOOP_TYPES - 1);
+        }
+
+        if (events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        {
+            xassert(mouse_down_idx != -1);
+            LFOLoopType loop_type               = mouse_down_idx;
+            gui->plugin->lfo_loop_type[lfo_idx] = loop_type;
+        }
+
+        static const char* LOOP_TYPE_DESCRIPTIONS[] = {
+            "Loop mode\n"
+            "\n"
+            "Causes the LFO playhead to return to 0\% after it reaches 100%.",
+
+            "Retrig mode\n"
+            "\n"
+            "Uses clever audio peak detection to reset the LFO phase to 0%. Send MIDI to the plugin while MIDI "
+            "keytracking is on for the most accurate results.\n"
+            "\n"
+            "The LFO playhead will return to 0\% after it reaches 100%.",
+
+            "One shot mode\n"
+            "\n"
+            "Uses clever audio peak detection to reset the LFO phase to 0%. Send MIDI to the plugin while MIDI "
+            "keytracking is on for the most accurate results.\n"
+            "\n"
+            "When the LFO playhead reaches 100\% it will hang there until audio or MIDI causes it to reset to 0%."};
+        static_assert(ARRLEN(LOOP_TYPE_DESCRIPTIONS) == NUM_LOOP_TYPES, "");
+
+        int        desc_idx  = xm_clampi(hover_idx, 0, NUM_LOOP_TYPES - 1);
+        imgui_rect btn       = btn_loop_type;
+        btn.x               += height * desc_idx;
+        btn.r               -= height * (NUM_LOOP_TYPES - 1 - desc_idx);
+        tooltip_handle_events(&gui->tooltip, btn, LOOP_TYPE_DESCRIPTIONS[desc_idx], gui->frame_start_time, events);
+
+        const LFOLoopType current_loop_type = gui->plugin->lfo_loop_type[lfo_idx];
+        for (int i = 0; i < NUM_LOOP_TYPES; i++)
+        {
+            LFOLoopType type = i;
+            float       x    = btn_loop_type.x + height * i;
+            float       y    = btn_loop_type.y;
+            if (mouse_down_idx == i)
+                y += 1;
+
+            bool is_selected = type == current_loop_type;
+            bool is_hovering = i == hover_idx && mouse_down_idx == -1;
+
+            if (is_selected || is_hovering)
+            {
+                NVGcolour bg_col = is_selected ? C_LIGHT_BLUE_2 : C_BTN_HOVER;
+                nvgBeginPath(nvg);
+                nvgRoundedRect(nvg, x, y, height, height, 4 * SCALE);
+                nvgSetColour(nvg, bg_col);
+                nvgFill(nvg);
+            }
+
+            NVGcolour icon_col = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
+            switch (type)
+            {
+            case LFO_LOOP:
+                draw_loopicon_svg(nvg, SCALE, x, y, icon_col);
+                break;
+            case LFO_RETRIG:
+                draw_Retrigicon_svg(nvg, SCALE, x, y, icon_col);
+                break;
+            case LFO_ONE_SHOT:
+                draw_Oneshoticon_svg(nvg, SCALE, x, y, icon_col);
+                break;
+            case NUM_LOOP_TYPES:
+                xassert(false);
+                break;
+            }
+        }
     }
 
     // Rate slider
@@ -758,66 +1000,6 @@ void draw_lfo_section(GUI* gui)
         add_up_down_triangles(nvg, (imgui_rect){btn_left, btn_top, sl_rate.r, btn_bot});
         nvgSetColour(nvg, C_GREY_1);
         nvgFill(nvg);
-    }
-
-    // Retrig Button
-    {
-        int     lfo_idx   = gui->plugin->selected_lfo_idx;
-        ParamID param_id  = PARAM_RETRIG_LFO_1 + lfo_idx;
-        bool    retrig_on = gui->plugin->main_params[param_id] >= 0.5;
-
-        unsigned events = imgui_get_events_rect(im, 'rtrg', &btn_retrig);
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-        {
-            retrig_on = !retrig_on;
-            param_set(gui->plugin, param_id, retrig_on);
-        }
-        // if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        // {
-        //     btn_retrig.y += 1;
-        //     btn_retrig.b += 1;
-        // }
-        float cy = (btn_retrig.y + btn_retrig.b) * 0.5f;
-
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgText(nvg, btn_retrig.x, cy, "RETRIG", 0);
-
-        extern void draw_checkbox(NVGcontext * nvg, float width, float cy, float r, float scale, bool on);
-        draw_checkbox(nvg, floorf(SCALE * CHECKBOX_HEIGHT), cy, btn_retrig.r, lm->param_scale, retrig_on);
-    }
-
-    // Loop Button
-    {
-        int lfo_idx = gui->plugin->selected_lfo_idx;
-        // ParamID param_id  = PARAM_RETRIG_LFO_1 + lfo_idx;
-        bool loop_on = gui->plugin->lfo_loop_on[lfo_idx];
-
-        unsigned events = imgui_get_events_rect(im, 'loop', &btn_loop);
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-        {
-            loop_on                            = !loop_on;
-            gui->plugin->lfo_loop_on[lfo_idx] ^= 1;
-        }
-        // if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-        // {
-        //     btn_loop.y += 1;
-        //     btn_loop.b += 1;
-        // }
-        float cy = (btn_loop.y + btn_loop.b) * 0.5f;
-
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgText(nvg, btn_loop.x, cy, "LOOP", 0);
-
-        extern void draw_checkbox(NVGcontext * nvg, float width, float cy, float r, float scale, bool on);
-        draw_checkbox(nvg, floorf(SCALE * CHECKBOX_HEIGHT), cy, btn_loop.r, lm->param_scale, loop_on);
     }
 
     // LFO Draw shapes
@@ -1019,10 +1201,29 @@ void draw_lfo_section(GUI* gui)
         float w  = btn_pattern.r - btn_pattern.x;
         float w8 = w / NUM_LFO_PATTERNS;
 
+        int hover_idx = -1;
+        if (events & IMGUI_EVENT_MOUSE_HOVER)
+        {
+            float rel_x = im->pos_mouse_move.x - btn_pattern.x;
+            hover_idx   = xm_clampi(rel_x / w8, 0, NUM_LFO_PATTERNS - 1);
+        }
+        int mouse_down_idx = -1;
+        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
+        {
+            float rel_x    = im->pos_mouse_down.x - btn_pattern.x;
+            mouse_down_idx = xm_clampi(rel_x / w8, 0, NUM_LFO_PATTERNS - 1);
+        }
+
+        int        desc_idx  = xm_clampi(hover_idx, 0, NUM_LFO_PATTERNS - 1);
+        imgui_rect btn       = btn_pattern;
+        btn.x               += w8 * desc_idx;
+        btn.r               -= w8 * (NUM_LFO_PATTERNS - 1 - desc_idx);
         tooltip_handle_events(
             &gui->tooltip,
-            btn_pattern,
-            "Switch between custom LFO shapes for this LFO",
+            btn,
+            "Switch between custom LFO shapes for this LFO\n"
+            "\n"
+            "Try automating this parameter ",
             gui->frame_start_time,
             events);
 
@@ -1033,20 +1234,13 @@ void draw_lfo_section(GUI* gui)
 
         float next_value = value_f;
 
-        int btn_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_HOVER)
-        {
-            float diff = im->pos_mouse_move.x - btn_pattern.x;
-            btn_idx    = diff / w8;
-        }
-
         if (events & IMGUI_EVENT_MOUSE_ENTER)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
 
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
-            xassert(btn_idx > -1);
-            next_value = (float)btn_idx / (NUM_LFO_PATTERNS - 1);
+            xassert(mouse_down_idx > -1);
+            next_value = (float)mouse_down_idx / (NUM_LFO_PATTERNS - 1);
         }
         bool changed = value_f != next_value;
         if (changed)
@@ -1058,51 +1252,40 @@ void draw_lfo_section(GUI* gui)
             should_clear_lfo_trail                       = true;
         }
 
-        // Selected background
-        int btn_mouse_down_idx = -1;
-        if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-            btn_mouse_down_idx = btn_idx;
-        // int   vi = xm_droundi(xm_lerpd(value_f, 1, NUM_LFO_PATTERNS));
-        int   pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
-        float y           = btn_pattern.y;
-        if (btn_mouse_down_idx == pattern_idx)
-            y += 1;
-        nvgBeginPath(nvg);
-        nvgRoundedRect(nvg, btn_pattern.x + w8 * pattern_idx, y, w8, w8, 4);
-        nvgSetColour(nvg, C_LIGHT_BLUE_2);
-        nvgFill(nvg);
-
-        if (btn_idx > -1)
-        {
-            nvgBeginPath(nvg);
-            y = btn_pattern.y;
-            if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-                y += 1;
-            nvgRoundedRect(nvg, btn_pattern.x + w8 * btn_idx, y, w8, w8, 4);
-            nvgSetColour(nvg, (NVGcolour){1, 1, 1, 0.1});
-            nvgFill(nvg);
-        }
-
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
         nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, content_x, rect_cy(&btn_pattern), "PATTERN", NULL);
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-        float btn_text_x = btn_pattern.x + w8 * 0.5f;
+
+        const int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
 
         for (int i = 0; i < NUM_LFO_PATTERNS; i++)
         {
             char label[4]  = {'1', 0, 0, 0};
             label[0]      += i;
-            xassert(i < 8); // oops you might be incrementing "1" past 10
-            y = pattern_cy + 1;
-            if (i == btn_mouse_down_idx)
+            xassert(label[0] < '9'); // oops you might be incrementing "1" past 10
+            xassert(i < 8);          // oops you might be incrementing "1" past 10
+
+            float x = btn_pattern.x + i * w8;
+            float y = btn_pattern.y;
+            if (i == mouse_down_idx)
                 y += 1;
-            bool      is_selected = i == pattern_idx;
-            bool      is_hovering = i == btn_idx;
-            NVGcolour col         = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
+            bool is_selected = i == pattern_idx;
+            bool is_hovering = i == hover_idx && mouse_down_idx == -1;
+
+            if (is_selected || is_hovering)
+            {
+                NVGcolour bg_col = is_selected ? C_LIGHT_BLUE_2 : C_BTN_HOVER;
+                nvgBeginPath(nvg);
+                nvgRoundedRect(nvg, x, y, w8, w8, 4 * SCALE);
+                nvgSetColour(nvg, bg_col);
+                nvgFill(nvg);
+            }
+
+            NVGcolour col = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
             nvgSetColour(nvg, col);
-            nvgText(nvg, btn_text_x + i * w8, y, label, label + 1);
+            nvgText(nvg, x + w8 * 0.5f, y + w8 * 0.5f, label, label + 1);
         }
     }
 

@@ -52,7 +52,12 @@ x autogain on/off mode
 x keytracking option with MIDI input
 - keytracking option with audio input
 x LFO one shot mode?
-- design icons for lfo loop, retrig loop, retrig one shot
+x design icons for lfo loop, retrig loop, retrig one shot
 - fix icons/text DPI scaling on macOS
-- get state working in new version
 - visualise the keytracking offset
+- add grid for ms rate
+- really low pitch and quiet note causes retrig to rapidly trigger. often caused by saw waves
+  support MIDI note 0 with init patch of popular synths
+- Redesign the LFO 1 & 2 tabs. The drag/expand icon is redundant and space consuming at best and confusing at worst
+- if someone has selected a LFO shape that is not the point shape and they click it again, return the selection to the point shape
+- get state working in new version

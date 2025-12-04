@@ -48,6 +48,7 @@ static void tooltip_hide(Tooltip* tt) { memset(tt, 0, sizeof(*tt)); }
 
 static void tooltip_handle_events(Tooltip* tt, imgui_rect d, const char* txt, uint64_t time_ns, uint32_t events)
 {
+    xassert(strlen(txt));
     if (events & TOOLTIP_HIDE_FLAGS)
         tooltip_hide(tt);
     else if (events & TOOLTIP_SHOW_FLAGS)

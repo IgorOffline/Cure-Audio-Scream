@@ -109,8 +109,8 @@ void* cplug_createPlugin(CplugHostContext* ctx)
     p->autogain_on                = true;
     p->keytracking_last_midi_note = -1;
 
-    p->lfo_loop_on[0] = true;
-    p->lfo_loop_on[1] = true;
+    for (int i = 0; i < ARRLEN(p->lfo_loop_type); i++)
+        p->lfo_loop_type[i] = LFO_RETRIG;
 
     for (int i = 0; i < ARRLEN(p->main_params); i++)
         p->main_params[i] = cplug_getDefaultParameterValue(p, i);
@@ -131,9 +131,6 @@ void* cplug_createPlugin(CplugHostContext* ctx)
 
             lfo->grid_x[j] = 4;
             lfo->grid_y[j] = 4;
-
-            // lfo->pattern_length[j] = 4;
-            lfo->pattern_length[j] = 1;
 
             // for (int k = 0; k < lfo->pattern_length[j]; k++)
             // {
@@ -317,10 +314,11 @@ void render_lfo(Plugin* p, float* buffer, int num_samples, int lfo_idx)
     const bool   is_ms          = p->audio_params[type_param_idx] >= 0.5;
     const double rate_sec_as_hz = 1.0 / denormalise_sec(p->audio_params[sec_param_idx]);
 
-    const double rate_sync_as_hz = p->bpm / (SYNC_VALUES[lfo_rate_idx] * 240);
-    const double beat_inc        = (is_ms ? rate_sec_as_hz : rate_sync_as_hz) / p->sample_rate;
-    const double pattern_length  = 1;
-    const bool   loop_on         = p->lfo_loop_on[lfo_idx];
+    const double      rate_sync_as_hz = p->bpm / (SYNC_VALUES[lfo_rate_idx] * 240);
+    const double      beat_inc        = (is_ms ? rate_sec_as_hz : rate_sync_as_hz) / p->sample_rate;
+    const double      pattern_length  = 1;
+    const LFOLoopType loop_type       = p->lfo_loop_type[lfo_idx];
+    const bool        loop_on         = loop_type == LFO_LOOP || loop_type == LFO_RETRIG;
 
     const xvec3f* it = points_end;
     while (it-- != points_start)
@@ -799,10 +797,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
     {
         for (unsigned lfo_idx = 0; lfo_idx < ARRLEN(p->lfos); lfo_idx++)
         {
-            ParamID retrig_param_id = PARAM_RETRIG_LFO_1 + lfo_idx;
-            xassert(retrig_param_id < ARRLEN(p->audio_params));
-
-            bool retrig_on = p->audio_params[retrig_param_id] >= 0.5;
+            LFOLoopType loop_type = p->lfo_loop_type[lfo_idx];
+            bool        retrig_on = loop_type == LFO_RETRIG || loop_type == LFO_ONE_SHOT;
             if (!retrig_on)
             {
                 ParamID rate_param_id = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
@@ -848,8 +844,8 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
                 for (int lfo_idx = 0; lfo_idx < ARRLEN(p->lfos); lfo_idx++)
                 {
-                    ParamID retrig_param_id = PARAM_RETRIG_LFO_1 + lfo_idx;
-                    bool    retrig_on       = p->audio_params[retrig_param_id] >= 0.5;
+                    LFOLoopType loop_type = p->lfo_loop_type[lfo_idx];
+                    bool        retrig_on = loop_type == LFO_RETRIG || loop_type == LFO_ONE_SHOT;
                     if (retrig_on)
                     {
                         p->lfos[lfo_idx].phase = 0;
@@ -958,16 +954,19 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     if (prev_peak < pd_threshold && next_peak >= pd_threshold)
                     {
                         // println("retrig %llu:%d", p->num_process_callbacks, frame + start_sample + i);
-                        bool lfo_1_retrig_on = p->audio_params[PARAM_RETRIG_LFO_1] >= 0.5;
-                        bool lfo_2_retrig_on = p->audio_params[PARAM_RETRIG_LFO_2] >= 0.5;
+                        bool lfo_1_retrig_on = p->lfo_loop_type[0] == LFO_RETRIG || p->lfo_loop_type[0] == LFO_ONE_SHOT;
+                        bool lfo_2_retrig_on = p->lfo_loop_type[1] == LFO_RETRIG || p->lfo_loop_type[1] == LFO_ONE_SHOT;
 
-                        if (lfo_1_retrig_on)
+                        bool retrig_lfo_1 = lfo_1_retrig_on && p->midi_keytracking_on == false;
+                        bool retrig_lfo_2 = lfo_2_retrig_on && p->midi_keytracking_on == false;
+
+                        if (retrig_lfo_1)
                             p->lfos[0].phase = 0;
-                        if (lfo_2_retrig_on)
+                        if (retrig_lfo_2)
                             p->lfos[1].phase = 0;
 
-                        bool should_set_flag = (p->selected_lfo_idx == 0 && lfo_1_retrig_on) ||
-                                               (p->selected_lfo_idx == 1 && lfo_2_retrig_on);
+                        bool should_set_flag =
+                            (p->selected_lfo_idx == 0 && retrig_lfo_1) || (p->selected_lfo_idx == 1 && retrig_lfo_2);
                         if (should_set_flag)
                             xt_atomic_store_u8(&p->gui_retrig_flag, 1);
 

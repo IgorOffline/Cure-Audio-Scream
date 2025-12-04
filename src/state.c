@@ -51,9 +51,28 @@ typedef struct PluginStatev0_2_4
 
     size_t        blob_length;
     unsigned char blob[];
+} PluginStatev0_2_4;
+
+typedef struct PluginStatev0_3_0
+{
+    double params[14];
+
+    char _padding[16];
+
+    xvec2f    lfo_mod_amounts[6];
+    LFOv0_2_4 lfos[2];
+
+    size_t        blob_length;
+    unsigned char blob[];
 } PluginState;
-_Static_assert(PARAM_COUNT == 16, "If params change, update state");
+_Static_assert(PARAM_COUNT == 14, "If params change, update state");
 _Static_assert(NUM_LFO_PATTERNS == 8, "Max LFO patterns change, update state");
+_Static_assert(NUM_LFO_PATTERNS == 8, "Max LFO patterns change, update state");
+
+// Between v0.2.5 and v0.3, the parameters PARAM_RETRIG_LFO_1 & PARAM_RETRIG_LFO_2 were deprecated. Note the parameter
+// count reduced from 16 to 14. This makes loading & saving state as a binary blob tricky.
+_Static_assert(offsetof(struct PluginStatev0_3_0, lfo_mod_amounts) == offsetof(PluginStatev0_2_4, lfo_mod_amounts), "");
+_Static_assert(offsetof(struct PluginStatev0_3_0, blob) == offsetof(PluginStatev0_2_4, blob), "");
 
 plugin_version get_plugin_version()
 {
@@ -71,6 +90,7 @@ plugin_version get_plugin_version()
 // [main thread]
 void cplug_saveState(void* _p, const void* stateCtx, cplug_writeProc writeProc)
 {
+    /*
     Plugin* p = _p;
 
     size_t requried_blob_size = 0;
@@ -145,6 +165,7 @@ void cplug_saveState(void* _p, const void* stateCtx, cplug_writeProc writeProc)
     writeProc(stateCtx, state, state_size);
 
     xfree(state);
+    */
 }
 
 void state_update_params(Plugin* p, double* state_params, size_t num_params)
@@ -177,6 +198,7 @@ void state_update_params(Plugin* p, double* state_params, size_t num_params)
 // [main thread]
 void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
 {
+    /*
     Plugin* p = _p;
 
     StateHeader header = {0};
@@ -229,11 +251,9 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
                     p->lfos[i].grid_x[k] = 4;
                 for (int k = 0; k < ARRLEN(p->lfos[0].grid_y); k++)
                     p->lfos[i].grid_y[k] = 4;
-                for (int k = 0; k < ARRLEN(p->lfos[0].pattern_length); k++)
-                    p->lfos[i].pattern_length[k] = 1;
 
                 // !!!
-                for (int k = 0; k < ARRLEN(p->lfos[0].pattern_length); k++)
+                for (int k = 0; k < ARRLEN(p->lfos[0].points); k++)
                 {
                     xt_spinlock_lock(&p->lfos[i].spinlocks[k]);
 
@@ -321,4 +341,6 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
         GUI* gui                   = p->gui;
         gui->imp.main_points_valid = false;
     }
+
+    */
 }

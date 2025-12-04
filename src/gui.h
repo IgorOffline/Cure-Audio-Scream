@@ -130,6 +130,7 @@ static const NVGcolour C_GREY_3 = nvgHexColour(0x353940FF);
 static const NVGcolour C_DARK_BLUE    = nvgHexColour(0x459CB4FF);
 static const NVGcolour C_LIGHT_BLUE   = nvgHexColour(0xACDEECFF);
 static const NVGcolour C_LIGHT_BLUE_2 = nvgHexColour(0x97E6FCFF);
+static const NVGcolour C_BTN_HOVER    = (NVGcolour){1, 1, 1, 0.2};
 static const NVGcolour C_GREEN        = nvgHexColour(0x62E32BFF);
 static const NVGcolour C_RED          = nvgHexColour(0xFF4757FF);
 

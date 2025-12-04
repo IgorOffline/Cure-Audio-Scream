@@ -29,8 +29,8 @@ typedef enum ParamID
     PARAM_SYNC_RATE_LFO_2,
     PARAM_SEC_RATE_LFO_1,
     PARAM_SEC_RATE_LFO_2,
-    PARAM_RETRIG_LFO_1, // I probably shouldn't have made these a parameter
-    PARAM_RETRIG_LFO_2,
+    // PARAM_RETRIG_LFO_1, // Deprecated. See state.c for details
+    // PARAM_RETRIG_LFO_2,
     PARAM_COUNT,
 } ParamID;
 
@@ -50,8 +50,8 @@ static const char* PARAM_STR[] = {
     "PARAM_SYNC_RATE_LFO_2",
     "PARAM_SEC_RATE_LFO_1",
     "PARAM_SEC_RATE_LFO_2",
-    "PARAM_RETRIG_LFO_1",
-    "PARAM_RETRIG_LFO_2",
+    // "PARAM_RETRIG_LFO_1",
+    // "PARAM_RETRIG_LFO_2",
 };
 _Static_assert(ARRLEN(PARAM_STR) == PARAM_COUNT, "");
 #endif
@@ -85,6 +85,17 @@ typedef enum EventType
     EVENT_SET_PARAMETER = 16,
     EVENT_SET_PARAMETER_NOTIFYING_HOST,
 } EventType;
+
+typedef enum LFOLoopType
+{
+    // Not retrig behaviour. Phase wraps when it reaches 100%
+    LFO_LOOP,
+    // Resets LFO phase to 0% when audio peaks and MIDI note on events are detected. Phase wraps when it reaches 100%
+    LFO_RETRIG,
+    // Resets LFO phase to 0% when audio peaks and MIDI note on events are detected. Phase holds when it reaches 100%
+    LFO_ONE_SHOT,
+    NUM_LOOP_TYPES,
+} LFOLoopType;
 
 typedef enum LFORate
 {
@@ -146,10 +157,6 @@ typedef struct LFO
 
     double phase;
 
-    // (deprecated. Might remove later)
-    // Length in beats
-    int pattern_length[NUM_LFO_PATTERNS];
-
     int grid_x[NUM_LFO_PATTERNS];
     // (deprecated. Might remove later)
     int grid_y[NUM_LFO_PATTERNS];
@@ -168,12 +175,11 @@ typedef struct Plugin
     int     width, height; // retained gui size
     bool    lfo_section_open;
     uint8_t selected_lfo_idx;
-    bool    autogain_on; // default on
+    bool    autogain_on;         // default on
+    bool    midi_keytracking_on; // default off
+    int     keytracking_last_midi_note;
 
-    bool lfo_loop_on[2];
-
-    bool midi_keytracking_on; // deafult off
-    int  keytracking_last_midi_note;
+    LFOLoopType lfo_loop_type[2]; // default LFO_RETRIG
 
     enum IMPShapeType lfo_shape_idx;
     xvec2f            last_lfo_amount;
