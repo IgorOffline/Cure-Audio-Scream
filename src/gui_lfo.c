@@ -271,6 +271,7 @@ void draw_lfo_section(GUI* gui)
 {
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
 
+    Plugin*        p   = gui->plugin;
     NVGcontext*    nvg = gui->nvg;
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
@@ -384,16 +385,16 @@ void draw_lfo_section(GUI* gui)
             }
             if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
-                gui->plugin->selected_lfo_idx                = i;
+                p->selected_lfo_idx                          = i;
                 imp->main_points_valid                       = false;
                 fstate.should_update_main_points_with_points = true;
                 should_clear_lfo_trail                       = true;
 
-                lm->current_lfo_playhead = lm->last_lfo_playhead = gui->plugin->lfos[i].phase;
+                lm->current_lfo_playhead = lm->last_lfo_playhead = p->lfos[i].phase;
             }
 
             NVGcolour  col1, col2;
-            const bool is_active = gui->plugin->selected_lfo_idx == i;
+            const bool is_active = p->selected_lfo_idx == i;
             if (is_active)
             {
                 col1 = C_LIGHT_BLUE_2;
@@ -509,9 +510,9 @@ void draw_lfo_section(GUI* gui)
         if (events & IMGUI_EVENT_MOUSE_ENTER)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
 
-        int lfo_idx     = gui->plugin->selected_lfo_idx;
-        int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
-        int ngrid       = gui->plugin->lfos[lfo_idx].grid_x[pattern_idx];
+        int lfo_idx     = p->selected_lfo_idx;
+        int pattern_idx = main_get_lfo_pattern_idx(p);
+        int ngrid       = p->lfos[lfo_idx].grid_x[pattern_idx];
 
         if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_DRAG_MOVE))
         {
@@ -524,7 +525,7 @@ void draw_lfo_section(GUI* gui)
             imgui_drag_value(im, &last_drag_val, 1, 32, 200, IMGUI_DRAG_VERTICAL);
             ngrid = (int)last_drag_val;
 
-            gui->plugin->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
+            p->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
         }
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
@@ -533,7 +534,7 @@ void draw_lfo_section(GUI* gui)
                 im->left_click_counter -= 2;
                 ngrid                   = 4;
 
-                gui->plugin->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
+                p->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
             }
         }
 
@@ -607,10 +608,10 @@ void draw_lfo_section(GUI* gui)
             // Updates
             if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
             {
-                int lfo_idx     = gui->plugin->selected_lfo_idx;
-                int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
+                int lfo_idx     = p->selected_lfo_idx;
+                int pattern_idx = main_get_lfo_pattern_idx(p);
 
-                int pattern_length = gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx];
+                int pattern_length = p->lfos[lfo_idx].pattern_length[pattern_idx];
 
                 if (btn_idx == BUTTON_LENGTH_HALF)
                     next_pattern_length = pattern_length >> 1;
@@ -622,7 +623,7 @@ void draw_lfo_section(GUI* gui)
                 // The denormalised 'widget' points
                 if (next_pattern_length != pattern_length)
                 {
-                    const xvec3f* current_points = gui->plugin->lfos[lfo_idx].points[pattern_idx];
+                    const xvec3f* current_points = p->lfos[lfo_idx].points[pattern_idx];
                     int             N              = xarr_len(current_points);
 
                     xarr_setcap(imp->main_points, (N * 2));
@@ -675,7 +676,7 @@ void draw_lfo_section(GUI* gui)
                         }
                     }
 
-                    gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx] = next_pattern_length;
+                    p->lfos[lfo_idx].pattern_length[pattern_idx] = next_pattern_length;
 
                     imp->points_valid = false;
 
@@ -720,11 +721,11 @@ void draw_lfo_section(GUI* gui)
     btn_loop_type.y = sl_rate.y;
     btn_loop_type.b = sl_rate.b;
     btn_loop_type.r = btn_rate_type.x - 20 * SCALE;
-    btn_loop_type.x = btn_loop_type.r - 3 * (sl_rate.b - sl_rate.y);
+    btn_loop_type.x = btn_loop_type.r - NUM_LOOP_TYPES * (sl_rate.b - sl_rate.y);
 
     // Rate type buttons
     {
-        int     lfo_idx  = gui->plugin->selected_lfo_idx;
+        int     lfo_idx  = p->selected_lfo_idx;
         ParamID param_id = PARAM_RATE_TYPE_LFO_1 + lfo_idx;
 
         float height = btn_rate_type.b - btn_rate_type.y;
@@ -749,10 +750,10 @@ void draw_lfo_section(GUI* gui)
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
             bool is_ms = mouse_down_idx == 1;
-            param_set(gui->plugin, param_id, (double)is_ms);
+            param_set(p, param_id, (double)is_ms);
         }
 
-        bool is_ms        = gui->plugin->main_params[param_id] >= 0.5f;
+        bool is_ms        = p->main_params[param_id] >= 0.5f;
         int  selected_idx = is_ms ? 1 : 0;
 
         for (int i = 0; i < 2; i++)
@@ -816,7 +817,7 @@ void draw_lfo_section(GUI* gui)
 
     // Loop type buttons
     {
-        int lfo_idx = gui->plugin->selected_lfo_idx;
+        int lfo_idx = p->selected_lfo_idx;
 
         unsigned events = imgui_get_events_rect(im, 'loop', &btn_loop_type);
 
@@ -840,8 +841,8 @@ void draw_lfo_section(GUI* gui)
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
             xassert(mouse_down_idx != -1);
-            LFOLoopType loop_type               = mouse_down_idx;
-            gui->plugin->lfo_loop_type[lfo_idx] = loop_type;
+            LFOLoopType loop_type     = mouse_down_idx;
+            p->lfo_loop_type[lfo_idx] = loop_type;
         }
 
         static const char* LOOP_TYPE_DESCRIPTIONS[] = {
@@ -870,7 +871,7 @@ void draw_lfo_section(GUI* gui)
         btn.r               -= height * (NUM_LOOP_TYPES - 1 - desc_idx);
         tooltip_handle_events(&gui->tooltip, btn, LOOP_TYPE_DESCRIPTIONS[desc_idx], gui->frame_start_time, events);
 
-        const LFOLoopType current_loop_type = gui->plugin->lfo_loop_type[lfo_idx];
+        const LFOLoopType current_loop_type = p->lfo_loop_type[lfo_idx];
         for (int i = 0; i < NUM_LOOP_TYPES; i++)
         {
             LFOLoopType type = i;
@@ -912,14 +913,14 @@ void draw_lfo_section(GUI* gui)
 
     // Rate slider
     {
-        int     lfo_idx  = gui->plugin->selected_lfo_idx;
+        int     lfo_idx  = p->selected_lfo_idx;
         ParamID param_id = 0;
 
         bool is_sync = false;
         // Find rate type
         {
             ParamID rate_type_id = PARAM_RATE_TYPE_LFO_1 + lfo_idx;
-            double  rate_type_d  = main_get_param(gui->plugin, rate_type_id);
+            double  rate_type_d  = main_get_param(p, rate_type_id);
 
             is_sync = rate_type_d < 0.5;
         }
@@ -929,7 +930,7 @@ void draw_lfo_section(GUI* gui)
             param_id = PARAM_SEC_RATE_LFO_1 + lfo_idx;
 
         xassert(param_id);
-        double val = main_get_param(gui->plugin, param_id);
+        double val = main_get_param(p, param_id);
 
         unsigned events = imgui_get_events_rect(im, 'rate', &sl_rate);
         if (events & IMGUI_EVENT_MOUSE_ENTER)
@@ -941,8 +942,8 @@ void draw_lfo_section(GUI* gui)
             {
                 im->left_click_counter = 0;
 
-                val = cplug_getDefaultParameterValue(gui->plugin, param_id);
-                param_set(gui->plugin, param_id, val);
+                val = cplug_getDefaultParameterValue(p, param_id);
+                param_set(p, param_id, val);
             }
         }
 
@@ -954,10 +955,10 @@ void draw_lfo_section(GUI* gui)
                 last_drag_val = (float)val;
                 if (!is_sync)
                     last_drag_val = 1 - last_drag_val;
-                param_change_begin(gui->plugin, param_id);
+                param_change_begin(p, param_id);
             }
             double range_min, range_max;
-            cplug_getParameterRange(gui->plugin, param_id, &range_min, &range_max);
+            cplug_getParameterRange(p, param_id, &range_min, &range_max);
             imgui_drag_value(im, &last_drag_val, range_min, range_max, 200, IMGUI_DRAG_VERTICAL);
             if (is_sync)
             {
@@ -966,11 +967,11 @@ void draw_lfo_section(GUI* gui)
             }
             else
                 val = 1.0 - last_drag_val; // invert
-            param_change_update(gui->plugin, param_id, val);
+            param_change_update(p, param_id, val);
             val += 0;
         }
         if (events & IMGUI_EVENT_DRAG_END)
-            param_change_end(gui->plugin, param_id);
+            param_change_end(p, param_id);
 
         nvgSetFontSize(nvg, FONT_SIZE);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
@@ -980,7 +981,7 @@ void draw_lfo_section(GUI* gui)
 
         char label[16] = {0};
 
-        cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), val);
+        cplug_parameterValueToString(p, param_id, label, sizeof(label), val);
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CR);
         nvgSetColour(nvg, C_GREY_1);
@@ -1194,7 +1195,7 @@ void draw_lfo_section(GUI* gui)
         btn_pattern.b = btn_pattern.y + LFO_TAB_HEIGHT;
         btn_pattern.r = btn_pattern.x + SCALE * 8 * 28;
 
-        const ParamID  param_id = PARAM_PATTERN_LFO_1 + gui->plugin->selected_lfo_idx;
+        const ParamID  param_id = PARAM_PATTERN_LFO_1 + p->selected_lfo_idx;
         const unsigned uid      = 'prm' + param_id;
         const unsigned events   = imgui_get_events_rect(im, uid + 'btn', &btn_pattern);
 
@@ -1230,7 +1231,7 @@ void draw_lfo_section(GUI* gui)
         float pattern_cx = 0.5f * (btn_pattern.x + btn_pattern.r);
         float pattern_cy = 0.5f * (btn_pattern.y + btn_pattern.b);
 
-        float value_f = (float)gui->plugin->main_params[param_id];
+        float value_f = (float)p->main_params[param_id];
 
         float next_value = value_f;
 
@@ -1246,7 +1247,7 @@ void draw_lfo_section(GUI* gui)
         if (changed)
         {
             value_f = next_value;
-            param_change_update(gui->plugin, param_id, value_f);
+            param_change_update(p, param_id, value_f);
             imp->main_points_valid                       = false;
             fstate.should_update_main_points_with_points = true;
             should_clear_lfo_trail                       = true;
@@ -1258,7 +1259,7 @@ void draw_lfo_section(GUI* gui)
 
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
 
-        const int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
+        const int pattern_idx = main_get_lfo_pattern_idx(p);
 
         for (int i = 0; i < NUM_LFO_PATTERNS; i++)
         {
@@ -1304,15 +1305,15 @@ void draw_lfo_section(GUI* gui)
     imp->area.r = grid_r;
     imp->area.b = grid_b;
 
-    const int lfo_idx     = gui->plugin->selected_lfo_idx;
-    const int pattern_idx = main_get_lfo_pattern_idx(gui->plugin);
+    const int lfo_idx     = p->selected_lfo_idx;
+    const int pattern_idx = main_get_lfo_pattern_idx(p);
 
-    // const float pattern_length = gui->plugin->lfos[lfo_idx].pattern_length[pattern_idx];
+    // const float pattern_length = p->lfos[lfo_idx].pattern_length[pattern_idx];
     const float pattern_length = 1;
-    const int   num_grid_x     = pattern_length * gui->plugin->lfos[lfo_idx].grid_x[pattern_idx];
+    const int   num_grid_x     = pattern_length * p->lfos[lfo_idx].grid_x[pattern_idx];
     const int   num_grid_y     = num_grid_x;
 
-    const enum IMPShapeType current_shape = gui->plugin->lfo_shape_idx;
+    const enum IMPShapeType current_shape = p->lfo_shape_idx;
 
     const IMPointsArea selection_area = {lm->content_x + 16, grid_y - 32, lm->content_r - 16, grid_b + 24};
 
@@ -1323,16 +1324,16 @@ void draw_lfo_section(GUI* gui)
         num_grid_y,
         current_shape,
 
-        &gui->plugin->lfos[lfo_idx].points[pattern_idx],
-        &gui->plugin->lfos[lfo_idx].spinlocks[pattern_idx]);
+        &p->lfos[lfo_idx].points[pattern_idx],
+        &p->lfos[lfo_idx].spinlocks[pattern_idx]);
 
-    float playhead = (float)gui->plugin->lfos[lfo_idx].phase;
+    float playhead = (float)p->lfos[lfo_idx].phase;
     playhead       = fmodf(playhead, pattern_length);
 
     lm->last_lfo_playhead    = lm->current_lfo_playhead;
     lm->current_lfo_playhead = playhead;
 
-    bool       retrigger_flag = xt_atomic_exchange_u8(&gui->plugin->gui_retrig_flag, 0);
+    bool       retrigger_flag = xt_atomic_exchange_u8(&p->gui_retrig_flag, 0);
     const bool has_resized    = !!(im->frame.events & (1 << PW_EVENT_RESIZE));
 
     // Clear trail on resize
@@ -1463,7 +1464,7 @@ void draw_lfo_section(GUI* gui)
         }
         */
         ParamID param_id  = PARAM_SYNC_RATE_LFO_1 + lfo_idx;
-        LFORate rate_type = (int)main_get_param(gui->plugin, param_id);
+        LFORate rate_type = (int)main_get_param(p, param_id);
         switch (rate_type)
         {
         case LFO_RATE_4_BARS:
