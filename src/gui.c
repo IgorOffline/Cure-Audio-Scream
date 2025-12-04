@@ -620,11 +620,14 @@ void draw_checkbox(NVGcontext* nvg, float width, float cy, float r, float scale,
 void pw_tick(void* _gui)
 {
     GUI* gui = _gui;
+
     CPLUG_LOG_ASSERT(gui->plugin);
     CPLUG_LOG_ASSERT(gui->nvg);
 
     if (!gui || !gui->plugin)
         return;
+
+    Plugin* p = gui->plugin;
 
 #ifdef SHOW_FPS
     uint64_t frame_duration_last_frame = gui->frame_end_time - gui->frame_start_time;
@@ -633,12 +636,11 @@ void pw_tick(void* _gui)
     gui->frame_start_time      = xtime_now_ns();
 
     {
-        Plugin*  p    = gui->plugin;
         uint32_t head = xt_atomic_load_u32(&p->queue_main_head) & EVENT_QUEUE_MASK;
         uint32_t tail = p->queue_main_tail;
         if (head != tail)
             gui->imgui.num_duplicate_backbuffers = 0;
-        main_dequeue_events(gui->plugin);
+        main_dequeue_events(p);
     }
 
     bool click_curelogo = false;
@@ -698,12 +700,12 @@ void pw_tick(void* _gui)
     // Recalculate layout metrics
     if (im->frame.events & ((1 << PW_EVENT_RESIZE) | (1 << PW_EVENT_DPI_CHANGED)))
     {
-        lm->width  = gui->plugin->width;
-        lm->height = gui->plugin->height;
+        lm->width  = p->width;
+        lm->height = p->height;
 
         int init_height = GUI_INIT_HEIGHT;
         int top_height  = lm->height;
-        if (gui->plugin->lfo_section_open)
+        if (p->lfo_section_open)
         {
             init_height = HEIGHT_HEADER + HEIGHT_FOOTER + 2 * CONTENT_HEIGHT + 2 * BORDER_PADDING;
         }
@@ -729,7 +731,7 @@ void pw_tick(void* _gui)
         lm->content_y = lm->height_header + BORDER_PADDING;
         lm->content_b = lm->height - lm->height_footer - BORDER_PADDING;
 
-        const bool lfo_open = gui->plugin->lfo_section_open;
+        const bool lfo_open = p->lfo_section_open;
 
         float content_height = lm->content_b - lm->content_y;
         if (lfo_open)
@@ -823,8 +825,8 @@ void pw_tick(void* _gui)
             gui->lfo_ybuffer_view        = sg_make_view(&(sg_view_desc){.storage_buffer = gui->lfo_ybuffer_obj});
             gui->lfo_playhead_trail_view = sg_make_view(&(sg_view_desc){.storage_buffer = gui->lfo_playhead_trail_obj});
         }
-        const int lfo_idx        = gui->plugin->selected_lfo_idx;
-        float     playhead       = (float)gui->plugin->lfos[lfo_idx].phase;
+        const int lfo_idx        = p->selected_lfo_idx;
+        float     playhead       = (float)p->lfos[lfo_idx].phase;
         lm->current_lfo_playhead = lm->last_lfo_playhead = playhead;
 
         float      lfo_btn_width = 48 * lm->param_scale;
@@ -947,7 +949,7 @@ void pw_tick(void* _gui)
         extern int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double value);
         char       label[16];
         int        label_len =
-            param_value_to_string(PARAM_OUTPUT_GAIN, label, sizeof(label), gui->plugin->main_params[PARAM_OUTPUT_GAIN]);
+            param_value_to_string(PARAM_OUTPUT_GAIN, label, sizeof(label), p->main_params[PARAM_OUTPUT_GAIN]);
 
         nvgSetColour(nvg, C_GREY_1);
         nvgSetTextAlign(nvg, NVG_ALIGN_CR);
@@ -980,10 +982,10 @@ void pw_tick(void* _gui)
         if (events & IMGUI_EVENT_MOUSE_ENTER)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            gui->plugin->autogain_on ^= 1;
+            p->autogain_on ^= 1;
 
         float cy          = rect_cy(&rect);
-        bool  autogain_on = gui->plugin->autogain_on;
+        bool  autogain_on = p->autogain_on;
         nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, rect.x, cy, "AUTOGAIN", 0);
         draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->content_scale, autogain_on);
@@ -1001,9 +1003,9 @@ void pw_tick(void* _gui)
         if (events & IMGUI_EVENT_MOUSE_ENTER)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            gui->plugin->midi_keytracking_on ^= 1;
+            p->midi_keytracking_on ^= 1;
 
-        bool midi_keytracking_on = gui->plugin->midi_keytracking_on;
+        bool midi_keytracking_on = p->midi_keytracking_on;
         nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, rect.x, cy, "MIDI KEYTRACKING", 0);
         draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->content_scale, midi_keytracking_on);
@@ -1211,8 +1213,8 @@ void pw_tick(void* _gui)
             else
             {
                 char   label[24];
-                double value = main_get_param(gui->plugin, param_id);
-                cplug_parameterValueToString(gui->plugin, param_id, label, sizeof(label), value);
+                double value = main_get_param(p, param_id);
+                cplug_parameterValueToString(p, param_id, label, sizeof(label), value);
 
                 nvgSetColour(nvg, C_TEXT_LIGHT_BG);
                 nvgSetTextAlign(nvg, NVG_ALIGN_CC);
@@ -1239,7 +1241,7 @@ void pw_tick(void* _gui)
                 lm->param_positions_cx[i] + mod_amt_cx_delta,
             };
 
-            const xvec2f modamt = gui->plugin->lfo_mod_amounts[param_id];
+            const xvec2f modamt = p->lfo_mod_amounts[param_id];
 
             for (int j = 0; j < ARRLEN(mod_amt_cx); j++)
             {
@@ -1251,7 +1253,7 @@ void pw_tick(void* _gui)
                 xassert(j < ARRLEN(mod_amt_events[0]));
                 mod_amt_events[param_id][j] = events;
 
-                float* pValue = &gui->plugin->lfo_mod_amounts[param_id].data[j];
+                float* pValue = &p->lfo_mod_amounts[param_id].data[j];
 
                 if (events & IMGUI_EVENT_MOUSE_ENTER)
                     pw_set_mouse_cursor(gui->pw, PW_CURSOR_RESIZE_NS);
@@ -1326,8 +1328,8 @@ void pw_tick(void* _gui)
             const float    param_cx = lm->param_positions_cx[i];
             const unsigned wid      = 'prm' + i;
 
-            const xvec2f modamts = gui->plugin->lfo_mod_amounts[param_id];
-            const xvec2f lfo_amt = gui->plugin->last_lfo_amount;
+            const xvec2f modamts = p->lfo_mod_amounts[param_id];
+            const xvec2f lfo_amt = p->last_lfo_amount;
 
             switch (param_id)
             {
@@ -1441,7 +1443,7 @@ void pw_tick(void* _gui)
 // end - start
 #define SLIDER_LENGTH_RAD 5.23577831647275f
 
-                const float value_norm  = cplug_normaliseParameterValue(gui->plugin, i, value_d);
+                const float value_norm  = cplug_normaliseParameterValue(p, i, value_d);
                 const float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
 
                 const float angle_x = cosf(angle_value);
@@ -1690,7 +1692,7 @@ void pw_tick(void* _gui)
                     }
 
                     xvec2f peaks;
-                    peaks.u64 = xt_atomic_load_u64(&gui->plugin->gui_input_peak_gain);
+                    peaks.u64 = xt_atomic_load_u64(&p->gui_input_peak_gain);
 
                     float ch_w = roundf(meter_width * (7.0f / 32.0f));
 
@@ -2059,7 +2061,7 @@ void pw_tick(void* _gui)
     snvg_command_custom(nvg, gui, do_knob_shader, NVG_LABEL("Knob shader"));
 
     /*
-    const float peak_gain = gui->plugin->gui_output_peak_gain;
+    const float peak_gain = p->gui_output_peak_gain;
     if (peak_gain > 1)
     {
         nvgSetTextAlign(nvg, NVG_ALIGN_BR);
@@ -2072,7 +2074,7 @@ void pw_tick(void* _gui)
 
 #ifdef CPLUG_BUILD_STANDALONE
     {
-        Plugin* p = gui->plugin;
+        Plugin* p = p;
         // plot_expander(nvg, lm->width, gui_height);
         // plot_peak_detection(nvg, lm->width, gui_height);
         // plot_peak_distortion(nvg, im, lm->width, gui_height);
@@ -2120,7 +2122,7 @@ void pw_tick(void* _gui)
         float tri_half_width = 5 * lm->param_scale;
         float y1             = cy + tri_half_width * (1.0f / 3.0f);
         float y2             = cy - tri_half_width * (2.0f / 3.0f);
-        if (gui->plugin->lfo_section_open)
+        if (p->lfo_section_open)
         {
             float tmp = y1;
             y1        = y2;
@@ -2138,7 +2140,7 @@ void pw_tick(void* _gui)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
     }
 
-    if (gui->plugin->lfo_section_open)
+    if (p->lfo_section_open)
     {
         extern void draw_lfo_section(GUI*);
         draw_lfo_section(gui);
@@ -2221,11 +2223,11 @@ void pw_tick(void* _gui)
             actual_fps);
         nvgSetTextAlign(nvg, NVG_ALIGN_TL);
 
-        if (gui->plugin->audio_cpu_usage)
+        if (p->audio_cpu_usage)
         {
-            len += snprintf(text + len, sizeof(text) - len, "\nAudio CPU: %.2f%%", gui->plugin->audio_cpu_usage * 100);
+            len += snprintf(text + len, sizeof(text) - len, "\nAudio CPU: %.2f%%", p->audio_cpu_usage * 100);
 
-            uint64_t audio_time_ns = gui->plugin->audio_process_time;
+            uint64_t audio_time_ns = p->audio_process_time;
             double   audio_time_ms = xtime_convert_ns_to_ms(audio_time_ns);
 
             len += snprintf(text + len, sizeof(text) - len, "\nAudio Time: %.3fms", audio_time_ms);
