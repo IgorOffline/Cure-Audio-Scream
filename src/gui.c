@@ -2261,7 +2261,7 @@ void pw_tick(void* _gui)
         double actual_fps = 1000.0 / ((avg_frame_time_duration_ns >> 10) * 1024e-6);
 
         nvgSetFontSize(nvg, 14);
-        nvgSetColour(nvg, C_TEXT_PRIMARY_L);
+        nvgSetColour(nvg, C_RED);
         char text[96] = {0};
         int  len      = snprintf(
             text,
@@ -2272,16 +2272,16 @@ void pw_tick(void* _gui)
             actual_fps);
         nvgSetTextAlign(nvg, NVG_ALIGN_TL);
 
-        if (p->audio_cpu_usage)
-        {
-            len += snprintf(text + len, sizeof(text) - len, "\nAudio CPU: %.2f%%", p->audio_cpu_usage * 100);
+        // if (p->audio_cpu_usage)
+        // {
+        //     len += snprintf(text + len, sizeof(text) - len, "\nAudio CPU: %.2f%%", p->audio_cpu_usage * 100);
 
-            uint64_t audio_time_ns = p->audio_process_time;
-            double   audio_time_ms = xtime_convert_ns_to_ms(audio_time_ns);
+        //     uint64_t audio_time_ns = p->audio_process_time;
+        //     double   audio_time_ms = xtime_convert_ns_to_ms(audio_time_ns);
 
-            len += snprintf(text + len, sizeof(text) - len, "\nAudio Time: %.3fms", audio_time_ms);
-            len += 0;
-        }
+        //     len += snprintf(text + len, sizeof(text) - len, "\nAudio Time: %.3fms", audio_time_ms);
+        //     len += 0;
+        // }
         // nvgText(nvg, 8, 8, text, text + len);
 
         nvgSetTextLineHeight(nvg, 1.5);
@@ -2294,9 +2294,9 @@ void pw_tick(void* _gui)
         uint64_t threshold_1_2sec       = 1200000000;
         if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
         {
-            len = snprintf(text, sizeof(text), "%dx%d", gui_width, gui_height);
+            len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
             nvgSetTextAlign(nvg, NVG_ALIGN_BR);
-            nvgText(nvg, gui_width - 8, gui_height - 8, text, text + len);
+            nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
         }
     }
 #endif // SHOW_FPS
