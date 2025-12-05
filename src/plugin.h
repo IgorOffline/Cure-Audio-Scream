@@ -10,6 +10,7 @@
 #include "libs/adsr.h"
 #include <param_smoothing.h>
 
+#include "im_points.h"
 #include "libs/ADAA.h"
 
 typedef enum ParamID
