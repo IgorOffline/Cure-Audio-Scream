@@ -407,7 +407,7 @@ bool pw_event(const PWEvent* event)
 double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float drag_range_px)
 {
     imgui_context* im      = &gui->imgui;
-    double         value_d = gui->plugin->main_params[param_id];
+    double         value_d = main_get_param(gui->plugin, param_id);
     float          value_f = value_d;
 
     if (events & IMGUI_EVENT_MOUSE_ENTER)
@@ -463,7 +463,7 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
         if (im->frame.modifiers_mouse_wheel & PW_MOD_KEY_SHIFT)
             delta *= 0.1;
 
-        double v  = gui->plugin->main_params[param_id];
+        double v  = main_get_param(gui->plugin, param_id);
         v        += delta;
         param_set(gui->plugin, param_id, v);
     }
@@ -947,9 +947,10 @@ void pw_tick(void* _gui)
         handle_param_events(gui, PARAM_OUTPUT_GAIN, events, 200);
 
         extern int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double value);
-        char       label[16];
-        int        label_len =
-            param_value_to_string(PARAM_OUTPUT_GAIN, label, sizeof(label), p->main_params[PARAM_OUTPUT_GAIN]);
+
+        double value = main_get_param(p, PARAM_OUTPUT_GAIN);
+        char   label[16];
+        int    label_len = param_value_to_string(PARAM_OUTPUT_GAIN, label, sizeof(label), value);
 
         nvgSetColour(nvg, C_GREY_1);
         nvgSetTextAlign(nvg, NVG_ALIGN_CR);

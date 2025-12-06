@@ -174,7 +174,7 @@ void main_set_param(Plugin* p, ParamID id, double value)
 {
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
     CPLUG_LOG_ASSERT(is_main_thread());
-    CPLUG_LOG_ASSERT(id >= 0 && id < PARAM_COUNT);
+    CPLUG_LOG_ASSERT_RETURN(id >= 0 && id < PARAM_COUNT, );
     p->main_params[id] = value;
 }
 
@@ -182,7 +182,7 @@ double main_get_param(Plugin* p, ParamID id)
 {
     // println("%s %s", __FUNCTION__, PARAM_STR[id]);
     CPLUG_LOG_ASSERT(is_main_thread());
-    CPLUG_LOG_ASSERT(id >= 0 && id < PARAM_COUNT);
+    CPLUG_LOG_ASSERT_RETURN(id >= 0 && id < PARAM_COUNT, 0);
     return p->main_params[id];
 }
 
@@ -190,7 +190,7 @@ void audio_set_param(Plugin* p, ParamID id, double value)
 {
     // println("%s %s %f", __FUNCTION__, PARAM_STR[id], value);
     CPLUG_LOG_ASSERT(!is_main_thread());
-    CPLUG_LOG_ASSERT(id >= 0 && id < PARAM_COUNT);
+    CPLUG_LOG_ASSERT_RETURN(id >= 0 && id < PARAM_COUNT, );
     p->audio_params[id] = value;
 }
 

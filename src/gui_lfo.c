@@ -758,7 +758,7 @@ void draw_lfo_section(GUI* gui)
             param_set(p, param_id, (double)is_ms);
         }
 
-        bool is_ms        = p->main_params[param_id] >= 0.5f;
+        bool is_ms        = main_get_param(p, param_id) >= 0.5f;
         int  selected_idx = is_ms ? 1 : 0;
 
         for (int i = 0; i < 2; i++)
@@ -1156,7 +1156,7 @@ void draw_lfo_section(GUI* gui)
         float pattern_cx = 0.5f * (btn_pattern.x + btn_pattern.r);
         float pattern_cy = 0.5f * (btn_pattern.y + btn_pattern.b);
 
-        float value_f = (float)p->main_params[param_id];
+        float value_f = (float)main_get_param(p, param_id);
 
         float next_value = value_f;
 

@@ -191,9 +191,6 @@ typedef struct Plugin
     xvec2f _gui_input_last_peak;
     int    _gui_input_read_count[2];
 
-    // xt_atomic_float gui_osc_phase;
-    // xt_atomic_float gui_osc_midi;
-
     double main_params[PARAM_COUNT];
     double audio_params[PARAM_COUNT];
 
