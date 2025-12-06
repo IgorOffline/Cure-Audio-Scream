@@ -3,7 +3,7 @@
 Quick and dirty attempt at adding "automatic garbage collection" or "immediate mode state/resources" to the GUI
 Helps to solve retained mode problems like:
 - Automatic resizing of framebuffers
-- Detects abd destroying resources not in use. Useful for dynamic content, such as tabbed and modal content
+- Detects and destroys framebuffers not in use. Useful for tabbed and modal content using framebuffers
 - State used by deprecated code/procedures in your program is never allocated, and you never need to remember to
   remove that state from structs later.
 Inspired by ideas from this video: https://www.youtube.com/watch?v=-cWJRZhALD

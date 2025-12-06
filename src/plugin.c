@@ -499,11 +499,11 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         Coeffs lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
         Coeffs hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
 
-        const bool smooth_params = s.values[PARAM_CUTOFF].remaining | s.values[PARAM_SCREAM].remaining |
-                                   s.values[PARAM_RESONANCE].remaining | s.values[PARAM_INPUT_GAIN].remaining |
-                                   s.values[PARAM_WET].remaining;
+        const bool smooth_params = s.values[PARAM_CUTOFF].remaining > 0 | s.values[PARAM_SCREAM].remaining > 0 |
+                                   s.values[PARAM_RESONANCE].remaining > 0 | s.values[PARAM_INPUT_GAIN].remaining > 0 |
+                                   s.values[PARAM_WET].remaining > 0;
 
-        const bool has_modulation_or_smoothing = lfo_1_mod_flags || lfo_2_mod_flags || smooth_params;
+        const bool has_modulation_or_smoothing = !!lfo_1_mod_flags || !!lfo_2_mod_flags || smooth_params;
 
         if (p->gui)
         {

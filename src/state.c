@@ -57,21 +57,29 @@ typedef struct PluginStatev0_3_0
 {
     double params[14];
 
-    char _padding[16];
+    char _padding_1[16]; // unused
 
-    xvec2f    lfo_mod_amounts[6];
+    xvec2f lfo_mod_amounts[5];
+
+    bool    autogain_on;         // default on
+    bool    midi_keytracking_on; // default off
+    uint8_t lfo_loop_type[2];    // LFOLoopType
+    uint8_t selected_lfo_idx;
+    char    _padding_2[3]; // unused
+
     LFOv0_2_4 lfos[2];
 
     size_t        blob_length;
     unsigned char blob[];
 } PluginState;
-_Static_assert(PARAM_COUNT == 14, "If params change, update state");
-_Static_assert(NUM_LFO_PATTERNS == 8, "Max LFO patterns change, update state");
-_Static_assert(NUM_LFO_PATTERNS == 8, "Max LFO patterns change, update state");
+_Static_assert(PARAM_COUNT == 14, "Num params changed, update state");
+_Static_assert(NUM_AUTOMATABLE_PARAMS == 5, "Num autotable params changed, update state");
+_Static_assert(NUM_LFO_PATTERNS == 8, "Max LFO patterns changed, update state");
 
 // Between v0.2.5 and v0.3, the parameters PARAM_RETRIG_LFO_1 & PARAM_RETRIG_LFO_2 were deprecated. Note the parameter
 // count reduced from 16 to 14. This makes loading & saving state as a binary blob tricky.
 _Static_assert(offsetof(struct PluginStatev0_3_0, lfo_mod_amounts) == offsetof(PluginStatev0_2_4, lfo_mod_amounts), "");
+_Static_assert(offsetof(struct PluginStatev0_3_0, lfos) == offsetof(PluginStatev0_2_4, lfos), "");
 _Static_assert(offsetof(struct PluginStatev0_3_0, blob) == offsetof(PluginStatev0_2_4, blob), "");
 
 plugin_version get_plugin_version()
@@ -90,7 +98,7 @@ plugin_version get_plugin_version()
 // [main thread]
 void cplug_saveState(void* _p, const void* stateCtx, cplug_writeProc writeProc)
 {
-    /*
+    // println("%s %s %p %p %p", __FUNCTION__, _p, stateCtx, writeProc);
     Plugin* p = _p;
 
     size_t requried_blob_size = 0;
@@ -119,6 +127,12 @@ void cplug_saveState(void* _p, const void* stateCtx, cplug_writeProc writeProc)
     _Static_assert(sizeof(state->lfo_mod_amounts) == sizeof(p->lfo_mod_amounts), "");
     _Static_assert(ARRLEN(state->lfo_mod_amounts) == ARRLEN(p->lfo_mod_amounts), "");
     memcpy(state->lfo_mod_amounts, p->lfo_mod_amounts, sizeof(p->lfo_mod_amounts));
+
+    state->autogain_on         = p->autogain_on;
+    state->midi_keytracking_on = p->midi_keytracking_on;
+    state->lfo_loop_type[0]    = p->lfo_loop_type[0];
+    state->lfo_loop_type[1]    = p->lfo_loop_type[1];
+    state->selected_lfo_idx    = p->selected_lfo_idx;
 
     size_t blob_write_pos = 0;
     for (int i = 0; i < ARRLEN(state->lfos); i++)
@@ -165,7 +179,6 @@ void cplug_saveState(void* _p, const void* stateCtx, cplug_writeProc writeProc)
     writeProc(stateCtx, state, state_size);
 
     xfree(state);
-    */
 }
 
 void state_update_params(Plugin* p, double* state_params, size_t num_params)
@@ -179,15 +192,11 @@ void state_update_params(Plugin* p, double* state_params, size_t num_params)
         else
             v = cplug_getDefaultParameterValue(p, i);
 
-        double   vmin     = 0;
-        double   vmax     = 1;
-        uint32_t param_id = cplug_getParameterID(p, i);
+        double  vmin     = 0;
+        double  vmax     = 1;
+        ParamID param_id = cplug_getParameterID(p, i);
         cplug_getParameterRange(p, param_id, &vmin, &vmax);
         xassert(vmax > vmin);
-        if (v < vmin)
-            v = vmin;
-        if (v > vmax)
-            v = vmax;
         p->main_params[i] = xm_clampd(v, vmin, vmax);
     }
 
@@ -198,7 +207,7 @@ void state_update_params(Plugin* p, double* state_params, size_t num_params)
 // [main thread]
 void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
 {
-    /*
+    // println("%s %s %p %p %p", __FUNCTION__, _p, stateCtx, readProc);
     Plugin* p = _p;
 
     StateHeader header = {0};
@@ -219,6 +228,7 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
     {
         static const plugin_version v0_0_3 = {.patch = 3};
         static const plugin_version v0_2_4 = {.minor = 2, .patch = 4};
+        static const plugin_version v0_3_0 = {.minor = 3};
         if (header.version.u32 < v0_0_3.u32)
         {
             PluginStatev0_0_1 state;
@@ -285,11 +295,31 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
                     // to get the same gain
                     state->params[5] = 1; // PARAM_OUTPUT_GAIN
                 }
+                if (header.version.u32 < v0_3_0.u32)
+                {
+                    // Between v0.2.5 and 0.3.0, params #14 & #15 were deprecated, and param #5 (output gain) is no
+                    // longer automatable. This leaves the regions of memory in the previous saved states redundant, and
+                    // I've chosen to reuse it to store the new state we introduced.
+                    // It is initialised with defaults here
+                    state->autogain_on         = true;
+                    state->midi_keytracking_on = false;
+                    state->lfo_loop_type[0]    = LFO_RETRIG;
+                    state->lfo_loop_type[1]    = LFO_RETRIG;
+                    state->selected_lfo_idx    = 0;
+                    memset(state->_padding_1, 0, sizeof(state->_padding_1));
+                    memset(state->_padding_2, 0, sizeof(state->_padding_2));
+                }
                 state_update_params(p, state->params, ARRLEN(state->params));
 
                 _Static_assert(sizeof(state->lfo_mod_amounts) == sizeof(p->lfo_mod_amounts), "");
                 _Static_assert(ARRLEN(state->lfo_mod_amounts) == ARRLEN(p->lfo_mod_amounts), "");
                 memcpy(p->lfo_mod_amounts, state->lfo_mod_amounts, sizeof(p->lfo_mod_amounts));
+
+                p->autogain_on         = state->autogain_on;
+                p->midi_keytracking_on = state->midi_keytracking_on;
+                p->lfo_loop_type[0]    = state->lfo_loop_type[0];
+                p->lfo_loop_type[1]    = state->lfo_loop_type[1];
+                p->selected_lfo_idx    = state->selected_lfo_idx;
 
                 // spare array
                 xvec3f* dst_points = NULL;
@@ -341,6 +371,4 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
         GUI* gui                   = p->gui;
         gui->imp.main_points_valid = false;
     }
-
-    */
 }

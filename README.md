@@ -64,24 +64,24 @@ It's worth noting that "the original" or "old" is not necessarily always better.
 
 ### About the GUI code
 
-This is all a tech demo of work in progress GUI libraries I'm working on. The goal has been to find a straight forward way of writing GUIs at a low enough level that the code can be highly organised, highly tweakable, ergonomic to write, fast to compile and run, and look really good. Most GUI systems are missing one or more of those points but I want to have my cake and eat it too.
+This is all a tech demo of work in progress GUI libraries I'm working on. The goal has been to find a straight forward way of writing GUIs at a low enough level that the code can be highly organised, highly tweakable, ergonomic to write, fast to compile and run, and look really good. All other GUI systems I know of compromise on one or more of those points. I want to have my cake and eat it too!
 
-I'm using a novel way write/use an immediate mode (IM) library. There are probably other small projects that use a similar techniques to what I do, but I have not come across them. Let's coin the term "treeless immediate mode library" or "TIM" to discern this style of library.
+I'm using a novel way write/use an immediate mode (IM) library. There are probably other small projects that use similar techniques to what I do, but I have not come across any. Let's coin the term "treeless immediate mode library" or "TIM" to discern this style of library.
 
 Most IM libraries build a big retained mode (RM) like tree structure under the hood and use complicated diffs between tree structures from previous frames while offering a simple declarative IM interface.
 
 TIM calculates hit tests at runtime and stores ids that succeed on a first come first served (served = stores the id) basis. This has the advantage of skipping the enormous amount of state with the bugs and restrictions that come with developing and maintaining a big tree structure, while suffering from a few unique probelems. Here are some examples:
 - TIM forces a front to back widget event handling style, which the the reverse of how GUIs usually want to be rendered (back to front).
 - Certain events like key presses must respond "event consumed" or "event not consumed" immediately as they're received and cannot be handled at draw time. This plugin attemps to correctly handle this stuff by setting some flags, but the IM lib I'm hoping to use doesn't have any way of solving that problem at all. 
-- Trying to drag a file out of your window on macOS is something that can only be done beginning from the mouse down event set to your NSView. It cannot be done at say the end of a frame, while on Windows it's fine. 
+- Trying to drag a file out of your window on macOS is something that can only be done from the beginning of the mouse down event sent to your NSView. It cannot be done for example at the end of a frame like it can on Windows. 
 
-It's still not certain how well the TIM technique can scale in a large app with lots of dynamic content, popup windows, text input widgets, file drag in and drag out functionality and still be ergonomic to use. The library needs more work and more testing, and may even prove to be not worth it. For small apps like this one, none the aforementioned problems are bad enough that the tree based IM system or an RM system would offer better value. I think the lightweight and flexible TIM system is much better for small apps even in its unfinished state.
+It's still not certain how well the TIM technique can scale in a large app with lots of dynamic content, popup windows, text input widgets, file drag in and drag out functionality and still be ergonomic to use. The library needs more work and more testing, and may even prove to be not worth it, or may need major rewrites and fundamental design changes. For small apps like this one, none the aforementioned problems are bad enough that the tree based IM system or an RM system would offer better value. I think the lightweight and flexible TIM system is much better for small apps like this one even in its unfinished state. TIM was the right choice for this app and switching to a conservative RM would make this app worse.
 
 My philosophy of making the TIM lib so far has been "run into a tough problem a few times before adding solutions for it to the library".
 
 On the rendering side, I'm running a fork of `nanovg` with using `sokol_gfx` backend, but I hope to incrementally drop parts of it. It's all still a work in progress. For basic shapes and text/images I'd like to replace with SDFs rendered using a single ubershader. I'd like to replace font stash with my own wrapper over `kb_text_shaping` & `freetype2`, but possibly also add options for `stb_truetype`, `CoreText` and `DirectWrite`. I will probably keep nanovgs tessellation for all other complex stroked/filled polygons, unless I find a way to integrate somebody elses eg. `vello` or `pathkit`. I've already added some basic support for creating frame buffers, blurring frame buffers with optional bloom, and running custom shaders
 
-sokol_gfx of course uses global state, so I've had to work it to make it usable by multi instance plugins and change the API to require setting / removing a global state pointer
+sokol_gfx of course uses global state, so I've had to fork it to make it usable by multi instance plugins and change the API to require setting / unsetting a global state pointer.
 
 ### Building
 
