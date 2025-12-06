@@ -391,6 +391,9 @@ bool pw_event(const PWEvent* event)
 
         if (event->type == PW_EVENT_KEY_DOWN || event->type == PW_EVENT_KEY_UP)
         {
+            if (event->key.modifiers & PW_MOD_KEY_REPEAT)
+                return true;
+
             // clang-format off
             static const unsigned char KEYBOARD_CHARACTERS[] = {
                 PW_KEY_A, PW_KEY_W, PW_KEY_S, PW_KEY_E, PW_KEY_D, PW_KEY_F, PW_KEY_T, PW_KEY_G, PW_KEY_Y, PW_KEY_H, PW_KEY_U,
