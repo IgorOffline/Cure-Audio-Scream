@@ -550,6 +550,12 @@ void draw_lfo_section(GUI* gui)
 
             p->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
         }
+        if (events & IMGUI_EVENT_MOUSE_WHEEL)
+        {
+            ngrid = xm_clampi(ngrid + im->frame.delta_mouse_wheel, 1, 32);
+
+            p->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
+        }
         if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
         {
             if (im->left_click_counter >= 2)
@@ -833,6 +839,34 @@ void draw_lfo_section(GUI* gui)
         }
         if (events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
             param_change_end(p, param_id);
+
+        if (events & IMGUI_EVENT_MOUSE_WHEEL)
+        {
+            float delta = 0;
+            if (is_sync)
+            {
+                delta = im->frame.delta_mouse_wheel;
+            }
+            else
+            {
+                delta = im->frame.delta_mouse_wheel * -0.1; // this parameter is inverted
+                if (im->frame.modifiers_mouse_wheel & PW_MOD_PLATFORM_KEY_CTRL)
+                    delta *= 0.1;
+                if (im->frame.modifiers_mouse_wheel & PW_MOD_KEY_SHIFT)
+                    delta *= 0.1;
+            }
+            if (im->frame.modifiers_mouse_wheel & PW_MOD_INVERTED_SCROLL)
+                delta = -delta;
+
+            double range_min = 0, range_max = 1;
+            cplug_getParameterRange(p, param_id, &range_min, &range_max);
+            float next_val = xm_clampf(val + delta, range_min, range_max);
+            if (next_val != val)
+            {
+                val = next_val;
+                param_set(p, param_id, next_val);
+            }
+        }
 
         nvgSetFontSize(nvg, FONT_SIZE);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);

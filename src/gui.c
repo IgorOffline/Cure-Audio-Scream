@@ -391,7 +391,8 @@ bool pw_event(const PWEvent* event)
 
         if (event->type == PW_EVENT_KEY_DOWN || event->type == PW_EVENT_KEY_UP)
         {
-            if (event->key.modifiers & PW_MOD_KEY_REPEAT)
+            bool is_repeat = (event->key.modifiers & PW_MOD_KEY_REPEAT) == PW_MOD_KEY_REPEAT;
+            if (is_repeat && event->type == PW_EVENT_KEY_DOWN)
                 return true;
 
             // clang-format off
@@ -542,15 +543,19 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     }
     if (events & IMGUI_EVENT_MOUSE_WHEEL)
     {
-        double delta = im->frame.delta_mouse_wheel * 0.1;
+        float delta = im->frame.delta_mouse_wheel * 0.1f;
+        if (im->frame.modifiers_mouse_wheel & PW_MOD_INVERTED_SCROLL)
+            delta = -delta;
         if (im->frame.modifiers_mouse_wheel & PW_MOD_PLATFORM_KEY_CTRL)
-            delta *= 0.1;
+            delta *= 0.1f;
         if (im->frame.modifiers_mouse_wheel & PW_MOD_KEY_SHIFT)
-            delta *= 0.1;
+            delta *= 0.1f;
 
-        double v  = main_get_param(gui->plugin, param_id);
-        v        += delta;
-        param_set(gui->plugin, param_id, v);
+        float next_value = xm_clampf(value_f + delta, 0, 1);
+        bool  changed    = value_f != next_value;
+        value_d = value_f = next_value;
+
+        param_set(gui->plugin, param_id, value_d);
     }
     return value_d;
 }

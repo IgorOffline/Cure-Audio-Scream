@@ -468,6 +468,7 @@ void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
 
 void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
 {
+    xassert(min != max);
     *min = 0;
     *max = 1;
     if (paramId == PARAM_SYNC_RATE_LFO_1 || paramId == PARAM_SYNC_RATE_LFO_2)
