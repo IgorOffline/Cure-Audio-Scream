@@ -171,6 +171,7 @@ elseif(APPLE)
     list(APPEND PLUGIN_LIBRARIES
         "-framework Quartz"
         "-framework Cocoa"
+        "-framework AudioToolbox"
         "-framework Metal"
         "-framework MetalKit")
     list(APPEND PLUGIN_DEFINITIONS PW_METAL)
@@ -210,7 +211,6 @@ if (APPLE)
         modules/CPLUG/src/cplug_clap.c
         modules/CPLUG/src/cplug_vst3.c
         modules/CPLUG/src/cplug_auv2.c)
-    target_link_libraries(${PROJECT_NAME}_plugin PRIVATE "-framework AudioToolbox -framework Cocoa") # -framework AudioToolbox not actually required...
 
     configure_info_plist(${PROJECT_NAME}_plugin ${PLUGIN_BUNDLE_ID} "BNDL" "clap")
 

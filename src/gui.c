@@ -321,7 +321,8 @@ bool pw_event(const PWEvent* event)
             if (false == imgui_hittest_rect(pos, &rect))
             {
                 ted->active_param = -1;
-                pw_release_keyboard_focus(gui->pw);
+                if (gui->plugin->cplug_ctx->type != CPLUG_PLUGIN_IS_STANDALONE)
+                    pw_release_keyboard_focus(gui->pw);
             }
         }
         else if (event->type == PW_EVENT_TEXT)
@@ -378,6 +379,87 @@ bool pw_event(const PWEvent* event)
         else if (event->type == PW_EVENT_KEY_FOCUS_LOST)
         {
             ted_deactivate(ted);
+        }
+    }
+    else if (gui->plugin->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE)
+    {
+        if ((event->type == PW_EVENT_MOUSE_LEFT_DOWN || event->type == PW_EVENT_MOUSE_RIGHT_DOWN ||
+             event->type == PW_EVENT_MOUSE_MIDDLE_DOWN))
+        {
+            pw_get_keyboard_focus(gui->pw);
+        }
+
+        if (event->type == PW_EVENT_KEY_DOWN || event->type == PW_EVENT_KEY_UP)
+        {
+            // clang-format off
+            static const unsigned char KEYBOARD_CHARACTERS[] = {
+                PW_KEY_A, PW_KEY_W, PW_KEY_S, PW_KEY_E, PW_KEY_D, PW_KEY_F, PW_KEY_T, PW_KEY_G, PW_KEY_Y, PW_KEY_H, PW_KEY_U,
+                PW_KEY_J, PW_KEY_K, PW_KEY_O, PW_KEY_L, PW_KEY_P, PW_KEY_OEM_1, PW_KEY_OEM_7, PW_KEY_OEM_6
+            };
+            // clang-format on
+            static uint32_t keyboard_state = 0;
+
+            static int octave = 4;
+            if (event->type == PW_EVENT_KEY_DOWN &&
+                (event->key.virtual_key == PW_KEY_Z || event->key.virtual_key == PW_KEY_X))
+            {
+                int prev_octave = octave;
+                int next_octave = octave;
+                if (event->key.virtual_key == PW_KEY_Z)
+                    next_octave = xm_clampi(octave - 1, 0, 8);
+                if (event->key.virtual_key == PW_KEY_X)
+                    next_octave = xm_clampi(octave + 1, 0, 8);
+
+                if (prev_octave != next_octave)
+                {
+                    int diff = next_octave - octave;
+                    octave   = next_octave;
+                    // transpose currently playing keys
+
+                    for (int i = 0; i < ARRLEN(KEYBOARD_CHARACTERS); i++)
+                    {
+                        if (keyboard_state & (1 << i))
+                        {
+                            CplugEvent e;
+                            e.type        = CPLUG_EVENT_MIDI;
+                            e.midi.status = 128; // note off
+                            e.midi.data1  = xm_clampu(prev_octave * 12 + i, 0, 127);
+                            e.midi.data2  = 127;
+                            send_to_audio_event_queue(gui->plugin, &e);
+
+                            e.midi.status = 144; // note on
+                            e.midi.data1  = xm_clampu(next_octave * 12 + i, 0, 127);
+                            send_to_audio_event_queue(gui->plugin, &e);
+                        }
+                    }
+                }
+                return true;
+            }
+
+            for (int i = 0; i < ARRLEN(KEYBOARD_CHARACTERS); i++)
+            {
+                if (KEYBOARD_CHARACTERS[i] == event->key.virtual_key)
+                {
+                    CplugEvent e;
+                    e.type       = CPLUG_EVENT_MIDI;
+                    e.midi.data1 = xm_clampu(octave * 12 + i, 0, 127);
+                    e.midi.data2 = 127;
+                    if (event->type == PW_EVENT_KEY_DOWN)
+                    {
+                        e.midi.status   = 144; // note on
+                        keyboard_state |= 1 << i;
+                    }
+                    else
+                    {
+                        e.midi.status   = 128; // note off
+                        keyboard_state &= ~(1 << i);
+                    }
+
+                    send_to_audio_event_queue(gui->plugin, &e);
+
+                    return true;
+                }
+            }
         }
     }
 

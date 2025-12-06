@@ -666,6 +666,38 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         linked_arena_release(p->audio_arena, mod_buffer_1);
 }
 
+void handle_midi(Plugin* p, const CplugEvent* e)
+{
+    if (e->midi.status == 128) // note off, channel 0
+    {
+        // if (p->keytracking_last_midi_note == e->.data1)
+        //     p->keytracking_last_midi_note = -1;
+
+#ifdef CPLUG_BUILD_STANDALONE
+        synth_note_off(&g_synth, e->midi.data1);
+#endif
+    }
+    else if (e->midi.status == 144) // note on, channel 0
+    {
+        p->keytracking_last_midi_note = e->midi.data1;
+
+        for (int lfo_idx = 0; lfo_idx < ARRLEN(p->lfos); lfo_idx++)
+        {
+            LFOLoopType loop_type = p->lfo_loop_type[lfo_idx];
+            bool        retrig_on = loop_type == LFO_RETRIG || loop_type == LFO_ONE_SHOT;
+            if (retrig_on)
+            {
+                p->lfos[lfo_idx].phase = 0;
+                xt_atomic_store_u8(&p->gui_retrig_flag, 1);
+            }
+        }
+
+#ifdef CPLUG_BUILD_STANDALONE
+        synth_note_on(&g_synth, p->sample_rate, e->midi.data1);
+#endif
+    }
+}
+
 void cplug_process(void* _p, CplugProcessContext* ctx)
 {
     DISABLE_DENORMALS
@@ -736,6 +768,11 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
             {
                 bool ok = ctx->enqueueEvent(ctx, event, 0);
                 CPLUG_LOG_ASSERT(ok);
+                break;
+            }
+            case CPLUG_EVENT_MIDI:
+            {
+                handle_midi(p, event);
                 break;
             }
             }
@@ -829,34 +866,7 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
 
         case CPLUG_EVENT_MIDI:
         {
-            if (event.midi.status == 128) // note off, channel 0
-            {
-                // if (p->keytracking_last_midi_note == event.midi.data1)
-                //     p->keytracking_last_midi_note = -1;
-
-#ifdef CPLUG_BUILD_STANDALONE
-                synth_note_off(&g_synth, event.midi.data1);
-#endif
-            }
-            else if (event.midi.status == 144) // note on, channel 0
-            {
-                p->keytracking_last_midi_note = event.midi.data1;
-
-                for (int lfo_idx = 0; lfo_idx < ARRLEN(p->lfos); lfo_idx++)
-                {
-                    LFOLoopType loop_type = p->lfo_loop_type[lfo_idx];
-                    bool        retrig_on = loop_type == LFO_RETRIG || loop_type == LFO_ONE_SHOT;
-                    if (retrig_on)
-                    {
-                        p->lfos[lfo_idx].phase = 0;
-                        xt_atomic_store_u8(&p->gui_retrig_flag, 1);
-                    }
-                }
-
-#ifdef CPLUG_BUILD_STANDALONE
-                synth_note_on(&g_synth, p->sample_rate, event.midi.data1);
-#endif
-            }
+            handle_midi(p, &event);
             break;
         }
 

@@ -53,7 +53,7 @@ x keytracking option with MIDI input
 - keytracking option with audio input
 x LFO one shot mode?
 x design icons for lfo loop, retrig loop, retrig one shot
-- fix icons/text DPI scaling on macOS
+x fix icons/text DPI scaling on macOS
 - visualise the keytracking offset
 x add grid for ms rate
 x really low pitch and quiet note causes retrig to rapidly trigger. often caused by saw waves
@@ -61,4 +61,7 @@ x really low pitch and quiet note causes retrig to rapidly trigger. often caused
 x Redesign the LFO 1 & 2 tabs. The drag/expand icon is redundant and space consuming at best and confusing at worst
 x Implement design for the seperator between the LFO and knob section
 x if someone has selected an LFO shape that is not the point shape and they click it again, return the selection to the point shape
-- get state working in new version
+x get state working in new version
+
+- when holding down keys to play MIDI notes on the macOS standalone version, keydown events are repeatedly sent.
+  This would be fine for a text input, but is a bug for anything else. It probably needs to be fixed on the CPLUG side
