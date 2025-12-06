@@ -520,15 +520,32 @@ void draw_lfo_section(GUI* gui)
         int pattern_idx = main_get_lfo_pattern_idx(p);
         int ngrid       = p->lfos[lfo_idx].grid_x[pattern_idx];
 
-        if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_DRAG_MOVE))
+        if (events &
+            (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_DRAG_MOVE | IMGUI_EVENT_TOUCHPAD_BEGIN | IMGUI_EVENT_TOUCHPAD_MOVE))
         {
             static float last_drag_val = 0;
-            if (events & IMGUI_EVENT_DRAG_BEGIN)
+            if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_TOUCHPAD_BEGIN))
             {
                 last_drag_val = (float)ngrid;
             }
 
-            imgui_drag_value(im, &last_drag_val, 1, 32, 200, IMGUI_DRAG_VERTICAL);
+            float range_min = 1;
+            float range_max = 32;
+            if (events & IMGUI_EVENT_DRAG_MOVE)
+            {
+                imgui_drag_value(im, &last_drag_val, range_min, range_max, 200, IMGUI_DRAG_VERTICAL);
+            }
+            else if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
+            {
+                float delta = im->frame.delta_touchpad.y / 200;
+                if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
+                    delta = -delta;
+                if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
+                    delta *= 0.1f;
+                if (im->frame.modifiers_touchpad & PW_MOD_KEY_SHIFT)
+                    delta *= 0.1f;
+                last_drag_val = xm_clampd(last_drag_val + delta, range_min, range_max);
+            }
             ngrid = (int)last_drag_val;
 
             p->lfos[lfo_idx].grid_x[pattern_idx] = ngrid;
@@ -565,152 +582,6 @@ void draw_lfo_section(GUI* gui)
         snprintf(label, sizeof(label), "%d", ngrid);
         nvgText(nvg, rect.r - 9 * SCALE, top_text_cy, label, 0);
     }
-
-    // Pattern Length
-    /*
-    {
-        static const char   label_length[]   = "LENGTH";
-        static const size_t label_length_len = ARRLEN(label_length) - 1;
-
-        NVGglyphPosition glyphs[label_length_len];
-
-        nvgSetFontSize(nvg, FONT_SIZE);
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-
-        nvgTextGlyphPositions(nvg, 0, 0, label_length, label_length + label_length_len, glyphs, label_length_len);
-        const float label_length_width = glyphs[label_length_len - 1].maxx;
-
-        nvgSetTextAlign(nvg, NVG_ALIGN_CR);
-        float label_length_r = content_r - GRID_BUTTON_WIDTH * 2 - GRID_BUTTON_BUTTON_GAP - GRID_BUTTON_TEXT_GAP;
-        nvgText(nvg, label_length_r, top_text_cy, label_length, label_length + label_length_len);
-
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-
-        enum
-        {
-            BUTTON_LENGTH_HALF,
-            BUTTON_LENGTH_DOUBLE,
-            BUTTON_COUNT,
-        };
-        imgui_rect buttons[BUTTON_COUNT];
-
-        buttons[BUTTON_LENGTH_HALF].x   = content_r - 2 * GRID_BUTTON_WIDTH - GRID_BUTTON_BUTTON_GAP;
-        buttons[BUTTON_LENGTH_DOUBLE].x = content_r - GRID_BUTTON_WIDTH;
-
-        static const char* btn_labels[] = {"÷2", "×2"};
-
-        for (int btn_idx = 0; btn_idx < ARRLEN(buttons); btn_idx++)
-        {
-            imgui_rect* rect = buttons + btn_idx;
-
-            rect->y = button_top;
-            rect->r = rect->x + GRID_BUTTON_WIDTH;
-            rect->b = button_bottom;
-
-            unsigned wid    = 'gbtn' + btn_idx;
-            unsigned events = imgui_get_events_rect(im, wid, rect);
-
-            // Updates
-            if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            {
-                int lfo_idx     = p->selected_lfo_idx;
-                int pattern_idx = main_get_lfo_pattern_idx(p);
-
-                int pattern_length = p->lfos[lfo_idx].pattern_length[pattern_idx];
-
-                if (btn_idx == BUTTON_LENGTH_HALF)
-                    next_pattern_length = pattern_length >> 1;
-                if (btn_idx == BUTTON_LENGTH_DOUBLE)
-                    next_pattern_length = pattern_length << 1;
-                next_pattern_length = xm_clampi(next_pattern_length, 1, MAX_PATTERN_LENGTH_PATTERNS);
-
-                // Modifies the normalised LFOPoints stored on the main thread
-                // The denormalised 'widget' points
-                if (next_pattern_length != pattern_length)
-                {
-                    const xvec3f* current_points = p->lfos[lfo_idx].points[pattern_idx];
-                    int             N              = xarr_len(current_points);
-
-                    xarr_setcap(imp->main_points, (N * 2));
-                    xarr_setlen(imp->main_points, 0);
-
-                    if (btn_idx == BUTTON_LENGTH_HALF)
-                    {
-                        // Crop points
-                        for (int i = 0; i < N; i++)
-                        {
-                            xvec3f pt = current_points[i];
-                            if (pt.x <= next_pattern_length)
-                            {
-                                xarr_push(imp->main_points, pt);
-                            }
-                            if (pt.x >= next_pattern_length)
-                                break;
-                        }
-                    }
-                    else if (btn_idx == BUTTON_LENGTH_DOUBLE)
-                    {
-                        // Duplicate pattern
-
-                        // Deep copy
-                        memcpy(imp->main_points, current_points, sizeof(*imp->main_points) * N);
-                        xarr_header(imp->main_points)->length = N;
-
-                        // Copy & translate points
-                        float delta_x = next_pattern_length >> 1;
-                        for (int i = 0; i < N; i++)
-                        {
-                            xvec3f pt  = current_points[i];
-                            pt.x        += delta_x;
-                            xarr_push(imp->main_points, pt);
-                        }
-                    }
-
-                    // Coalesce duplicate points
-                    N = xarr_len(imp->main_points);
-                    for (int i = N - 1; i-- > 0;)
-                    {
-                        xassert(i >= 0);
-                        xassert((i + 1) < xarr_len(imp->main_points));
-                        xvec3f* pt1 = imp->main_points + i;
-                        xvec3f* pt2 = imp->main_points + i + 1;
-                        int       cmp = memcmp(pt1, pt2, sizeof(*pt1));
-                        if (cmp == 0)
-                        {
-                            xarr_delete(imp->main_points, i);
-                        }
-                    }
-
-                    p->lfos[lfo_idx].pattern_length[pattern_idx] = next_pattern_length;
-
-                    imp->points_valid = false;
-
-                    should_update_audio_points_with_main_points = true;
-                }
-            }
-
-            float btn_y   = rect->y;
-            float text_cy = top_text_cy;
-            float btn_cx  = 0.5f * (rect->r + rect->x);
-
-            if (events & IMGUI_EVENT_MOUSE_LEFT_HOLD)
-            {
-                btn_y   += 1;
-                text_cy += 1;
-            }
-            nvgBeginPath(nvg);
-            nvgRoundedRect(nvg, rect->x, btn_y, rect->r - rect->x, rect->b - rect->y, 2);
-            nvgSetColour(nvg, C_GREY_3);
-            nvgFill(nvg);
-
-            nvgSetColour(nvg, C_GREY_1);
-            nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-            nvgText(nvg, btn_cx, text_cy, btn_labels[btn_idx], NULL);
-        }
-    }
-    */
-    // LFO Rate
 
     // Rate
     imgui_rect sl_rate;
@@ -921,10 +792,11 @@ void draw_lfo_section(GUI* gui)
             }
         }
 
-        if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_DRAG_MOVE))
+        if (events &
+            (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_DRAG_MOVE | IMGUI_EVENT_TOUCHPAD_BEGIN | IMGUI_EVENT_TOUCHPAD_MOVE))
         {
             static float last_drag_val = 0;
-            if (events & IMGUI_EVENT_DRAG_BEGIN)
+            if (events & (IMGUI_EVENT_DRAG_BEGIN | IMGUI_EVENT_TOUCHPAD_BEGIN))
             {
                 last_drag_val = (float)val;
                 if (!is_sync)
@@ -933,7 +805,22 @@ void draw_lfo_section(GUI* gui)
             }
             double range_min, range_max;
             cplug_getParameterRange(p, param_id, &range_min, &range_max);
-            imgui_drag_value(im, &last_drag_val, range_min, range_max, 200, IMGUI_DRAG_VERTICAL);
+            if (events & IMGUI_EVENT_DRAG_MOVE)
+            {
+                imgui_drag_value(im, &last_drag_val, range_min, range_max, 200, IMGUI_DRAG_VERTICAL);
+            }
+            else if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
+            {
+                float delta = im->frame.delta_touchpad.y / 200;
+                if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
+                    delta = -delta;
+                if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
+                    delta *= 0.1f;
+                if (im->frame.modifiers_touchpad & PW_MOD_KEY_SHIFT)
+                    delta *= 0.1f;
+                last_drag_val = xm_clampd(last_drag_val + delta, range_min, range_max);
+            }
+
             if (is_sync)
             {
                 double next_val = xm_droundi(last_drag_val);
@@ -944,7 +831,7 @@ void draw_lfo_section(GUI* gui)
             param_change_update(p, param_id, val);
             val += 0;
         }
-        if (events & IMGUI_EVENT_DRAG_END)
+        if (events & (IMGUI_EVENT_DRAG_END | IMGUI_EVENT_TOUCHPAD_END))
             param_change_end(p, param_id);
 
         nvgSetFontSize(nvg, FONT_SIZE);
