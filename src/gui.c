@@ -1715,6 +1715,18 @@ void pw_tick(void* _gui)
                     uint32_t events        = imgui_get_events_rect(im, wid, &rect);
                     rect.r                 = rect_r;
 
+                    const float ch_w = roundf(meter_width * (7.0f / 32.0f));
+
+                    const float peak_label_height = 16 * lm->param_scale;
+
+                    const float ch_y    = rect.y + peak_label_height;
+                    const float ch_b    = rect.b - 4 * lm->param_scale;
+                    const float ch_h    = ch_b - ch_y;
+                    const float ch_x[2] = {
+                        roundf(rect.x + meter_width * (8.0f / 32.0f)),
+                        roundf(rect.r - meter_width * (8.0f / 32.0f)) - ch_w,
+                    };
+
                     static const char* input_gain_description =
                         "Changing the input gain drastically changes the sound. For the best sound, keep the input "
                         "gain close to 0dB. Use Autogain to help you.\n\n"
@@ -1724,7 +1736,7 @@ void pw_tick(void* _gui)
 
                     tooltip_handle_events(&gui->tooltip, rect, input_gain_description, gui->frame_start_time, events);
 
-                    double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, rect.b - rect.y);
+                    double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, ch_h);
 
                     nvgBeginPath(nvg);
                     nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4 * lm->param_scale);
@@ -1784,18 +1796,6 @@ void pw_tick(void* _gui)
 
                     xvec2f peaks;
                     peaks.u64 = xt_atomic_load_u64(&p->gui_input_peak_gain);
-
-                    float ch_w = roundf(meter_width * (7.0f / 32.0f));
-
-                    const float peak_label_height = 16 * lm->param_scale;
-
-                    const float ch_y    = rect.y + peak_label_height;
-                    const float ch_b    = rect.b - 4 * lm->param_scale;
-                    const float ch_h    = ch_b - ch_y;
-                    const float ch_x[2] = {
-                        roundf(rect.x + meter_width * (8.0f / 32.0f)),
-                        roundf(rect.r - meter_width * (8.0f / 32.0f)) - ch_w,
-                    };
 
                     // Value icon
                     {
