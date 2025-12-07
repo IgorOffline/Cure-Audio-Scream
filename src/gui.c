@@ -813,8 +813,11 @@ void pw_tick(void* _gui)
 #endif
         nvg->devicePxRatio = lm->devicePixelRatio;
 
-        lm->height_header = floorf(HEIGHT_HEADER * lm->content_scale);
-        lm->height_footer = floorf(HEIGHT_FOOTER * lm->content_scale);
+        lm->param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
+        lm->param_scale = xm_maxf(lm->param_scale, lm->content_scale);
+
+        lm->height_header = floorf(HEIGHT_HEADER * lm->param_scale);
+        lm->height_footer = floorf(HEIGHT_FOOTER * lm->param_scale);
 
         lm->content_x = BORDER_PADDING;
         lm->content_r = lm->width - BORDER_PADDING;
@@ -833,9 +836,6 @@ void pw_tick(void* _gui)
         const float param_boundary_left  = lm->scale_x * PARAMS_BOUNDARY_LEFT;
         const float param_boundary_right = lm->width - lm->scale_x * PARAMS_BOUNDARY_LEFT;
         const float PARAMS_WIDTH         = param_boundary_right - param_boundary_left;
-
-        lm->param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
-        lm->param_scale = xm_maxf(lm->param_scale, lm->content_scale);
 
         const float veritcal_slider_width = snapf(VERTICAL_SLIDER_WIDTH * lm->param_scale, 2);
         const float knob_diameter         = snapf(ROTARY_PARAM_OUTER_DIAMETER * lm->param_scale, 2);
@@ -1000,7 +1000,7 @@ void pw_tick(void* _gui)
 
     // Header
     {
-        nvgSetFontSize(nvg, lm->content_scale * 24);
+        nvgSetFontSize(nvg, 24 * lm->param_scale);
         nvgSetColour(nvg, C_BG_LIGHT);
         nvgSetTextAlign(nvg, NVG_ALIGN_CC);
         nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
@@ -1029,8 +1029,8 @@ void pw_tick(void* _gui)
         // nvgFill(nvg);
 
         // Output gain
-        const int output_gain_with = 120 * lm->content_scale;
-        nvgSetFontSize(nvg, 12 * lm->content_scale);
+        const int output_gain_with = 120 * lm->param_scale;
+        nvgSetFontSize(nvg, 12 * lm->param_scale);
         imgui_rect rect = {0, 0, lm->width - 16, lm->height_header + 8};
         rect.x          = floorf(rect.r - output_gain_with);
         uint32_t events = imgui_get_events_rect(im, 'outg', &rect);
@@ -1053,9 +1053,9 @@ void pw_tick(void* _gui)
 
     // Footer bottom left
     {
-        nvgSetFontSize(nvg, 12 * lm->content_scale);
+        nvgSetFontSize(nvg, 12 * lm->param_scale);
         nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        const float checkbox_height = floorf(12 * lm->content_scale);
+        const float checkbox_height = floorf(12 * lm->param_scale);
 
         // Autogain
         Rect rect;
@@ -1079,7 +1079,7 @@ void pw_tick(void* _gui)
         bool  autogain_on = p->autogain_on;
         nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, rect.x, cy, "AUTOGAIN", 0);
-        draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->content_scale, autogain_on);
+        draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->param_scale, autogain_on);
 
         // Keytracking
         rect.x = rect.r + BORDER_PADDING * 4;
@@ -1099,12 +1099,12 @@ void pw_tick(void* _gui)
         bool midi_keytracking_on = p->midi_keytracking_on;
         nvgSetColour(nvg, C_TEXT_DARK_BG);
         nvgText(nvg, rect.x, cy, "MIDI KEYTRACKING", 0);
-        draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->content_scale, midi_keytracking_on);
+        draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->param_scale, midi_keytracking_on);
     }
 
     // Footer bottom right
     {
-        nvgSetFontSize(nvg, 12 * lm->content_scale);
+        nvgSetFontSize(nvg, 12 * lm->param_scale);
 
         NVGcolour footer_col = C_TEXT_DARK_BG;
         // footer_col.a         = 0.5f;
@@ -2320,7 +2320,7 @@ void pw_tick(void* _gui)
 
     if (gui->tooltip.text)
     {
-        tooltip_draw(&gui->tooltip, nvg, gui->arena, gui->frame_start_time, lm->width, lm->height, lm->content_scale);
+        tooltip_draw(&gui->tooltip, nvg, gui->arena, gui->frame_start_time, lm->width, lm->height, lm->param_scale);
     }
 
     // FPS HUD
