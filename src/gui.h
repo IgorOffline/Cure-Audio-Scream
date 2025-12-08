@@ -67,7 +67,7 @@ typedef struct GUI
     void*       sg;
     NVGcontext* nvg;
     int         font_id;
-    float       scale;
+    float       dpi;
 
     ResourceManager resource_manager;
 

@@ -487,6 +487,11 @@ bool pw_event(const PWEvent* event)
         }
     }
 
+    if (event->type == PW_EVENT_DPI_CHANGED)
+    {
+        gui->dpi = event->dpi;
+    }
+
     return false;
 }
 
@@ -803,7 +808,7 @@ void pw_tick(void* _gui)
         lm->scale_x = (float)lm->width / (float)GUI_INIT_WIDTH;
         lm->scale_y = (float)top_height / (float)init_height;
 
-        const float dpi = pw_get_dpi(gui->pw);
+        const float dpi = xm_minf(gui->dpi, 1.0f);
 #ifdef __APPLE__
         lm->content_scale    = dpi * 0.5;
         lm->devicePixelRatio = 2; // required for text to render properly...

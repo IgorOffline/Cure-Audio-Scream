@@ -132,11 +132,9 @@ set(PLUGIN_INCLUDE
     )
 
 set(PLUGIN_LIBRARIES "")
-set(SHADER_LANG "")
 
 if (WIN32)
     list(APPEND PLUGIN_DEFINITIONS UNICODE _UNICODE _USE_MATH_DEFINES PW_DX11)
-    set(SHADER_LANG "hlsl5")
 
     if (CMAKE_BUILD_TYPE MATCHES Release)
         if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -158,7 +156,6 @@ if (WIN32)
     list(APPEND PLUGIN_LIBRARIES dxguid)
 elseif(APPLE)
     enable_language(OBJC)
-    set(SHADER_LANG "metal_macos")
     # if (CMAKE_BUILD_TYPE MATCHES Release)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
     list(APPEND PLUGIN_OPTIONS -g)
