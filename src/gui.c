@@ -212,7 +212,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
 #ifdef SHOW_FPS
     gui->frame_end_time = now_ns;
 #endif // SHOW_FPS
-    gui->imgui.frame.events = 1 << PW_EVENT_RESIZE;
+    gui->imgui.frame.events = 1 << PW_EVENT_RESIZE_UPDATE;
 
     return gui;
 }
@@ -309,7 +309,7 @@ bool pw_event(const PWEvent* event)
 
     imgui_send_event(&gui->imgui, event);
 
-    if (event->type == PW_EVENT_RESIZE)
+    if (event->type == PW_EVENT_RESIZE_UPDATE)
     {
         // Retain size info for when the GUI is destroyed / reopened
         gui->plugin->width  = event->resize.width;
@@ -385,7 +385,7 @@ bool pw_event(const PWEvent* event)
             xassert(ted->ibeam_idx >= 0 && ted->ibeam_idx <= xarr_len(ted->codepoints));
             return ret;
         }
-        else if (event->type == PW_EVENT_RESIZE)
+        else if (event->type == PW_EVENT_RESIZE_UPDATE)
         {
             ted_deactivate(ted);
         }
@@ -800,7 +800,7 @@ void pw_tick(void* _gui)
     _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
 
     // Recalculate layout metrics
-    if (im->frame.events & ((1 << PW_EVENT_RESIZE) | (1 << PW_EVENT_DPI_CHANGED)))
+    if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_DPI_CHANGED)))
     {
         lm->width  = p->width;
         lm->height = p->height;

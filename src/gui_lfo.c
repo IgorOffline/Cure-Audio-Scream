@@ -376,7 +376,7 @@ void draw_lfo_section(GUI* gui)
     const float DISPLAY_PADDING_BOTTOM = floorf(32 * lm->content_scale);
     const float FONT_SIZE              = 14 * SCALE;
 
-    if (im->frame.events & ((1 << PW_EVENT_RESIZE) | (1 << PW_EVENT_DPI_CHANGED)))
+    if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_DPI_CHANGED)))
     {
         imp->theme.col_line           = nvgCompressColour(C_LIGHT_BLUE_2);
         imp->theme.line_stroke_width  = 2 * SCALE;
@@ -1177,7 +1177,7 @@ void draw_lfo_section(GUI* gui)
     lm->current_lfo_playhead = playhead;
 
     bool       retrigger_flag = xt_atomic_exchange_u8(&p->gui_retrig_flag, 0);
-    const bool has_resized    = !!(im->frame.events & (1 << PW_EVENT_RESIZE));
+    const bool has_resized    = !!(im->frame.events & (1 << PW_EVENT_RESIZE_UPDATE));
 
     // Clear trail on resize
     should_clear_lfo_trail |= has_resized;

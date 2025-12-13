@@ -1362,7 +1362,7 @@ void imp_run(
         if (!hit)
             should_clear = true;
     }
-    should_clear |= !!(im->frame.events & (1 << PW_EVENT_RESIZE));
+    should_clear |= !!(im->frame.events & (1 << PW_EVENT_RESIZE_UPDATE));
     if (should_clear)
         imp_clear_selection(imp);
 
