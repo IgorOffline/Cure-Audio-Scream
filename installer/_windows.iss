@@ -17,10 +17,6 @@ LicenseFile="..\LICENSE"
 OutputDir="..\dist"
 OutputBaseFilename={#MyAppName}_v{#MyVersion}
 
-[Dirs]
-Name: "{commonpf64}\Common Files\VST3"
-Name: "{commonpf64}\Common Files\CLAP"
-
 [Components]
 ; Note: This is a list of selectable "Components" for a user to install
 ; There is a dropdown menu will presets for isntallation types: full, compact, & custom.
@@ -28,9 +24,19 @@ Name: assets;      Description: Required Assets;  Types: full compact custom; Fl
 Name: clap;        Description: CLAP Plugin;      Types: full
 Name: vst3;        Description: VST3 Plugin;      Types: full compact
 
+[Dirs]
+Components: vst3; Name: "{commonpf64}\Common Files\VST3\{#MyAppName}.vst3"; Attribs: system
+Components: clap; Name: "{commonpf64}\Common Files\CLAP"
+
+[InstallDelete]
+Components: vst3; Type: filesandordirs; Name: {commonpf64}\Common Files\VST3\{#MyAppName}.vst3
+Components: clap; Type: filesandordirs; Name: {commonpf64}\Common Files\CLAP\{#MyAppName}.clap
+
 [Files]
-Components: assets; Source: "..\assets\Tomorrow-SemiBold.ttf";              DestDir: "{userappdata}\Cure Audio\Scream";
-Components: assets; Source: "..\assets\OFL.txt";                            DestDir: "{userappdata}\Cure Audio\Scream";    DestName: Tomorrow-OFL.txt
-Components: assets; Source: "..\assets\cureaudiologo_new.png";              DestDir: "{userappdata}\Cure Audio\Scream";    DestName: cureaudio.png
-Components: vst3;   Source: "..\build\Release\{#MyAppName}.vst3";           DestDir: "{commonpf64}\Common Files\VST3";     Flags: recursesubdirs
-Components: clap;   Source: "..\build\Release\{#MyAppName}_plugin.dll";     DestDir: "{commonpf64}\Common Files\CLAP";     DestName: {#MyAppName}.clap
+Components: assets; Source: "..\assets\Tomorrow-SemiBold.ttf";              DestDir: "{userappdata}\{#MyBusinessName}\{#MyAppName}";
+Components: assets; Source: "..\assets\OFL.txt";                            DestDir: "{userappdata}\{#MyBusinessName}\{#MyAppName}";     DestName: Tomorrow-OFL.txt
+Components: assets; Source: "..\assets\cureaudiologo_new.png";              DestDir: "{userappdata}\{#MyBusinessName}\{#MyAppName}";     DestName: cureaudio.png
+Components: vst3;   Source: "..\build\Release\{#MyAppName}.vst3";           DestDir: "{commonpf64}\Common Files\VST3";                   Flags: recursesubdirs
+Components: vst3;   Source: "..\assets\desktop.ini.in";                     DestDir: "{commonpf64}\Common Files\VST3\{#MyAppName}.vst3"; DestName: desktop.ini;     Attribs: system hidden
+Components: vst3;   Source: "..\assets\PlugIn.ico";                         DestDir: "{commonpf64}\Common Files\VST3\{#MyAppName}.vst3";                            Attribs: system hidden
+Components: clap;   Source: "..\build\Release\{#MyAppName}_plugin.dll";     DestDir: "{commonpf64}\Common Files\CLAP";                   DestName: {#MyAppName}.clap
