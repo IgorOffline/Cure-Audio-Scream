@@ -1,0 +1,5 @@
+#!/bin/sh
+rsync -r /tmp/Scream-installer/Scream "$HOME/Library/Application Support/Cure Audio"
+chown -R $USER:staff "$HOME/Library/Application Support/Cure Audio"
+
+rm -rf /tmp/Scream-installer/Scream
