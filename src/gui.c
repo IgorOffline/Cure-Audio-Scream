@@ -637,8 +637,8 @@ void do_logo_shader(void* uptr)
 
         const bool hover = gui->logo_events & IMGUI_EVENT_MOUSE_HOVER;
 
-        const NVGcolour stop0 = hover ? (NVGcolour){1, 1, 1, 1} : C_BG_LIGHT;
-        const NVGcolour stop1 = hover ? (NVGcolour){0.7, 0.7, 0.7, 1} : C_BG_LIGHT;
+        const NVGcolour stop0 = hover ? (NVGcolour){1, 1, 1, 1} : C_TEXT_DARK_BG;
+        const NVGcolour stop1 = hover ? (NVGcolour){0.7, 0.7, 0.7, 1} : C_TEXT_DARK_BG;
 
         fs_logo_uniforms_t fs_uniforms = {
             .u_col0[0] = stop0.r,
@@ -680,7 +680,8 @@ void draw_exacoustics_logo_svg(NVGcontext* nvg, const float scale, float x, floa
     }
     else
     {
-        nvgSetColour(nvg, C_BG_LIGHT);
+        // Inactive colour
+        nvgSetColour(nvg, C_TEXT_DARK_BG);
     }
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 20.2822f, y + scale * 19.1758f);
