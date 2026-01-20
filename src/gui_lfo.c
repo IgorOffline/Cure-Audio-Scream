@@ -268,12 +268,13 @@ void add_up_down_triangles(NVGcontext* nvg, imgui_rect rect)
     nvgClosePath(nvg);
 }
 
-struct ButtonStripIndexes
+typedef struct ButtonStripIndexes
 {
     int hover_idx;
+    int mouse_down_idx;
     int mouse_hold_idx;
-};
-struct ButtonStripIndexes handle_button_strip(
+} ButtonStripIndexes;
+ButtonStripIndexes handle_button_strip(
     GUI*         gui,
     imgui_rect   area,
     unsigned     num_buttons,
@@ -286,9 +287,10 @@ struct ButtonStripIndexes handle_button_strip(
     xassert(num_buttons > 1);
     xassert(num_descriptions > 0);
     xassert(descriptions != NULL);
-    struct ButtonStripIndexes data;
+    ButtonStripIndexes data;
 
     data.hover_idx      = -1;
+    data.mouse_down_idx = -1;
     data.mouse_hold_idx = -1;
 
     float btn_stride = width + padding;
@@ -309,6 +311,9 @@ struct ButtonStripIndexes handle_button_strip(
         if (gui->imgui.pos_mouse_down.x < btn_right)
             data.mouse_hold_idx = idx;
     }
+    if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        data.mouse_down_idx = data.mouse_hold_idx;
+
     if (events & IMGUI_EVENT_MOUSE_ENTER)
         pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
 
@@ -427,14 +432,15 @@ void draw_lfo_section(GUI* gui)
         lfo_tabs.y = display_y + CONTENT_PADDING_Y;
         lfo_tabs.b = display_y + CONTENT_PADDING_Y + LFO_TAB_HEIGHT;
 
-        const unsigned            events        = imgui_get_events_rect(im, 'ltab', &lfo_tabs);
-        static const char*        DESCRIPTION[] = {"Displays tabbed contents for the selected LFO"};
-        struct ButtonStripIndexes data =
+        const unsigned     events        = imgui_get_events_rect(im, 'ltab', &lfo_tabs);
+        static const char* DESCRIPTION[] = {"Displays tabbed contents for the selected LFO"};
+        ButtonStripIndexes data =
             handle_button_strip(gui, lfo_tabs, 2, LFO_TAB_WIDTH, PADDING, events, DESCRIPTION, ARRLEN(DESCRIPTION));
 
-        if ((events & IMGUI_EVENT_MOUSE_LEFT_DOWN) && data.mouse_hold_idx != -1)
+        if (data.mouse_down_idx != -1)
         {
-            p->selected_lfo_idx                          = data.mouse_hold_idx;
+            xassert(events & IMGUI_EVENT_MOUSE_LEFT_DOWN);
+            p->selected_lfo_idx                          = data.mouse_down_idx;
             imp->main_points_valid                       = false;
             fstate.should_update_main_points_with_points = true;
             should_clear_lfo_trail                       = true;
@@ -626,12 +632,13 @@ void draw_lfo_section(GUI* gui)
         };
         static_assert(ARRLEN(DESCRIPTIONS) == 2, "Should be binary/boolean");
 
-        struct ButtonStripIndexes data =
+        ButtonStripIndexes data =
             handle_button_strip(gui, btn_rate_type, 2, height, 0, events, DESCRIPTIONS, ARRLEN(DESCRIPTIONS));
 
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        if (data.mouse_down_idx != -1)
         {
-            bool is_ms = data.mouse_hold_idx == 1;
+            xassert(events & IMGUI_EVENT_MOUSE_LEFT_DOWN);
+            bool is_ms = data.mouse_down_idx == 1;
             param_set(p, param_id, (double)is_ms);
         }
 
@@ -705,7 +712,7 @@ void draw_lfo_section(GUI* gui)
 
         float height = btn_loop_type.b - btn_loop_type.y;
 
-        struct ButtonStripIndexes data = handle_button_strip(
+        ButtonStripIndexes data = handle_button_strip(
             gui,
             btn_loop_type,
             NUM_LOOP_TYPES,
@@ -715,10 +722,10 @@ void draw_lfo_section(GUI* gui)
             DESCRIPTIONS,
             ARRLEN(DESCRIPTIONS));
 
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        if (data.mouse_down_idx != -1)
         {
-            xassert(data.mouse_hold_idx != -1);
-            LFOLoopType loop_type     = data.mouse_hold_idx;
+            xassert(events & IMGUI_EVENT_MOUSE_LEFT_DOWN);
+            LFOLoopType loop_type     = data.mouse_down_idx;
             p->lfo_loop_type[lfo_idx] = loop_type;
         }
 
@@ -913,7 +920,7 @@ void draw_lfo_section(GUI* gui)
         static const char* DESCRIPTIONS[] = {
             "Select a draw mode and drag your mouse inside empty space on the LFO grid to paint the currently "
             "selected shape to the grid."};
-        struct ButtonStripIndexes data = handle_button_strip(
+        ButtonStripIndexes data = handle_button_strip(
             gui,
             btns,
             IMP_SHAPE_COUNT,
@@ -923,14 +930,14 @@ void draw_lfo_section(GUI* gui)
             DESCRIPTIONS,
             ARRLEN(DESCRIPTIONS));
 
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        if (data.mouse_down_idx != -1)
         {
+            xassert(events & IMGUI_EVENT_MOUSE_LEFT_DOWN);
             // It was observed that some users clicked the active shape type button hoping to "reset" the shape back to
             // default, and turn off drawing mode. They were confused when this behaviour didn't happen
             // So here we're trying it and hoping that it's good UX
-            xassert(data.mouse_hold_idx != -1);
-            IMPShapeType next_type = data.mouse_hold_idx;
-            if (data.mouse_hold_idx == p->lfo_shape_idx)
+            IMPShapeType next_type = data.mouse_down_idx;
+            if (data.mouse_down_idx == p->lfo_shape_idx)
                 next_type = 0;
             p->lfo_shape_idx = next_type;
         }
@@ -1071,7 +1078,7 @@ void draw_lfo_section(GUI* gui)
                                              "\n"
                                              "Try automating this parameter in your DAW"};
 
-        struct ButtonStripIndexes data =
+        ButtonStripIndexes data =
             handle_button_strip(gui, btn_pattern, NUM_LFO_PATTERNS, w8, 0, events, DESCRIPTIONS, ARRLEN(DESCRIPTIONS));
 
         float pattern_cx = 0.5f * (btn_pattern.x + btn_pattern.r);
@@ -1081,10 +1088,10 @@ void draw_lfo_section(GUI* gui)
 
         float next_value = value_f;
 
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+        if (data.mouse_down_idx != -1)
         {
-            xassert(data.mouse_hold_idx > -1);
-            next_value = (float)data.mouse_hold_idx / (NUM_LFO_PATTERNS - 1);
+            xassert(events & IMGUI_EVENT_MOUSE_LEFT_DOWN);
+            next_value = (float)data.mouse_down_idx / (NUM_LFO_PATTERNS - 1);
         }
         bool changed = value_f != next_value;
         if (changed)
