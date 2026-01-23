@@ -335,11 +335,10 @@ bool pw_event(const PWEvent* event)
             rect.y = ted->dimensions.y;
             rect.r = ted->dimensions.x + ted->dimensions.width;
             rect.b = ted->dimensions.y + ted->dimensions.height;
+
             if (false == imgui_hittest_rect(pos, &rect))
             {
-                gui->active_param_text_input = -1;
-                if (gui->plugin->cplug_ctx->type != CPLUG_PLUGIN_IS_STANDALONE)
-                    pw_release_keyboard_focus(gui->pw);
+                should_deactivate = true;
             }
         }
         else if (event->type == PW_EVENT_TEXT)
@@ -399,8 +398,11 @@ bool pw_event(const PWEvent* event)
         {
             gui->active_param_text_input = -1;
             ted_deactivate(ted);
-            if (event->type != PW_EVENT_KEY_FOCUS_LOST)
+
+            if (gui->plugin->cplug_ctx->type != CPLUG_PLUGIN_IS_STANDALONE && event->type != PW_EVENT_KEY_FOCUS_LOST)
+            {
                 pw_release_keyboard_focus(gui->pw);
+            }
         }
         if (ret)
             return ret;
