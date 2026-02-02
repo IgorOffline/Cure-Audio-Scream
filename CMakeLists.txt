@@ -115,7 +115,7 @@ set(PLUGIN_SOURCES
     # src/im_points.c
     # src/resource_manager.c
     # src/libs/texteditor.c
-    # src/libs/tooltip.c
+    src/libs/tooltip.c
     # modules/wip_libs/src/nanovg2.c
     modules/xvg/xvg.c
     src/libs/freetype_scu.c

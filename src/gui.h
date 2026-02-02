@@ -7,7 +7,7 @@
 // #include <sokol_gfx.h>
 // #include <nanovg2.h>
 // #include "libs/texteditor.h"
-// #include "libs/tooltip.h"
+#include "libs/tooltip.h"
 
 // #include "resource_manager.h"
 
@@ -98,8 +98,8 @@ typedef struct GUI
 
     IMPointsData imp;
 
-    Tooltip tooltip;
     */
+    Tooltip tooltip;
 
     uint64_t gui_create_time;
     uint64_t last_resize_time;

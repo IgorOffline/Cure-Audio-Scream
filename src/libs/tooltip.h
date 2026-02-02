@@ -1,8 +1,8 @@
 #pragma once
 #include <imgui.h>
 #include <linked_arena.h>
-#include <nanovg2.h>
 #include <string.h>
+#include <xvg.h>
 
 // clang-format off
 enum
@@ -56,10 +56,10 @@ static void tooltip_handle_events(Tooltip* tt, imgui_rect d, const char* txt, ui
 }
 
 void tooltip_draw(
-    Tooltip*            tt,
-    struct NVGcontext*  nvg,
-    struct LinkedArena* arena,
-    uint64_t            time_ns,
-    float               gui_width,
-    float               gui_height,
-    float               font_size);
+    Tooltip*     tt,
+    XVG*         xvg,
+    LinkedArena* arena,
+    uint64_t     time_ns,
+    float        gui_width,
+    float        gui_height,
+    float        font_size);

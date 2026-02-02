@@ -3,7 +3,7 @@
 
 void tooltip_draw(
     Tooltip*     tt,
-    NVGcontext*  nvg,
+    XVG*         xvg,
     LinkedArena* arena,
     uint64_t     time_ns,
     float        gui_width,
@@ -12,6 +12,8 @@ void tooltip_draw(
 {
     LINKED_ARENA_LEAK_DETECT_BEGIN(arena);
 
+    // TODO XVG
+    /*
     xassert(tt->text != NULL);
 
     const uint64_t duration_ns         = time_ns - tt->time_shown_ns;
@@ -162,6 +164,7 @@ void tooltip_draw(
     }
 
     linked_arena_release(arena, rows);
+    */
 
     LINKED_ARENA_LEAK_DETECT_END(arena);
 }

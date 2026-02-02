@@ -879,9 +879,7 @@ void open_hyperlink(const char* url)
     xthread_detach(thread); // auto-destroy resources when thread ends
 }
 
-// TODO: XVG
-/*
-void draw_checkbox(NVGcontext* nvg, float width, float cy, float r, float scale, bool on)
+void draw_checkbox(XVG* xvg, float width, float cy, float r, float scale, bool on)
 {
     Rect box;
     box.x = floorf(r - width);
@@ -889,30 +887,26 @@ void draw_checkbox(NVGcontext* nvg, float width, float cy, float r, float scale,
     box.y = floorf(cy - width * 0.5f);
     box.b = ceilf(cy + width * 0.5f);
 
-    float stroke_width      = ceilf(scale);
-    float half_stroke_width = stroke_width * 0.5f;
-    float inner_padding     = ceilf(scale * 3);
+    float stroke_width  = ceilf(scale);
+    float inner_padding = ceilf(scale * 3);
 
-    NVGcolour col = on ? C_LIGHT_BLUE_2 : C_GRID_SECONDARY;
+    unsigned col = on ? C_LIGHT_BLUE_2 : C_GRID_SECONDARY;
 
-    nvgBeginPath(nvg);
-    nvgRect2(
-        nvg,
-        box.x + half_stroke_width,
-        box.y + half_stroke_width,
-        box.r - half_stroke_width,
-        box.b - half_stroke_width);
-    nvgSetColour(nvg, col);
-    nvgStroke(nvg, stroke_width);
+    xvg_draw_rectangle(xvg, box.x, box.y, box.r - box.x, box.b - box.y, 4, stroke_width, col);
 
     if (on)
     {
-        nvgBeginPath(nvg);
-        nvgRect2(nvg, box.x + inner_padding, box.y + inner_padding, box.r - inner_padding, box.b - inner_padding);
-        nvgFill(nvg);
+        xvg_draw_rectangle(
+            xvg,
+            box.x + inner_padding,
+            box.y + inner_padding,
+            box.r - box.x - 2 * inner_padding,
+            box.b - box.y - 2 * inner_padding,
+            2,
+            0,
+            col);
     }
 }
-*/
 
 void pw_tick(void* _gui)
 {
@@ -1210,13 +1204,10 @@ void pw_tick(void* _gui)
         xvg_draw_text(xvg, rect.x, (rect.b - rect.y) * 0.5f, "OUTPUT", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
     }
 
-    // TODO: XVG
-    /*
     // Footer bottom left
     {
-        nvgSetFontSize(nvg, 12 * lm->param_scale);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
         const float checkbox_height = floorf(12 * lm->param_scale);
+        float       fsize           = checkbox_height;
 
         // Autogain
         Rect rect;
@@ -1238,9 +1229,8 @@ void pw_tick(void* _gui)
 
         float cy          = rect_cy(&rect);
         bool  autogain_on = p->autogain_on;
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgText(nvg, rect.x, cy, "AUTOGAIN", 0);
-        draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->param_scale, autogain_on);
+        xvg_draw_text(xvg, rect.x, cy, "AUTOGAIN", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
+        draw_checkbox(xvg, checkbox_height, cy, rect.r, lm->param_scale, autogain_on);
 
         // Keytracking
         rect.x = rect.r + BORDER_PADDING * 4;
@@ -1258,18 +1248,12 @@ void pw_tick(void* _gui)
             p->midi_keytracking_on ^= 1;
 
         bool midi_keytracking_on = p->midi_keytracking_on;
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgText(nvg, rect.x, cy, "MIDI KEYTRACKING", 0);
-        draw_checkbox(nvg, checkbox_height, cy, rect.r, lm->param_scale, midi_keytracking_on);
+        xvg_draw_text(xvg, rect.x, cy, "MIDI KEYTRACKING", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
+        draw_checkbox(xvg, checkbox_height, cy, rect.r, lm->param_scale, midi_keytracking_on);
     }
 
     // Footer bottom right
     {
-        nvgSetFontSize(nvg, 12 * lm->param_scale);
-
-        NVGcolour footer_col = C_TEXT_DARK_BG;
-        // footer_col.a         = 0.5f;
-        nvgSetColour(nvg, footer_col);
         char text[128] = {0};
         int  len       = 0;
 
@@ -1281,15 +1265,9 @@ void pw_tick(void* _gui)
         if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
         {
             len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
-            nvgSetTextAlign(nvg, NVG_ALIGN_BR);
-            nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
-            // nvgSetTextAlign(nvg, NVG_ALIGN_TL);
-            // nvgText(nvg, 8, 8, text, text + len);
         }
-        else // shameless plug
+        else
         {
-            // TODO: add version number here
-
 #if defined(_WIN32)
 #define PLATFORM_NAME "Windows"
 #elif defined(__APPLE__)
@@ -1312,18 +1290,28 @@ void pw_tick(void* _gui)
             const char* os_name = "macOS";
 #endif
             len = snprintf(text, sizeof(text), "v%s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
-            nvgSetTextAlign(nvg, NVG_ALIGN_BR);
-            nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
         }
+        float fsize = 12 * lm->param_scale;
+        xvg_draw_text(xvg, lm->width - 8, lm->height - 8, text, text + len, fsize, XVG_ALIGN_BR, C_TEXT_DARK_BG);
     }
 
     // Main content background
     {
+        float width  = lm->width - 16;
         float height = lm->content_b - lm->content_y;
-        nvgBeginPath(nvg);
-        nvgRoundedRect(nvg, 8, lm->content_y, lm->width - 16, height, 8);
-        nvgSetColour(nvg, C_BG_LIGHT);
-        nvgFill(nvg);
+        xvg_draw_rectangle(xvg, 8, lm->content_y, width, height, 8, 0, C_BG_LIGHT);
+
+        float cx = lm->width * 0.5f;
+        float h  = lm->top_content_height;
+        // Mimic light reflections
+        XVGGradient lighting =
+            xvg_make_radial_gradient(0xffffff7f, 0xffffff00, cx, lm->content_y + h * 0.2, lm->width * 0.6f, h * 0.75f);
+        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, h, 8, 0, lighting);
+
+        // Gentle reds and greens to add depth
+        XVGGradient metallic =
+            xvg_make_linear_gradient(0xAC48000c, 0xBCEB2008, 8, lm->content_y, width, lm->top_content_bottom);
+        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, height, 8, 0, metallic);
 
         // Inner shadows
         const float blur_radius = 8;
@@ -1331,25 +1319,15 @@ void pw_tick(void* _gui)
         float       grad_r      = lm->content_r + blur_radius * 0.5f;
         float       grad_w      = grad_r - grad_x;
 
-        NVGcolour icol  = (NVGcolour){1, 1, 1, 0};
-        NVGcolour ocol  = (NVGcolour){1, 1, 1, 0.75};
-        NVGpaint  paint = nvgBoxGradient(nvg, grad_x, lm->content_y, grad_w, height, 16, blur_radius, icol, ocol);
-
         // Top inner shadow (light)
-        nvgBeginPath(nvg);
-        nvgRoundedRectVarying(nvg, 8, lm->content_y, lm->width - 16, blur_radius * 2, 8, 8, 0, 0);
-        nvgSetPaint(nvg, paint);
-        nvgFill(nvg);
+        XVGGradient top_shadow = xvg_make_shadow(0xffffffdf, 0xffffff00, 0, 10, 4, -8, true);
+        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, 16, 8, 0, top_shadow);
 
         // Bottom inner shadow (dark)
-        paint.innerColour = (NVGcolour){0, 0, 0, 0};
-        paint.outerColour = (NVGcolour){0, 0, 0, 0.75f};
-        nvgBeginPath(nvg);
-        nvgRoundedRectVarying(nvg, 8, lm->content_b - blur_radius * 2, lm->width - 16, blur_radius * 2, 0, 0, 8, 8);
-        nvgSetPaint(nvg, paint);
-        nvgFill(nvg);
+        XVGGradient bot_shadow = xvg_make_shadow(0x7f, 0, 0, -10, 4, -8, true);
+        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_b - 16, width, 16, 8, 0, bot_shadow);
 
-        // Dots
+        // // Dots
         const float DOT_DIAMETER = 6;
         const float DOT_RADIUS   = DOT_DIAMETER / 2;
         const float DOT_PADDING  = 6;
@@ -1374,24 +1352,16 @@ void pw_tick(void* _gui)
             {right_dot_cx, top_dot_cy + dot_offset + dot_offset},
         };
         _Static_assert(ARRLEN(points) == 10, "Should be 5 dots each side");
-
-        nvgBeginPath(nvg);
         for (int i = 0; i < ARRLEN(points); i++)
         {
-            nvgCircle(nvg, points[i].x, points[i].y, DOT_RADIUS);
+            xvg_draw_circle(xvg, points[i].x, points[i].y - 1, DOT_RADIUS, 0, 0x0);        // fake bevelled edge
+            xvg_draw_circle(xvg, points[i].x, points[i].y + 1, DOT_RADIUS, 0, 0xffffffff); // fake bevelled edge
+            xvg_draw_circle(xvg, points[i].x, points[i].y, DOT_RADIUS, 0, 0x111629FF);
         }
-        nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
-        nvgFill(nvg);
-
-        nvgBeginPath(nvg);
-        for (int i = 0; i < ARRLEN(points); i++)
-        {
-            nvgCircle(nvg, points[i].x, points[i].y - 1, DOT_RADIUS);
-        }
-        nvgSetColour(nvg, nvgHexColour(0x111629FF));
-        nvgFill(nvg);
     }
 
+    // TODO: XVG
+    /*
     // Params
     {
         static const ParamID param_ids[] = {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET};
@@ -2618,14 +2588,13 @@ void pw_tick(void* _gui)
         }
     }
 #endif // SHOW_FPS
+    */
 
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
     if (bg_events & IMGUI_EVENT_MOUSE_ENTER)
     {
         pw_set_mouse_cursor(gui->pw, PW_CURSOR_DEFAULT);
     }
-
-    */
     xvg_command_end_pass(&gui->xvg, XVG_LABEL("swapchain-pass-end"));
     xvg_end_frame(xvg, gui->plugin->width, gui->plugin->height);
     sg_commit(); // flip swapchain
