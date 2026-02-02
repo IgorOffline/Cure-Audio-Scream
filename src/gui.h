@@ -6,7 +6,7 @@
 
 // #include <sokol_gfx.h>
 // #include <nanovg2.h>
-// #include "libs/texteditor.h"
+#include "libs/texteditor.h"
 #include "libs/tooltip.h"
 
 // #include "resource_manager.h"
@@ -90,11 +90,12 @@ typedef struct GUI
     int        logo_height;
     unsigned   logo_events;
     imgui_rect logo_area;
-    /*
-    ResourceManager resource_manager;
 
     int        active_param_text_input; // enum ParamID, or -1 if inactive
     TextEditor texteditor;
+    /*
+    ResourceManager resource_manager;
+
 
     IMPointsData imp;
 

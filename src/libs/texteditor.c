@@ -1,17 +1,10 @@
 #include "texteditor.h"
 #include <imgui.h>
-#include <nanovg2.h>
 #include <stdbool.h>
 #include <utf8.h>
 #include <xhl/array.h>
 #include <xhl/maths.h>
 #include <xhl/time.h>
-
-enum
-{
-    // TED_TEXT_ALIGN = NVG_ALIGN_CL,
-    TED_TEXT_ALIGN = NVG_ALIGN_CC,
-};
 
 // Doubly linked list stack. of state items
 typedef struct TextEditorUndoState
@@ -138,47 +131,42 @@ void ted_alloc_text(TextEditor* ted, char** out_text, size_t* out_text_len, size
 void ted_text_release(TextEditor* ted, const char* text) { linked_arena_release(ted->undo_arena, text); }
 */
 
-NVGglyphPosition* ted_get_text_layout(TextEditor* ted, const char* text, size_t text_len)
-{
-    NVGglyphPosition* glyphs = linked_arena_alloc(ted->undo_arena, sizeof(NVGglyphPosition) * text_len);
-
-    nvgSetFontSize(ted->nvg, ted->font_size);
-    nvgSetTextAlign(ted->nvg, NVG_ALIGN_TL);
-    int num_glyphs = nvgTextGlyphPositions(ted->nvg, 0, 0, text, text + text_len, glyphs, text_len);
-    xassert(num_glyphs <= text_len);
-
-    return glyphs;
-}
-
 // Moves visible text offset to fit ibeam. Handles pushing new undo/redo state
 void ted_handle_ibeam_moved(TextEditor* ted)
 {
-    LINKED_ARENA_LEAK_DETECT_BEGIN(ted->undo_arena)
+    LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(ted->undo_arena, _ted_arena);
 
     // Check if cursor has moved out of visible bounds
     size_t total_chars = xarr_len(ted->codepoints);
 
     if (total_chars)
     {
+        LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(ted->xvg->arena, _nvg_arena);
+
         size_t alloc_size = 4 * total_chars + 1;
         char*  alloc_text = linked_arena_alloc(ted->undo_arena, alloc_size);
         size_t text_len   = ted_get_text(ted, alloc_text, alloc_size);
 
-        NVGglyphPosition* glyphs     = ted_get_text_layout(ted, alloc_text, text_len);
-        float             text_width = glyphs[total_chars - 1].maxx;
+        const XVGTextLayout* layout =
+            xvg_create_text_layout(ted->xvg, alloc_text, alloc_text + text_len, ted->theme.font_size, 0, 1);
+        const XVGGlyphLayout* glyphs     = xvg_layout_get_glyphs(layout);
+        float                 text_width = layout->xmax;
 
-        float ibeam_x = ted->ibeam_idx < total_chars ? glyphs[ted->ibeam_idx].minx : text_width;
+        float ibeam_x = ted->ibeam_idx < layout->num_glyphs ? glyphs[ted->ibeam_idx].x : text_width;
         if (ibeam_x < 0)
             ibeam_x = 0;
 
         ibeam_x += ted->text_offset;
 
         // Centre alignment
-        ibeam_x += ted->dimensions.width * 0.5f;
-        ibeam_x -= text_width * 0.5f;
+        if (ted->theme.is_centre_aligned)
+        {
+            ibeam_x += ted->dimensions.width * 0.5f;
+            ibeam_x -= text_width * 0.5f;
+        }
 
         const float padding      = 2; // We need 2 px for the ibeam
-        const float margin_right = ted->dimensions.width - padding;
+        const float margin_right = ted->dimensions.width - padding - ted->theme.padding_left;
         if (ibeam_x > margin_right) // IBeam moved out of right bounds
         {
             float diff        = ibeam_x - margin_right;
@@ -197,11 +185,15 @@ void ted_handle_ibeam_moved(TextEditor* ted)
 
         xassert(ted->text_offset <= 0);
 
+        xvg_release_text_layout(ted->xvg, layout);
         linked_arena_release(ted->undo_arena, alloc_text);
+
+        LINKED_ARENA_TAGGED_LEAK_DETECT_END(ted->xvg->arena, _nvg_arena);
     }
 
     ted->time_last_ibeam_move = xtime_now_ns();
-    LINKED_ARENA_LEAK_DETECT_END(ted->undo_arena)
+
+    LINKED_ARENA_TAGGED_LEAK_DETECT_END(ted->undo_arena, _ted_arena);
 }
 
 void ted_delete_selection(TextEditor* ted)
@@ -741,34 +733,49 @@ int ted_get_text_idx(TextEditor* ted, float x)
     size_t total_chars = xarr_len(ted->codepoints);
     if (total_chars)
     {
+        LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(ted->xvg->arena, _nvg_arena);
         size_t alloc_size = 4 * total_chars + 1;
         char*  alloc_text = linked_arena_alloc(ted->undo_arena, alloc_size);
         size_t text_len   = ted_get_text(ted, alloc_text, alloc_size);
 
-        NVGglyphPosition* glyphs     = ted_get_text_layout(ted, alloc_text, text_len);
-        float             text_width = glyphs[text_len - 1].maxx;
+        const XVGTextLayout* layout =
+            xvg_create_text_layout(ted->xvg, alloc_text, alloc_text + text_len, ted->theme.font_size, 0, 1);
+        const XVGGlyphLayout* glyphs = xvg_layout_get_glyphs(layout);
+
+        float text_width = layout->xmax;
 
         // Centre alignment
-        x -= ted->dimensions.width * 0.5f;
-        x += text_width * 0.5f;
+        if (ted->theme.is_centre_aligned)
+        {
+            x -= ted->dimensions.width * 0.5f;
+            x += text_width * 0.5f;
+        }
+        else
+        {
+            x -= ted->theme.padding_left;
+        }
 
         x -= ted->dimensions.x;
         x -= ted->text_offset;
+
+        x *= ted->xvg->backingScaleFactor;
         if (x >= 0)
         {
-            while (idx < total_chars && !(x >= glyphs[idx].minx && x <= glyphs[idx].maxx))
+            while (idx < layout->num_glyphs - 1 && !(x >= glyphs[idx].x && x <= glyphs[idx + 1].x))
                 idx++;
         }
 
         // Snap to closest index
-        float diff_min = x - glyphs[idx].minx;
-        float diff_max = glyphs[idx].maxx - x;
+        float diff_min = x - glyphs[idx].x;
+        float diff_max = (glyphs[idx].x + glyphs[idx].rect.w) - x;
         if (idx < total_chars && diff_min > diff_max)
             idx++;
 
         xassert(idx >= 0 && idx <= xarr_len(ted->codepoints));
 
+        xvg_release_text_layout(ted->xvg, layout);
         linked_arena_release(ted->undo_arena, alloc_text);
+        LINKED_ARENA_TAGGED_LEAK_DETECT_END(ted->xvg->arena, _nvg_arena);
     }
 
     LINKED_ARENA_LEAK_DETECT_END(ted->undo_arena)
@@ -845,9 +852,9 @@ void ted_handle_mouse_drag(TextEditor* ted, imgui_context* im)
     ted_set_ibeam_idx(ted, idx, true);
 }
 
-void ted_init(TextEditor* ted, NVGcontext* nvg)
+void ted_init(TextEditor* ted, XVG* xvg)
 {
-    ted->nvg = nvg;
+    ted->xvg = xvg;
     xarr_setcap(ted->codepoints, 64);
     ted->undo_arena = linked_arena_create(1024 * 4 - sizeof(LinkedArena));
     ted_push_state(ted);
@@ -896,16 +903,11 @@ void ted_clear(TextEditor* ted)
     ted_push_state(ted);
 }
 
-void ted_draw(
-    TextEditor* ted,
-    uint64_t    frame_time_ns,
-    NVGcolour   col_text,
-    NVGcolour   col_selection_bg,
-    NVGcolour   col_ibeam)
+void ted_draw(TextEditor* ted, uint64_t frame_time_ns, const char* placeholder, bool has_keyboard_focus)
 {
     LINKED_ARENA_LEAK_DETECT_BEGIN(ted->undo_arena)
 
-    NVGcontext* nvg = ted->nvg;
+    XVG* xvg = ted->xvg;
 
     xassert(ted->ibeam_idx >= 0);
     xassert(ted->selection_start >= 0);
@@ -914,20 +916,22 @@ void ted_draw(
 
     const xvec4f* d = &ted->dimensions;
 
-    float padding = roundf(ted->font_size * 0.1);
+    float padding = ted->theme.padding_vertical;
 
-    nvgSetScissor(nvg, d->x, d->y - padding, d->width, d->height + 2 * padding);
-    nvgSetFontSize(nvg, ted->font_size);
+    // xvg_command_set_scissor(xvg, d->x, d->y - padding, d->width, d->height + 2 * padding, 0);
 
-    size_t            total_chars = xarr_len(ted->codepoints);
-    const char*       text        = NULL;
-    NVGglyphPosition* glyphs      = NULL;
-    size_t            text_len;
-    float             text_width = 0;
+    size_t          total_chars = xarr_len(ted->codepoints);
+    const char*     text        = NULL;
+    XVGGlyphLayout* glyphs      = NULL;
+    size_t          glyphs_len  = 0;
+    size_t          text_len    = 0;
+    float           text_width  = 0;
 
     xassert(ted->ibeam_idx <= total_chars);
     xassert(ted->selection_start <= total_chars);
     xassert(ted->selection_end <= total_chars);
+
+    XVGAlign alignment = ted->theme.is_centre_aligned ? XVG_ALIGN_CC : XVG_ALIGN_CL;
 
     if (total_chars)
     {
@@ -938,82 +942,110 @@ void ted_draw(
         text_len = ted_get_text(ted, alloc_text, alloc_size);
         text     = alloc_text;
         xassert(text_len == strlen(alloc_text));
-        glyphs = ted_get_text_layout(ted, text, text_len);
 
-        text_width = glyphs[text_len - 1].maxx;
+        const XVGTextLayout* layout =
+            xvg_create_text_layout(ted->xvg, alloc_text, alloc_text + text_len, ted->theme.font_size, 0, 1);
+        glyphs     = xvg_layout_get_glyphs(layout);
+        glyphs_len = layout->num_glyphs;
+
+        text_width = (float)layout->xmax / xvg->backingScaleFactor;
 
         // Draw selection BG
         if (ted->selection_start != ted->selection_end)
         {
+            LINKED_ARENA_TAGGED_LEAK_DETECT_BEGIN(ted->xvg->arena, _nvg_arena);
             xassert(ted->selection_start < ted->selection_end);
-            nvgSetColour(nvg, col_selection_bg);
-            const float start_x = glyphs[ted->selection_start].minx;
-            const float end_x   = glyphs[ted->selection_end - 1].maxx;
+            const float start_x = glyphs[ted->selection_start].x;
+            const float end_x   = (glyphs[ted->selection_end - 1].x + glyphs[ted->selection_end - 1].rect.w);
 
             float selection_x     = start_x;
             float selection_width = end_x - start_x;
 
-            selection_x += d->x + ted->text_offset;
+            selection_x     /= xvg->backingScaleFactor;
+            selection_width /= xvg->backingScaleFactor;
 
-            // Centre alignment
-            selection_x += d->width * 0.5f;
-            selection_x -= text_width * 0.5f;
+            selection_x += d->x + ted->text_offset + ted->theme.padding_left;
 
-            nvgBeginPath(nvg);
-            nvgRect(nvg, selection_x, d->y - padding, selection_width, d->height);
+            if (ted->theme.is_centre_aligned)
+            {
+                selection_x += d->width * 0.5f;
+                selection_x -= text_width * 0.5f;
+            }
 
-            nvgFill(nvg);
+            xvg_draw_solid_rectangle(
+                xvg,
+                selection_x,
+                d->y + padding,
+                selection_width,
+                d->height - 2 * padding,
+                ted->theme.col_selection_bg);
         }
 
-        nvgSetTextAlign(nvg, TED_TEXT_ALIGN);
-        nvgSetColour(nvg, col_text);
-
-        // Centre alignment
-        float x = d->x + d->width * 0.5;
-        // Left alignment
-        // float x = d->x + ted->text_offset;
+        float x  = ted->theme.is_centre_aligned ? (d->x + d->width * 0.5)
+                                                : (d->x + ted->text_offset + ted->theme.padding_left);
         float cy = d->y + d->height * 0.5;
-        nvgText(nvg, x + ted->text_offset, cy, text, NULL);
+
+        if (glyphs_len)
+        {
+            unsigned col = has_keyboard_focus ? ted->theme.col_text_active : ted->theme.col_text_inactive;
+            xvg_draw_text_layout(xvg, layout, x, cy, alignment, col);
+        }
     }
 
     // Draw ibeam
-    // if (has_keyboard_focus)
-    // {
-    uint64_t time_then = ted->time_last_ibeam_move;
-    uint64_t time_now  = frame_time_ns;
-    // uint64_t time_now  = gui->frame_start_time;
-    // Show every half second
-    uint64_t num_500ms_intervals = (time_now - time_then) / 500000000;
-
-    if (num_500ms_intervals == 0 || (num_500ms_intervals & 1))
+    if (has_keyboard_focus)
     {
-        float ibeam_x = 0;
-        if (total_chars)
+        uint64_t time_then = ted->time_last_ibeam_move;
+        uint64_t time_now  = frame_time_ns;
+        // Show every half second
+        uint64_t num_500ms_intervals = (time_now - time_then) / 500000000;
+
+        if (num_500ms_intervals == 0 || (num_500ms_intervals & 1))
         {
-            int idx = ted->ibeam_idx;
-            if (idx >= total_chars)
-                ibeam_x = text_width;
+            float ibeam_x = 0;
+            if (glyphs_len)
+            {
+                int idx = ted->ibeam_idx;
+                if (idx >= glyphs_len)
+                    ibeam_x = text_width;
+                else
+                    ibeam_x = (float)glyphs[idx].x / xvg->backingScaleFactor;
+                if (ibeam_x < 0)
+                    ibeam_x = 0;
+                ibeam_x += ted->text_offset;
+            }
+            // Centre alignment
+            if (ted->theme.is_centre_aligned)
+            {
+                ibeam_x += d->width * 0.5f;
+                ibeam_x -= text_width * 0.5f;
+            }
             else
-                ibeam_x = glyphs[idx].minx;
-            if (ibeam_x < 0)
-                ibeam_x = 0;
-            ibeam_x += ted->text_offset;
+            {
+                ibeam_x += ted->theme.padding_left;
+            }
+
+            ibeam_x += d->x;
+            ibeam_x  = ceilf(ibeam_x);
+
+            xvg_draw_solid_rectangle(
+                xvg,
+                ibeam_x - 1,
+                d->y + padding,
+                2,
+                d->height - 2 * padding,
+                ted->theme.col_ibeam);
         }
-        // Centre alignment
-        ibeam_x += d->width * 0.5f;
-        ibeam_x -= text_width * 0.5f;
-
-        ibeam_x += d->x;
-        ibeam_x  = ceilf(ibeam_x);
-
-        nvgBeginPath(nvg);
-        nvgSetColour(nvg, col_ibeam);
-        nvgRect(nvg, ibeam_x, d->y - padding, 2, d->height);
-        nvgFill(nvg);
     }
-    // }
 
-    nvgResetScissor(nvg);
+    if (placeholder && has_keyboard_focus == false && total_chars == 0)
+    {
+        float x  = ted->theme.is_centre_aligned ? (d->x + d->width * 0.5) : (d->x + ted->theme.padding_left);
+        float cy = d->y + d->height * 0.5;
+        xvg_draw_text(xvg, x, cy, placeholder, 0, ted->theme.font_size, alignment, ted->theme.col_text_placeholder);
+    }
+
+    // xvg_command_set_scissor(xvg, 0, 0, gui_width, gui_height, 0);
 
     if (text)
         linked_arena_release(ted->undo_arena, text);
@@ -1021,26 +1053,34 @@ void ted_draw(
     LINKED_ARENA_LEAK_DETECT_END(ted->undo_arena)
 }
 
-void ted_activate(TextEditor* ted, xvec4f dimensions, xvec2f pos, float _font_size, const char* text)
+void ted_activate(TextEditor* ted, const TextEditorTheme* theme, xvec4f dimensions, const xvec2f* pos, const char* text)
 {
-    ted_set_text(ted, text);
-
-    ted->ref_current_state = NULL;
-
     ted->dimensions = dimensions;
+    ted->theme      = *theme;
 
-    ted->font_size = _font_size;
+    if (text)
+        ted_set_text(ted, text);
 
     ted->text_offset     = 0;
     ted->selection_start = 0;
     ted->selection_end   = 0;
 
-    ted->ibeam_idx            = ted_get_text_idx(ted, pos.x);
-    ted->time_last_ibeam_move = xtime_now_ns();
+    if (pos != NULL)
+    {
+        ted->ibeam_idx = ted_get_text_idx(ted, pos->x);
+    }
+    else
+    {
+        ted->ibeam_idx = xarr_len(ted->codepoints);
+    }
 
-    linked_arena_clear(ted->undo_arena);
-    ted->last_action = TEXT_ACTION_WRITE;
-    ted_push_state(ted);
+    if (text)
+    {
+        ted->ref_current_state = NULL;
+        linked_arena_clear(ted->undo_arena);
+        ted->last_action = TEXT_ACTION_WRITE;
+        ted_push_state(ted);
+    }
 }
 
 void ted_deactivate(TextEditor* ted)

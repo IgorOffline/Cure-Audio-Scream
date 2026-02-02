@@ -202,11 +202,10 @@ void* pw_create_gui(void* _plugin, void* _pw)
         }
     }
 
-    gui->active_param_text_input = -1;
-    ted_init(&gui->texteditor, gui->nvg);
-
     resources_init(&gui->resource_manager, 4096);
     */
+    gui->active_param_text_input = -1;
+    ted_init(&gui->texteditor, &gui->xvg);
 
     uint64_t now_ns            = xtime_now_ns();
     gui->gui_create_time       = now_ns;
@@ -228,9 +227,9 @@ void pw_destroy_gui(void* _gui)
 
     xarr_free(gui->lfo_ybuffer);
     xarr_free(gui->lfo_playhead_trail);
+    ted_deinit(&gui->texteditor);
     // TODO: XVG
     /*
-    ted_deinit(&gui->texteditor);
 
     imp_deinit(&gui->imp);
 
@@ -319,8 +318,6 @@ bool pw_event(const PWEvent* event)
         gui->last_resize_time = xtime_now_ns();
     }
 
-    // TODO: XVG
-    /*
     if (gui->active_param_text_input != -1)
     {
         TextEditor* ted = &gui->texteditor;
@@ -409,9 +406,7 @@ bool pw_event(const PWEvent* event)
         if (ret)
             return ret;
     }
-    else
-    */
-    if (gui->plugin->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE)
+    else if (gui->plugin->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE)
     {
         if ((event->type == PW_EVENT_MOUSE_LEFT_DOWN || event->type == PW_EVENT_MOUSE_RIGHT_DOWN ||
              event->type == PW_EVENT_MOUSE_MIDDLE_DOWN))
@@ -1360,17 +1355,13 @@ void pw_tick(void* _gui)
         }
     }
 
-    // TODO: XVG
-    /*
     // Params
     {
         static const ParamID param_ids[] = {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET};
         _Static_assert(ARRLEN(param_ids) == ARRLEN(lm->param_positions_cx), "");
 
         // Param labels
-        nvgSetColour(nvg, C_TEXT_LIGHT_BG);
-        const float param_font_size = 14 * lm->param_scale;
-        nvgSetFontSize(nvg, param_font_size);
+        const float fsize = 14 * lm->param_scale;
 
         static const char* NAMES[] = {"INPUT", "CUTOFF", "SCREAM", "RESONANCE", "WET"};
         _Static_assert(ARRLEN(NAMES) == ARRLEN(lm->param_positions_cx));
@@ -1379,9 +1370,7 @@ void pw_tick(void* _gui)
             const ParamID param_id = param_ids[i];
             const float   param_cx = lm->param_positions_cx[i];
 
-            nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-            nvgSetColour(nvg, C_TEXT_LIGHT_BG);
-            nvgText(nvg, param_cx, lm->cy_param_title, NAMES[i], NULL);
+            xvg_draw_text(xvg, param_cx, lm->cy_param_title, NAMES[i], NULL, fsize, XVG_ALIGN_CC, C_TEXT_LIGHT_BG);
 
             imgui_rect rect;
             rect.x = param_cx - 50;
@@ -1418,6 +1407,16 @@ void pw_tick(void* _gui)
                     xvec4f dimensions = {rect.x, rect.y, rect.r - rect.x, rect.b - rect.y};
                     xvec2f pos        = {im->pos_mouse_down.x, im->pos_mouse_down.y};
 
+                    const TextEditorTheme theme = {
+                        .font_size            = fsize,
+                        .col_text_active      = C_TEXT_LIGHT_BG,
+                        .col_text_inactive    = C_TEXT_LIGHT_BG,
+                        .col_text_placeholder = C_TEXT_LIGHT_BG,
+                        .col_selection_bg     = 0x8BD1E47F,
+                        .col_ibeam            = 0xff,
+                        .is_centre_aligned    = true,
+                    };
+
                     gui->active_param_text_input = param_id;
                     pw_get_keyboard_focus(gui->pw);
 
@@ -1425,19 +1424,14 @@ void pw_tick(void* _gui)
                     double value = main_get_param(gui->plugin, param_id);
                     cplug_parameterValueToString(gui->plugin, param_id, text, sizeof(text), value);
 
-                    ted_activate(&gui->texteditor, dimensions, pos, param_font_size, text);
+                    ted_activate(&gui->texteditor, &theme, dimensions, &pos, text);
                 }
             }
 
             // Draw
             if (gui->active_param_text_input == param_id)
             {
-                ted_draw(
-                    &gui->texteditor,
-                    gui->frame_start_time,
-                    C_TEXT_LIGHT_BG,
-                    nvgHexColour(0x8BD1E47F),
-                    (NVGcolour){0, 0, 0, 1});
+                ted_draw(&gui->texteditor, gui->frame_start_time, "", true);
             }
             else
             {
@@ -1445,9 +1439,7 @@ void pw_tick(void* _gui)
                 double value = main_get_param(p, param_id);
                 cplug_parameterValueToString(p, param_id, label, sizeof(label), value);
 
-                nvgSetColour(nvg, C_TEXT_LIGHT_BG);
-                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-                nvgText(nvg, param_cx, lm->cy_param_value, label, NULL);
+                xvg_draw_text(xvg, param_cx, lm->cy_param_value, label, NULL, fsize, XVG_ALIGN_CC, C_TEXT_LIGHT_BG);
             }
         }
 
@@ -1522,34 +1514,47 @@ void pw_tick(void* _gui)
 
                 char label  = '1';
                 label      += j;
-                nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-                nvgSetColour(nvg, C_TEXT_LIGHT_BG);
-                nvgText(nvg, c.x, c.y + 1, &label, &label + 1);
+                xvg_draw_text(xvg, c.x + j, c.y, &label, &label + 1, fsize, XVG_ALIGN_CC_TIGHT, C_TEXT_LIGHT_BG);
+                xvg_draw_circle(xvg, c.x, c.y, mod_amt_radius, mod_amt_stroke_width, C_GREY_1);
 
-                nvgBeginPath(nvg);
-                nvgCircle(nvg, c.x, c.y, mod_amt_radius - 2);
-                nvgSetColour(nvg, C_GREY_1);
-                nvgStroke(nvg, mod_amt_stroke_width);
-
-                if (fabsf(modamt.data[j]) != 0)
+                float amt = modamt.data[j];
+                if (fabsf(amt) != 0)
                 {
-                    float start_radians = -XM_HALF_PIf;
-                    float end_radians   = -XM_HALF_PIf + XM_TAUf * modamt.data[j];
-                    nvgBeginPath(nvg);
-                    nvgArc(
-                        nvg,
+                    float start_radians = 0;
+                    float end_radians   = XM_TAUf * amt;
+                    // float start_radians = -XM_HALF_PIf;
+                    // float end_radians   = -XM_HALF_PIf + XM_TAUf * amt;
+                    println("amt %f", amt);
+                    // nvgBeginPath(nvg);
+                    // nvgArc(
+                    //     nvg,
+                    //     c.x,
+                    //     c.y,
+                    //     mod_amt_radius - 2,
+                    //     xm_minf(start_radians, end_radians),
+                    //     xm_maxf(start_radians, end_radians),
+                    //     NVG_CW);
+                    // nvgSetColour(nvg, C_DARK_BLUE);
+                    // nvgStroke(nvg, mod_amt_stroke_width);
+                    xvg_draw_arc(
+                        xvg,
                         c.x,
                         c.y,
-                        mod_amt_radius - 2,
-                        xm_minf(start_radians, end_radians),
-                        xm_maxf(start_radians, end_radians),
-                        NVG_CW);
-                    nvgSetColour(nvg, C_DARK_BLUE);
-                    nvgStroke(nvg, mod_amt_stroke_width);
+                        mod_amt_radius,
+                        start_radians,
+                        end_radians,
+                        // xm_minf(start_radians, end_radians),
+                        // xm_maxf(start_radians, end_radians),
+                        // XM_TAUf * -0.375,
+                        // XM_TAUf * 0.375,
+                        mod_amt_stroke_width,
+                        true,
+                        C_DARK_BLUE);
                 }
             }
         }
-
+        // TODO: XVG
+        /*
         // Parameter control
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
@@ -2285,8 +2290,11 @@ void pw_tick(void* _gui)
                 break;
             }
         }
-    }
 
+        */
+    }
+    // TODO: XVG
+    /*
     snvg_command_custom(nvg, gui, do_knob_shader, XVG_LABEL("Knob shader"));
 
 //     const float peak_gain = p->gui_output_peak_gain;
