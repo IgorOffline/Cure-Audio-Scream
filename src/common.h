@@ -68,10 +68,10 @@ void println(const char* const fmt, ...);
 #define PW_MALLOC(sz) MY_MALLOC(sz)
 #define PW_FREE(ptr)  MY_FREE(ptr)
 
-#define NVG_MALLOC(sz)       MY_MALLOC(sz)
-#define NVG_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)
-#define NVG_FREE(ptr)        MY_FREE(ptr)
-#define NVG_ASSERT           xassert
+#define XVG_MALLOC(sz)       MY_MALLOC(sz)
+#define XVG_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)
+#define XVG_FREE(ptr)        MY_FREE(ptr)
+#define XVG_ASSERT           xassert
 
 #define STBI_MALLOC(sz)       MY_MALLOC(sz)
 #define STBI_REALLOC(ptr, sz) MY_REALLOC(ptr, sz)

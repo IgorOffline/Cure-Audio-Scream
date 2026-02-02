@@ -5,7 +5,7 @@
 #include "plugin.h"
 
 #include "dsp.h"
-#include "widgets.h"
+// #include "widgets.h"
 
 #include <stdint.h>
 #include <xhl/array.h>
@@ -16,7 +16,6 @@
 #include <xhl/vector.h>
 
 #include <cplug_extensions/window.h>
-#include <nanovg2.h>
 #include <stb_image.h>
 
 #include <imgui.h>
@@ -50,8 +49,11 @@ enum
 void gui_handle_param_change(void* _gui, ParamID param_id)
 {
     GUI* gui = _gui;
+    // TODO: XVG
+    /*
     if (param_id == PARAM_PATTERN_LFO_1 || param_id == PARAM_PATTERN_LFO_2)
         gui->imp.main_points_valid = false;
+    */
 }
 
 static void my_sg_logger(
@@ -99,7 +101,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
     sg_environment env;
     memset(&env, 0, sizeof(env));
     env.defaults.sample_count = 1;
-    env.defaults.color_format = SG_PIXELFORMAT_BGRA8;
+    env.defaults.color_format = SG_PIXELFORMAT_RGBA8;
     env.defaults.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
 #if __APPLE__
     env.metal.device = pw_get_metal_device(gui->pw);
@@ -119,6 +121,9 @@ void* pw_create_gui(void* _plugin, void* _pw)
         .pipeline_pool_size = 512,
     });
 
+    xvg_init(&gui->xvg);
+    // TODO: XVG
+    /*
     gui->nvg = nvgCreateContext(NVG_ANTIALIAS);
     xassert(gui->nvg);
 
@@ -204,6 +209,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     gui->active_param_text_input = -1;
     ted_init(&gui->texteditor, gui->nvg);
+    */
 
     uint64_t now_ns            = xtime_now_ns();
     gui->gui_create_time       = now_ns;
@@ -221,45 +227,42 @@ void* pw_create_gui(void* _plugin, void* _pw)
 void pw_destroy_gui(void* _gui)
 {
     GUI* gui = _gui;
+    sg_set_global(gui->sg);
 
-    // if (gui->logo_img_id)
-    // {
-    //     nvgDeleteImage(gui->nvg, gui->logo_img_id);
-    //     gui->logo_img_id = 0;
-    // }
-
+    xarr_free(gui->lfo_ybuffer);
+    xarr_free(gui->lfo_playhead_trail);
+    // TODO: XVG
+    /*
     ted_deinit(&gui->texteditor);
 
     imp_deinit(&gui->imp);
-    xarr_free(gui->lfo_ybuffer);
-    xarr_free(gui->lfo_playhead_trail);
-
-    sg_set_global(gui->sg);
 
     resources_deinit(&gui->resource_manager, gui->nvg);
 
     nvgDestroyContext(gui->nvg);
+    */
+    xvg_deinit(&gui->xvg);
     sg_shutdown(gui->sg);
 
     gui->plugin->gui = NULL;
 
-#ifdef CPLUG_BUILD_STANDALONE
-    if (buffer_audio)
-    {
-        MY_FREE(buffer_audio);
-        buffer_audio = NULL;
-    }
-    if (buffer_processed)
-    {
-        MY_FREE(buffer_processed);
-        buffer_processed = NULL;
-    }
-    if (oscilloscope_ringbuf)
-    {
-        MY_FREE(oscilloscope_ringbuf);
-        oscilloscope_ringbuf = NULL;
-    }
-#endif // CPLUG_BUILD_STANDALONE
+    // #ifdef CPLUG_BUILD_STANDALONE
+    //     if (buffer_audio)
+    //     {
+    //         MY_FREE(buffer_audio);
+    //         buffer_audio = NULL;
+    //     }
+    //     if (buffer_processed)
+    //     {
+    //         MY_FREE(buffer_processed);
+    //         buffer_processed = NULL;
+    //     }
+    //     if (oscilloscope_ringbuf)
+    //     {
+    //         MY_FREE(oscilloscope_ringbuf);
+    //         oscilloscope_ringbuf = NULL;
+    //     }
+    // #endif // CPLUG_BUILD_STANDALONE
 
     // TODO: save last used width & height to settings file
 
@@ -281,10 +284,10 @@ void pw_get_info(struct PWGetInfo* info)
         uint32_t width  = info->constrain_size.width;
         uint32_t height = info->constrain_size.height;
 
-        float    dpi            = xm_maxf(1, gui->dpi);
-        uint32_t min_width      = (uint32_t)(GUI_MIN_WIDTH * dpi);
-        uint32_t min_height     = (uint32_t)(GUI_MIN_HEIGHT * dpi);
-        uint32_t content_height = (uint32_t)(CONTENT_HEIGHT * dpi);
+        float    content_scale  = xm_maxf(1, gui->content_scale);
+        uint32_t min_width      = (uint32_t)(GUI_MIN_WIDTH * content_scale);
+        uint32_t min_height     = (uint32_t)(GUI_MIN_HEIGHT * content_scale);
+        uint32_t content_height = (uint32_t)(CONTENT_HEIGHT * content_scale);
 
         if (gui->plugin->lfo_section_open)
         {
@@ -319,6 +322,8 @@ bool pw_event(const PWEvent* event)
         gui->last_resize_time = xtime_now_ns();
     }
 
+    // TODO: XVG
+    /*
     if (gui->active_param_text_input != -1)
     {
         TextEditor* ted = &gui->texteditor;
@@ -407,7 +412,9 @@ bool pw_event(const PWEvent* event)
         if (ret)
             return ret;
     }
-    else if (gui->plugin->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE)
+    else
+    */
+    if (gui->plugin->cplug_ctx->type == CPLUG_PLUGIN_IS_STANDALONE)
     {
         if ((event->type == PW_EVENT_MOUSE_LEFT_DOWN || event->type == PW_EVENT_MOUSE_RIGHT_DOWN ||
              event->type == PW_EVENT_MOUSE_MIDDLE_DOWN))
@@ -513,9 +520,9 @@ bool pw_event(const PWEvent* event)
         }
     }
 
-    if (event->type == PW_EVENT_DPI_CHANGED)
+    if (event->type == PW_EVENT_CONTENT_SCALE_FACTOR_CHANGED)
     {
-        gui->dpi = event->dpi;
+        gui->content_scale = event->content_scale_factor;
     }
 
     return false;
@@ -591,6 +598,8 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     return value_d;
 }
 
+// TODO: XVG
+/*
 void do_knob_shader(void* uptr)
 {
     GUI*           gui = uptr;
@@ -688,8 +697,8 @@ void draw_exacoustics_logo_svg(NVGcontext* nvg, const float scale, float x, floa
     // e
     if (hover)
     {
-        paint = nvgLinearGradient(nvg, x + scale * 16.0f, y + scale * 9.5f, x + scale * 24.0f, y + scale * 19.0f, stop1, stop2);
-        nvgSetPaint(nvg, paint);
+        paint = nvgLinearGradient(nvg, x + scale * 16.0f, y + scale * 9.5f, x + scale * 24.0f, y + scale * 19.0f, stop1,
+stop2); nvgSetPaint(nvg, paint);
     }
     else
     {
@@ -698,43 +707,48 @@ void draw_exacoustics_logo_svg(NVGcontext* nvg, const float scale, float x, floa
     }
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 20.2822f, y + scale * 19.1758f);
-    nvgBezierTo(nvg, x + scale * 19.5791f, y + scale * 19.1758f, x + scale * 18.9434f, y + scale * 19.0615f, x + scale * 18.375f, y + scale * 18.833f);
-    nvgBezierTo(nvg, x + scale * 17.8125f, y + scale * 18.5986f, x + scale * 17.332f, y + scale * 18.2734f, x + scale * 16.9336f, y + scale * 17.8574f);
-    nvgBezierTo(nvg, x + scale * 16.541f, y + scale * 17.4414f, x + scale * 16.2393f, y + scale * 16.9521f, x + scale * 16.0283f, y + scale * 16.3896f);
-    nvgBezierTo(nvg, x + scale * 15.8174f, y + scale * 15.8271f, x + scale * 15.7119f, y + scale * 15.2207f, x + scale * 15.7119f, y + scale * 14.5703f);
-    nvgLineTo(nvg, x + scale * 15.7119f, y + scale * 14.2188f);
-    nvgBezierTo(nvg, x + scale * 15.7119f, y + scale * 13.4746f, x + scale * 15.8203f, y + scale * 12.8008f, x + scale * 16.0371f, y + scale * 12.1973f);
-    nvgBezierTo(nvg, x + scale * 16.2539f, y + scale * 11.5938f, x + scale * 16.5557f, y + scale * 11.0781f, x + scale * 16.9424f, y + scale * 10.6504f);
-    nvgBezierTo(nvg, x + scale * 17.3291f, y + scale * 10.2168f, x + scale * 17.7861f, y + scale * 9.88574f, x + scale * 18.3135f, y + scale * 9.65723f);
-    nvgBezierTo(nvg, x + scale * 18.8408f, y + scale * 9.42871f, x + scale * 19.4121f, y + scale * 9.31445f, x + scale * 20.0273f, y + scale * 9.31445f);
-    nvgBezierTo(nvg, x + scale * 20.707f, y + scale * 9.31445f, x + scale * 21.3018f, y + scale * 9.42871f, x + scale * 21.8115f, y + scale * 9.65723f);
-    nvgBezierTo(nvg, x + scale * 22.3213f, y + scale * 9.88574f, x + scale * 22.7432f, y + scale * 10.208f, x + scale * 23.0771f, y + scale * 10.624f);
-    nvgBezierTo(nvg, x + scale * 23.417f, y + scale * 11.0342f, x + scale * 23.6689f, y + scale * 11.5234f, x + scale * 23.833f, y + scale * 12.0918f);
-    nvgBezierTo(nvg, x + scale * 24.0029f, y + scale * 12.6602f, x + scale * 24.0879f, y + scale * 13.2871f, x + scale * 24.0879f, y + scale * 13.9727f);
+    nvgBezierTo(nvg, x + scale * 19.5791f, y + scale * 19.1758f, x + scale * 18.9434f, y + scale * 19.0615f, x + scale
+* 18.375f, y + scale * 18.833f); nvgBezierTo(nvg, x + scale * 17.8125f, y + scale * 18.5986f, x + scale * 17.332f, y +
+scale * 18.2734f, x + scale * 16.9336f, y + scale * 17.8574f); nvgBezierTo(nvg, x + scale * 16.541f, y + scale
+* 17.4414f, x + scale * 16.2393f, y + scale * 16.9521f, x + scale * 16.0283f, y + scale * 16.3896f); nvgBezierTo(nvg, x
++ scale * 15.8174f, y + scale * 15.8271f, x + scale * 15.7119f, y + scale * 15.2207f, x + scale * 15.7119f, y + scale
+* 14.5703f); nvgLineTo(nvg, x + scale * 15.7119f, y + scale * 14.2188f); nvgBezierTo(nvg, x + scale * 15.7119f, y +
+scale * 13.4746f, x + scale * 15.8203f, y + scale * 12.8008f, x + scale * 16.0371f, y + scale * 12.1973f);
+    nvgBezierTo(nvg, x + scale * 16.2539f, y + scale * 11.5938f, x + scale * 16.5557f, y + scale * 11.0781f, x + scale
+* 16.9424f, y + scale * 10.6504f); nvgBezierTo(nvg, x + scale * 17.3291f, y + scale * 10.2168f, x + scale * 17.7861f, y
++ scale * 9.88574f, x + scale * 18.3135f, y + scale * 9.65723f); nvgBezierTo(nvg, x + scale * 18.8408f, y + scale
+* 9.42871f, x + scale * 19.4121f, y + scale * 9.31445f, x + scale * 20.0273f, y + scale * 9.31445f); nvgBezierTo(nvg, x
++ scale * 20.707f, y + scale * 9.31445f, x + scale * 21.3018f, y + scale * 9.42871f, x + scale * 21.8115f, y + scale
+* 9.65723f); nvgBezierTo(nvg, x + scale * 22.3213f, y + scale * 9.88574f, x + scale * 22.7432f, y + scale * 10.208f, x +
+scale * 23.0771f, y + scale * 10.624f); nvgBezierTo(nvg, x + scale * 23.417f, y + scale * 11.0342f, x + scale
+* 23.6689f, y + scale * 11.5234f, x + scale * 23.833f, y + scale * 12.0918f); nvgBezierTo(nvg, x + scale * 24.0029f, y +
+scale * 12.6602f, x + scale * 24.0879f, y + scale * 13.2871f, x + scale * 24.0879f, y + scale * 13.9727f);
     nvgLineTo(nvg, x + scale * 24.0879f, y + scale * 14.8779f);
     nvgLineTo(nvg, x + scale * 16.7402f, y + scale * 14.8779f);
     nvgLineTo(nvg, x + scale * 16.7402f, y + scale * 13.3574f);
     nvgLineTo(nvg, x + scale * 21.9961f, y + scale * 13.3574f);
     nvgLineTo(nvg, x + scale * 21.9961f, y + scale * 13.1904f);
-    nvgBezierTo(nvg, x + scale * 21.9844f, y + scale * 12.8096f, x + scale * 21.9082f, y + scale * 12.4521f, x + scale * 21.7676f, y + scale * 12.1182f);
-    nvgBezierTo(nvg, x + scale * 21.6328f, y + scale * 11.7842f, x + scale * 21.4248f, y + scale * 11.5146f, x + scale * 21.1436f, y + scale * 11.3096f);
-    nvgBezierTo(nvg, x + scale * 20.8623f, y + scale * 11.1045f, x + scale * 20.4873f, y + scale * 11.002f, x + scale * 20.0186f, y + scale * 11.002f);
-    nvgBezierTo(nvg, x + scale * 19.667f, y + scale * 11.002f, x + scale * 19.3535f, y + scale * 11.0781f, x + scale * 19.0781f, y + scale * 11.2305f);
-    nvgBezierTo(nvg, x + scale * 18.8086f, y + scale * 11.377f, x + scale * 18.583f, y + scale * 11.5908f, x + scale * 18.4014f, y + scale * 11.8721f);
-    nvgBezierTo(nvg, x + scale * 18.2197f, y + scale * 12.1533f, x + scale * 18.0791f, y + scale * 12.4932f, x + scale * 17.9795f, y + scale * 12.8916f);
-    nvgBezierTo(nvg, x + scale * 17.8857f, y + scale * 13.2842f, x + scale * 17.8389f, y + scale * 13.7266f, x + scale * 17.8389f, y + scale * 14.2188f);
+    nvgBezierTo(nvg, x + scale * 21.9844f, y + scale * 12.8096f, x + scale * 21.9082f, y + scale * 12.4521f, x + scale
+* 21.7676f, y + scale * 12.1182f); nvgBezierTo(nvg, x + scale * 21.6328f, y + scale * 11.7842f, x + scale * 21.4248f, y
++ scale * 11.5146f, x + scale * 21.1436f, y + scale * 11.3096f); nvgBezierTo(nvg, x + scale * 20.8623f, y + scale
+* 11.1045f, x + scale * 20.4873f, y + scale * 11.002f, x + scale * 20.0186f, y + scale * 11.002f); nvgBezierTo(nvg, x +
+scale * 19.667f, y + scale * 11.002f, x + scale * 19.3535f, y + scale * 11.0781f, x + scale * 19.0781f, y + scale
+* 11.2305f); nvgBezierTo(nvg, x + scale * 18.8086f, y + scale * 11.377f, x + scale * 18.583f, y + scale * 11.5908f, x +
+scale * 18.4014f, y + scale * 11.8721f); nvgBezierTo(nvg, x + scale * 18.2197f, y + scale * 12.1533f, x + scale
+* 18.0791f, y + scale * 12.4932f, x + scale * 17.9795f, y + scale * 12.8916f); nvgBezierTo(nvg, x + scale * 17.8857f, y
++ scale * 13.2842f, x + scale * 17.8389f, y + scale * 13.7266f, x + scale * 17.8389f, y + scale * 14.2188f);
     nvgLineTo(nvg, x + scale * 17.8389f, y + scale * 14.5703f);
-    nvgBezierTo(nvg, x + scale * 17.8389f, y + scale * 14.9863f, x + scale * 17.8945f, y + scale * 15.373f, x + scale * 18.0059f, y + scale * 15.7305f);
-    nvgBezierTo(nvg, x + scale * 18.123f, y + scale * 16.082f, x + scale * 18.293f, y + scale * 16.3896f, x + scale * 18.5156f, y + scale * 16.6533f);
-    nvgBezierTo(nvg, x + scale * 18.7383f, y + scale * 16.917f, x + scale * 19.0078f, y + scale * 17.125f, x + scale * 19.3242f, y + scale * 17.2773f);
-    nvgBezierTo(nvg, x + scale * 19.6406f, y + scale * 17.4238f, x + scale * 20.001f, y + scale * 17.4971f, x + scale * 20.4053f, y + scale * 17.4971f);
-    nvgBezierTo(nvg, x + scale * 20.915f, y + scale * 17.4971f, x + scale * 21.3691f, y + scale * 17.3945f, x + scale * 21.7676f, y + scale * 17.1895f);
-    nvgBezierTo(nvg, x + scale * 22.166f, y + scale * 16.9844f, x + scale * 22.5117f, y + scale * 16.6943f, x + scale * 22.8047f, y + scale * 16.3193f);
-    nvgLineTo(nvg, x + scale * 23.9209f, y + scale * 17.4004f);
-    nvgBezierTo(nvg, x + scale * 23.7158f, y + scale * 17.6992f, x + scale * 23.4492f, y + scale * 17.9863f, x + scale * 23.1211f, y + scale * 18.2617f);
-    nvgBezierTo(nvg, x + scale * 22.793f, y + scale * 18.5312f, x + scale * 22.3916f, y + scale * 18.751f, x + scale * 21.917f, y + scale * 18.9209f);
-    nvgClosePath(nvg);
-    nvgFill(nvg);
+    nvgBezierTo(nvg, x + scale * 17.8389f, y + scale * 14.9863f, x + scale * 17.8945f, y + scale * 15.373f, x + scale
+* 18.0059f, y + scale * 15.7305f); nvgBezierTo(nvg, x + scale * 18.123f, y + scale * 16.082f, x + scale * 18.293f, y +
+scale * 16.3896f, x + scale * 18.5156f, y + scale * 16.6533f); nvgBezierTo(nvg, x + scale * 18.7383f, y + scale
+* 16.917f, x + scale * 19.0078f, y + scale * 17.125f, x + scale * 19.3242f, y + scale * 17.2773f); nvgBezierTo(nvg, x +
+scale * 19.6406f, y + scale * 17.4238f, x + scale * 20.001f, y + scale * 17.4971f, x + scale * 20.4053f, y + scale
+* 17.4971f); nvgBezierTo(nvg, x + scale * 20.915f, y + scale * 17.4971f, x + scale * 21.3691f, y + scale * 17.3945f, x +
+scale * 21.7676f, y + scale * 17.1895f); nvgBezierTo(nvg, x + scale * 22.166f, y + scale * 16.9844f, x + scale
+* 22.5117f, y + scale * 16.6943f, x + scale * 22.8047f, y + scale * 16.3193f); nvgLineTo(nvg, x + scale * 23.9209f, y +
+scale * 17.4004f); nvgBezierTo(nvg, x + scale * 23.7158f, y + scale * 17.6992f, x + scale * 23.4492f, y + scale
+* 17.9863f, x + scale * 23.1211f, y + scale * 18.2617f); nvgBezierTo(nvg, x + scale * 22.793f, y + scale * 18.5312f, x +
+scale * 22.3916f, y + scale * 18.751f, x + scale * 21.917f, y + scale * 18.9209f); nvgClosePath(nvg); nvgFill(nvg);
 
     // a
     if (hover)
@@ -748,57 +762,62 @@ void draw_exacoustics_logo_svg(NVGcontext* nvg, const float scale, float x, floa
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 31.1016f, y + scale * 17.0928f);
     nvgLineTo(nvg, x + scale * 31.1016f, y + scale * 12.5576f);
-    nvgBezierTo(nvg, x + scale * 31.1016f, y + scale * 12.2178f, x + scale * 31.04f, y + scale * 11.9248f, x + scale * 30.917f, y + scale * 11.6787f);
-    nvgBezierTo(nvg, x + scale * 30.7939f, y + scale * 11.4326f, x + scale * 30.6064f, y + scale * 11.2422f, x + scale * 30.3545f, y + scale * 11.1074f);
-    nvgBezierTo(nvg, x + scale * 30.1084f, y + scale * 10.9727f, x + scale * 29.7979f, y + scale * 10.9053f, x + scale * 29.4229f, y + scale * 10.9053f);
-    nvgBezierTo(nvg, x + scale * 29.0771f, y + scale * 10.9053f, x + scale * 28.7783f, y + scale * 10.9639f, x + scale * 28.5264f, y + scale * 11.0811f);
-    nvgBezierTo(nvg, x + scale * 28.2744f, y + scale * 11.1982f, x + scale * 28.0781f, y + scale * 11.3564f, x + scale * 27.9375f, y + scale * 11.5557f);
-    nvgBezierTo(nvg, x + scale * 27.7969f, y + scale * 11.7549f, x + scale * 27.7266f, y + scale * 11.9805f, x + scale * 27.7266f, y + scale * 12.2324f);
-    nvgLineTo(nvg, x + scale * 25.6172f, y + scale * 12.2324f);
-    nvgBezierTo(nvg, x + scale * 25.6172f, y + scale * 11.8574f, x + scale * 25.708f, y + scale * 11.4941f, x + scale * 25.8896f, y + scale * 11.1426f);
-    nvgBezierTo(nvg, x + scale * 26.0713f, y + scale * 10.791f, x + scale * 26.335f, y + scale * 10.4775f, x + scale * 26.6807f, y + scale * 10.2021f);
-    nvgBezierTo(nvg, x + scale * 27.0264f, y + scale * 9.92676f, x + scale * 27.4395f, y + scale * 9.70996f, x + scale * 27.9199f, y + scale * 9.55176f);
-    nvgBezierTo(nvg, x + scale * 28.4004f, y + scale * 9.39355f, x + scale * 28.9395f, y + scale * 9.31445f, x + scale * 29.5371f, y + scale * 9.31445f);
-    nvgBezierTo(nvg, x + scale * 30.252f, y + scale * 9.31445f, x + scale * 30.8848f, y + scale * 9.43457f, x + scale * 31.4355f, y + scale * 9.6748f);
-    nvgBezierTo(nvg, x + scale * 31.9922f, y + scale * 9.91504f, x + scale * 32.4287f, y + scale * 10.2783f, x + scale * 32.7451f, y + scale * 10.7646f);
-    nvgBezierTo(nvg, x + scale * 33.0674f, y + scale * 11.2451f, x + scale * 33.2285f, y + scale * 11.8486f, x + scale * 33.2285f, y + scale * 12.5752f);
-    nvgLineTo(nvg, x + scale * 33.2285f, y + scale * 16.8027f);
-    nvgBezierTo(nvg, x + scale * 33.2285f, y + scale * 17.2363f, x + scale * 33.2578f, y + scale * 17.626f, x + scale * 33.3164f, y + scale * 17.9717f);
-    nvgBezierTo(nvg, x + scale * 33.3809f, y + scale * 18.3115f, x + scale * 33.4717f, y + scale * 18.6074f, x + scale * 33.5889f, y + scale * 18.8594f);
-    nvgLineTo(nvg, x + scale * 33.5889f, y + scale * 19.0f);
-    nvgLineTo(nvg, x + scale * 31.418f, y + scale * 19.0f);
-    nvgBezierTo(nvg, x + scale * 31.3184f, y + scale * 18.7715f, x + scale * 31.2393f, y + scale * 18.4814f, x + scale * 31.1807f, y + scale * 18.1299f);
-    nvgClosePath(nvg);
-    nvgFill(nvg);
+    nvgBezierTo(nvg, x + scale * 31.1016f, y + scale * 12.2178f, x + scale * 31.04f, y + scale * 11.9248f, x + scale
+* 30.917f, y + scale * 11.6787f); nvgBezierTo(nvg, x + scale * 30.7939f, y + scale * 11.4326f, x + scale * 30.6064f, y +
+scale * 11.2422f, x + scale * 30.3545f, y + scale * 11.1074f); nvgBezierTo(nvg, x + scale * 30.1084f, y + scale
+* 10.9727f, x + scale * 29.7979f, y + scale * 10.9053f, x + scale * 29.4229f, y + scale * 10.9053f); nvgBezierTo(nvg, x
++ scale * 29.0771f, y + scale * 10.9053f, x + scale * 28.7783f, y + scale * 10.9639f, x + scale * 28.5264f, y + scale
+* 11.0811f); nvgBezierTo(nvg, x + scale * 28.2744f, y + scale * 11.1982f, x + scale * 28.0781f, y + scale * 11.3564f, x
++ scale * 27.9375f, y + scale * 11.5557f); nvgBezierTo(nvg, x + scale * 27.7969f, y + scale * 11.7549f, x + scale
+* 27.7266f, y + scale * 11.9805f, x + scale * 27.7266f, y + scale * 12.2324f); nvgLineTo(nvg, x + scale * 25.6172f, y +
+scale * 12.2324f); nvgBezierTo(nvg, x + scale * 25.6172f, y + scale * 11.8574f, x + scale * 25.708f, y + scale
+* 11.4941f, x + scale * 25.8896f, y + scale * 11.1426f); nvgBezierTo(nvg, x + scale * 26.0713f, y + scale * 10.791f, x +
+scale * 26.335f, y + scale * 10.4775f, x + scale * 26.6807f, y + scale * 10.2021f); nvgBezierTo(nvg, x + scale
+* 27.0264f, y + scale * 9.92676f, x + scale * 27.4395f, y + scale * 9.70996f, x + scale * 27.9199f, y + scale
+* 9.55176f); nvgBezierTo(nvg, x + scale * 28.4004f, y + scale * 9.39355f, x + scale * 28.9395f, y + scale * 9.31445f, x
++ scale * 29.5371f, y + scale * 9.31445f); nvgBezierTo(nvg, x + scale * 30.252f, y + scale * 9.31445f, x + scale
+* 30.8848f, y + scale * 9.43457f, x + scale * 31.4355f, y + scale * 9.6748f); nvgBezierTo(nvg, x + scale * 31.9922f, y +
+scale * 9.91504f, x + scale * 32.4287f, y + scale * 10.2783f, x + scale * 32.7451f, y + scale * 10.7646f);
+    nvgBezierTo(nvg, x + scale * 33.0674f, y + scale * 11.2451f, x + scale * 33.2285f, y + scale * 11.8486f, x + scale
+* 33.2285f, y + scale * 12.5752f); nvgLineTo(nvg, x + scale * 33.2285f, y + scale * 16.8027f); nvgBezierTo(nvg, x +
+scale * 33.2285f, y + scale * 17.2363f, x + scale * 33.2578f, y + scale * 17.626f, x + scale * 33.3164f, y + scale
+* 17.9717f); nvgBezierTo(nvg, x + scale * 33.3809f, y + scale * 18.3115f, x + scale * 33.4717f, y + scale * 18.6074f, x
++ scale * 33.5889f, y + scale * 18.8594f); nvgLineTo(nvg, x + scale * 33.5889f, y + scale * 19.0f); nvgLineTo(nvg, x +
+scale * 31.418f, y + scale * 19.0f); nvgBezierTo(nvg, x + scale * 31.3184f, y + scale * 18.7715f, x + scale * 31.2393f,
+y + scale * 18.4814f, x + scale * 31.1807f, y + scale * 18.1299f); nvgClosePath(nvg); nvgFill(nvg);
 
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 31.4092f, y + scale * 13.2168f);
     nvgLineTo(nvg, x + scale * 31.4268f, y + scale * 14.5264f);
     nvgLineTo(nvg, x + scale * 29.9062f, y + scale * 14.5264f);
-    nvgBezierTo(nvg, x + scale * 29.5137f, y + scale * 14.5264f, x + scale * 29.168f, y + scale * 14.5645f, x + scale * 28.8691f, y + scale * 14.6406f);
-    nvgBezierTo(nvg, x + scale * 28.5703f, y + scale * 14.7109f, x + scale * 28.3213f, y + scale * 14.8164f, x + scale * 28.1221f, y + scale * 14.957f);
-    nvgBezierTo(nvg, x + scale * 27.9229f, y + scale * 15.0977f, x + scale * 27.7734f, y + scale * 15.2676f, x + scale * 27.6738f, y + scale * 15.4668f);
-    nvgBezierTo(nvg, x + scale * 27.5742f, y + scale * 15.666f, x + scale * 27.5244f, y + scale * 15.8916f, x + scale * 27.5244f, y + scale * 16.1436f);
-    nvgBezierTo(nvg, x + scale * 27.5244f, y + scale * 16.3955f, x + scale * 27.583f, y + scale * 16.627f, x + scale * 27.7002f, y + scale * 16.8379f);
-    nvgBezierTo(nvg, x + scale * 27.8174f, y + scale * 17.043f, x + scale * 27.9873f, y + scale * 17.2041f, x + scale * 28.21f, y + scale * 17.3213f);
-    nvgBezierTo(nvg, x + scale * 28.4385f, y + scale * 17.4385f, x + scale * 28.7139f, y + scale * 17.4971f, x + scale * 29.0361f, y + scale * 17.4971f);
-    nvgBezierTo(nvg, x + scale * 29.4697f, y + scale * 17.4971f, x + scale * 29.8477f, y + scale * 17.4092f, x + scale * 30.1699f, y + scale * 17.2334f);
-    nvgBezierTo(nvg, x + scale * 30.498f, y + scale * 17.0518f, x + scale * 30.7559f, y + scale * 16.832f, x + scale * 30.9434f, y + scale * 16.5742f);
-    nvgBezierTo(nvg, x + scale * 31.1309f, y + scale * 16.3105f, x + scale * 31.2305f, y + scale * 16.0615f, x + scale * 31.2422f, y + scale * 15.8271f);
-    nvgLineTo(nvg, x + scale * 31.9277f, y + scale * 16.7676f);
-    nvgBezierTo(nvg, x + scale * 31.8574f, y + scale * 17.0078f, x + scale * 31.7373f, y + scale * 17.2656f, x + scale * 31.5674f, y + scale * 17.541f);
-    nvgBezierTo(nvg, x + scale * 31.3975f, y + scale * 17.8164f, x + scale * 31.1748f, y + scale * 18.0801f, x + scale * 30.8994f, y + scale * 18.332f);
-    nvgBezierTo(nvg, x + scale * 30.6299f, y + scale * 18.5781f, x + scale * 30.3047f, y + scale * 18.7803f, x + scale * 29.9238f, y + scale * 18.9385f);
-    nvgBezierTo(nvg, x + scale * 29.5488f, y + scale * 19.0967f, x + scale * 29.1152f, y + scale * 19.1758f, x + scale * 28.623f, y + scale * 19.1758f);
-    nvgBezierTo(nvg, x + scale * 28.002f, y + scale * 19.1758f, x + scale * 27.4482f, y + scale * 19.0527f, x + scale * 26.9619f, y + scale * 18.8066f);
-    nvgBezierTo(nvg, x + scale * 26.4756f, y + scale * 18.5547f, x + scale * 26.0947f, y + scale * 18.2178f, x + scale * 25.8193f, y + scale * 17.7959f);
-    nvgBezierTo(nvg, x + scale * 25.5439f, y + scale * 17.3682f, x + scale * 25.4062f, y + scale * 16.8848f, x + scale * 25.4062f, y + scale * 16.3457f);
-    nvgBezierTo(nvg, x + scale * 25.4062f, y + scale * 15.8418f, x + scale * 25.5f, y + scale * 15.3965f, x + scale * 25.6875f, y + scale * 15.0098f);
-    nvgBezierTo(nvg, x + scale * 25.8809f, y + scale * 14.6172f, x + scale * 26.1621f, y + scale * 14.2891f, x + scale * 26.5312f, y + scale * 14.0254f);
-    nvgBezierTo(nvg, x + scale * 26.9062f, y + scale * 13.7617f, x + scale * 27.3633f, y + scale * 13.5625f, x + scale * 27.9023f, y + scale * 13.4277f);
-    nvgBezierTo(nvg, x + scale * 28.4414f, y + scale * 13.2871f, x + scale * 29.0566f, y + scale * 13.2168f, x + scale * 29.748f, y + scale * 13.2168f);
-    nvgClosePath(nvg);
-    nvgFill(nvg);
+    nvgBezierTo(nvg, x + scale * 29.5137f, y + scale * 14.5264f, x + scale * 29.168f, y + scale * 14.5645f, x + scale
+* 28.8691f, y + scale * 14.6406f); nvgBezierTo(nvg, x + scale * 28.5703f, y + scale * 14.7109f, x + scale * 28.3213f, y
++ scale * 14.8164f, x + scale * 28.1221f, y + scale * 14.957f); nvgBezierTo(nvg, x + scale * 27.9229f, y + scale
+* 15.0977f, x + scale * 27.7734f, y + scale * 15.2676f, x + scale * 27.6738f, y + scale * 15.4668f); nvgBezierTo(nvg, x
++ scale * 27.5742f, y + scale * 15.666f, x + scale * 27.5244f, y + scale * 15.8916f, x + scale * 27.5244f, y + scale
+* 16.1436f); nvgBezierTo(nvg, x + scale * 27.5244f, y + scale * 16.3955f, x + scale * 27.583f, y + scale * 16.627f, x +
+scale * 27.7002f, y + scale * 16.8379f); nvgBezierTo(nvg, x + scale * 27.8174f, y + scale * 17.043f, x + scale
+* 27.9873f, y + scale * 17.2041f, x + scale * 28.21f, y + scale * 17.3213f); nvgBezierTo(nvg, x + scale * 28.4385f, y +
+scale * 17.4385f, x + scale * 28.7139f, y + scale * 17.4971f, x + scale * 29.0361f, y + scale * 17.4971f);
+    nvgBezierTo(nvg, x + scale * 29.4697f, y + scale * 17.4971f, x + scale * 29.8477f, y + scale * 17.4092f, x + scale
+* 30.1699f, y + scale * 17.2334f); nvgBezierTo(nvg, x + scale * 30.498f, y + scale * 17.0518f, x + scale * 30.7559f, y +
+scale * 16.832f, x + scale * 30.9434f, y + scale * 16.5742f); nvgBezierTo(nvg, x + scale * 31.1309f, y + scale
+* 16.3105f, x + scale * 31.2305f, y + scale * 16.0615f, x + scale * 31.2422f, y + scale * 15.8271f); nvgLineTo(nvg, x +
+scale * 31.9277f, y + scale * 16.7676f); nvgBezierTo(nvg, x + scale * 31.8574f, y + scale * 17.0078f, x + scale
+* 31.7373f, y + scale * 17.2656f, x + scale * 31.5674f, y + scale * 17.541f); nvgBezierTo(nvg, x + scale * 31.3975f, y +
+scale * 17.8164f, x + scale * 31.1748f, y + scale * 18.0801f, x + scale * 30.8994f, y + scale * 18.332f);
+    nvgBezierTo(nvg, x + scale * 30.6299f, y + scale * 18.5781f, x + scale * 30.3047f, y + scale * 18.7803f, x + scale
+* 29.9238f, y + scale * 18.9385f); nvgBezierTo(nvg, x + scale * 29.5488f, y + scale * 19.0967f, x + scale * 29.1152f, y
++ scale * 19.1758f, x + scale * 28.623f, y + scale * 19.1758f); nvgBezierTo(nvg, x + scale * 28.002f, y + scale
+* 19.1758f, x + scale * 27.4482f, y + scale * 19.0527f, x + scale * 26.9619f, y + scale * 18.8066f); nvgBezierTo(nvg, x
++ scale * 26.4756f, y + scale * 18.5547f, x + scale * 26.0947f, y + scale * 18.2178f, x + scale * 25.8193f, y + scale
+* 17.7959f); nvgBezierTo(nvg, x + scale * 25.5439f, y + scale * 17.3682f, x + scale * 25.4062f, y + scale * 16.8848f, x
++ scale * 25.4062f, y + scale * 16.3457f); nvgBezierTo(nvg, x + scale * 25.4062f, y + scale * 15.8418f, x + scale
+* 25.5f, y + scale * 15.3965f, x + scale * 25.6875f, y + scale * 15.0098f); nvgBezierTo(nvg, x + scale * 25.8809f, y +
+scale * 14.6172f, x + scale * 26.1621f, y + scale * 14.2891f, x + scale * 26.5312f, y + scale * 14.0254f);
+    nvgBezierTo(nvg, x + scale * 26.9062f, y + scale * 13.7617f, x + scale * 27.3633f, y + scale * 13.5625f, x + scale
+* 27.9023f, y + scale * 13.4277f); nvgBezierTo(nvg, x + scale * 28.4414f, y + scale * 13.2871f, x + scale * 29.0566f, y
++ scale * 13.2168f, x + scale * 29.748f, y + scale * 13.2168f); nvgClosePath(nvg); nvgFill(nvg);
 
     // Line L
     if (hover)
@@ -810,19 +829,21 @@ void draw_exacoustics_logo_svg(NVGcontext* nvg, const float scale, float x, floa
     // Line R
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 11.4957f, y + scale);
-    nvgBezierTo(nvg, x + scale * -1.89973f, y + scale * 3.06349f, x + scale * -3.23929f, y + scale * 23.6984f, x + scale * 11.9422f, y + scale * 27.0f);
-    nvgStroke(nvg, stroke_width);
+    nvgBezierTo(nvg, x + scale * -1.89973f, y + scale * 3.06349f, x + scale * -3.23929f, y + scale * 23.6984f, x + scale
+* 11.9422f, y + scale * 27.0f); nvgStroke(nvg, stroke_width);
 
     if (hover)
     {
-        nvgSetPaint(nvg, nvgLinearGradient(nvg, x + scale * 6.0f, y + scale * 6.0f, x + scale * 13.5f, y + scale * 22.0f, stop1, stop2));
+        nvgSetPaint(nvg, nvgLinearGradient(nvg, x + scale * 6.0f, y + scale * 6.0f, x + scale * 13.5f, y + scale
+* 22.0f, stop1, stop2));
     }
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 12.5802f, y + scale * 6.77779f);
-    nvgBezierTo(nvg, x + scale * 4.92746f, y + scale * 7.95692f, x + scale * 4.16218f, y + scale * 19.7483f, x + scale * 12.8352f, y + scale * 21.6349f);
-    nvgStroke(nvg, stroke_width);
+    nvgBezierTo(nvg, x + scale * 4.92746f, y + scale * 7.95692f, x + scale * 4.16218f, y + scale * 19.7483f, x + scale
+* 12.8352f, y + scale * 21.6349f); nvgStroke(nvg, stroke_width);
     // clang-format on
 }
+*/
 
 #ifdef _WIN32
 // #include <Windows.h>
@@ -861,6 +882,8 @@ void open_hyperlink(const char* url)
     xthread_detach(thread); // auto-destroy resources when thread ends
 }
 
+// TODO: XVG
+/*
 void draw_checkbox(NVGcontext* nvg, float width, float cy, float r, float scale, bool on)
 {
     Rect box;
@@ -892,18 +915,12 @@ void draw_checkbox(NVGcontext* nvg, float width, float cy, float r, float scale,
         nvgFill(nvg);
     }
 }
+*/
 
 void pw_tick(void* _gui)
 {
-    GUI* gui = _gui;
-
-    CPLUG_LOG_ASSERT(gui->plugin);
-    CPLUG_LOG_ASSERT(gui->nvg);
-
-    if (!gui || !gui->plugin)
-        return;
-
-    Plugin* p = gui->plugin;
+    GUI*    gui = _gui;
+    Plugin* p   = gui->plugin;
 
 #ifdef SHOW_FPS
     uint64_t frame_duration_last_frame = gui->frame_end_time - gui->frame_start_time;
@@ -930,23 +947,20 @@ void pw_tick(void* _gui)
     const uint32_t MAX_DUP_BACKBUFFER_COUNT = 1;
 #endif
 
-#ifdef CPLUG_BUILD_STANDALONE
-    if (oscilloscope_ringbuf)
-        gui->imgui.num_duplicate_backbuffers = 0;
-#endif
+    // #ifdef CPLUG_BUILD_STANDALONE
+    //     if (oscilloscope_ringbuf)
+    //         gui->imgui.num_duplicate_backbuffers = 0;
+    // #endif
 
     // Uncomment to enable event driven redrawing
     // if (gui->imgui.num_duplicate_backbuffers >= MAX_DUP_BACKBUFFER_COUNT)
     //     return;
 
-    if (!gui->nvg)
-        return;
-
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
 
     const uint64_t time_since_last_frame = gui->frame_start_time - gui->last_frame_start_time;
 
-    NVGcontext*    nvg = gui->nvg;
+    XVG*           xvg = &gui->xvg;
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
 
@@ -968,7 +982,7 @@ void pw_tick(void* _gui)
     _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
 
     // Recalculate layout metrics
-    if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_DPI_CHANGED)))
+    if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_CONTENT_SCALE_FACTOR_CHANGED)))
     {
         lm->width  = p->width;
         lm->height = p->height;
@@ -983,15 +997,15 @@ void pw_tick(void* _gui)
         lm->scale_x = (float)lm->width / (float)GUI_INIT_WIDTH;
         lm->scale_y = (float)top_height / (float)init_height;
 
-        const float dpi = xm_maxf(gui->dpi, 1.0f);
+        const float content_scale = xm_maxf(gui->content_scale, 1.0f);
 #ifdef __APPLE__
         lm->content_scale    = 1;
         lm->devicePixelRatio = 2; // required for text to render properly...
 #else
-        lm->content_scale    = dpi;
+        lm->content_scale    = content_scale;
         lm->devicePixelRatio = 1;
 #endif
-        nvg->devicePxRatio = lm->devicePixelRatio;
+        xvg->backingScaleFactor = pw_get_backing_scale_factor(gui->pw);
 
         lm->param_scale = xm_maxf(1, xm_minf(lm->scale_x, lm->scale_y));
         lm->param_scale = xm_maxf(lm->param_scale, lm->content_scale);
@@ -1084,13 +1098,13 @@ void pw_tick(void* _gui)
                         .usage.storage_buffer = true,
                         .usage.stream_update  = true,
                         .size                 = lfo_buffer_cap * sizeof(*gui->lfo_ybuffer),
-                        .label                = NVG_LABEL("lfo_ybuffer"),
+                        .label                = XVG_LABEL("lfo_ybuffer"),
             });
             gui->lfo_playhead_trail_obj  = sg_make_buffer(&(sg_buffer_desc){
                  .usage.storage_buffer = true,
                  .usage.stream_update  = true,
                  .size                 = lfo_buffer_cap * sizeof(*gui->lfo_playhead_trail),
-                 .label                = NVG_LABEL("lfo_playhead_trail"),
+                 .label                = XVG_LABEL("lfo_playhead_trail"),
             });
             gui->lfo_ybuffer_view        = sg_make_view(&(sg_view_desc){.storage_buffer = gui->lfo_ybuffer_obj});
             gui->lfo_playhead_trail_view = sg_make_view(&(sg_view_desc){.storage_buffer = gui->lfo_playhead_trail_obj});
@@ -1114,7 +1128,7 @@ void pw_tick(void* _gui)
         .width        = gui->layout.width,
         .height       = gui->layout.height,
         .sample_count = 1,
-        .color_format = SG_PIXELFORMAT_BGRA8,
+        .color_format = SG_PIXELFORMAT_RGBA8,
         .depth_format = SG_PIXELFORMAT_DEPTH_STENCIL,
 
 #if __APPLE__
@@ -1128,27 +1142,33 @@ void pw_tick(void* _gui)
     };
 
     imgui_begin_frame(im);
-    nvgBeginFrame(nvg, lm->devicePixelRatio);
 
-    SGNVGframebuffer fb_main = {0};
-    bool ok = resource_get_framebuffer(&gui->resource_manager, 'main', &fb_main, nvg, lm->width, lm->height, 0);
-    xassert(ok);
+    xvg_begin_frame(xvg);
 
-    snvg_command_begin_pass(
-        nvg,
+    xvg_command_begin_pass(
+        &gui->xvg,
         &(sg_pass){
-            .action                    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
-            .attachments.colors[0]     = fb_main.img_colview,
-            .attachments.depth_stencil = fb_main.depth_view,
-            .label                     = NVG_LABEL("main_framebuffer"),
-        },
-        0,
-        0,
-        fb_main.width,
-        fb_main.height,
-        NVG_LABEL("main framebuffer begin pass"));
-    snvg_command_draw_nvg(nvg, NVG_LABEL("main framebuffer"));
+            .swapchain =
+                {
+                    .width  = gui->plugin->width,
+                    .height = gui->plugin->height,
+#if __APPLE__
+                    .metal.current_drawable      = pw_get_metal_drawable(gui->pw),
+                    .metal.depth_stencil_texture = pw_get_metal_depth_stencil_texture(gui->pw),
+#endif
+#if _WIN32
+                    .d3d11.render_view        = pw_get_dx11_render_target_view(gui->pw),
+                    .d3d11.depth_stencil_view = pw_get_dx11_depth_stencil_view(gui->pw),
+#endif
+                },
+            .action = {.colors[0] = {.load_action = SG_LOADACTION_CLEAR, .clear_value = {0.0f, 0.0f, 0.0f, 1.0}}},
+            .label  = XVG_LABEL("swapchain-pass-begin")},
+        XVG_LABEL("swapchain-pass-begin"));
 
+    xvg_draw_solid_rectangle(xvg, 50, 50, 50, 50, 0xffffffff);
+
+    // TODO: XVG
+    /*
 // Synth HUD
 #ifdef SYNTH_HUD
     SNVGcallState calls_synth_hud = {0};
@@ -1186,8 +1206,8 @@ void pw_tick(void* _gui)
         nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
 
         // Cure Audio logo
-        snvg_command_custom(nvg, gui, do_logo_shader, NVG_LABEL("Logo shader"));
-        snvg_command_draw_nvg(nvg, NVG_LABEL("main framebuffer 2"));
+        snvg_command_custom(nvg, gui, do_logo_shader, XVG_LABEL("Logo shader"));
+        snvg_command_draw_nvg(nvg, XVG_LABEL("main framebuffer 2"));
 
         float x, y, w, h, b, img_scale;
         y         = 8;
@@ -2353,54 +2373,52 @@ void pw_tick(void* _gui)
         }
     }
 
-    snvg_command_custom(nvg, gui, do_knob_shader, NVG_LABEL("Knob shader"));
+    snvg_command_custom(nvg, gui, do_knob_shader, XVG_LABEL("Knob shader"));
 
-    /*
-    const float peak_gain = p->gui_output_peak_gain;
-    if (peak_gain > 1)
-    {
-        nvgSetTextAlign(nvg, NVG_ALIGN_BR);
-        nvgSetColour(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
-        float dB = xm_fast_gain_to_dB(peak_gain);
-        char  label[48];
-        snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
-        nvgText(nvg, lm->width - 20, gui_height - 20, label, NULL);
-    }
+//     const float peak_gain = p->gui_output_peak_gain;
+//     if (peak_gain > 1)
+//     {
+//         nvgSetTextAlign(nvg, NVG_ALIGN_BR);
+//         nvgSetColour(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
+//         float dB = xm_fast_gain_to_dB(peak_gain);
+//         char  label[48];
+//         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
+//         nvgText(nvg, lm->width - 20, gui_height - 20, label, NULL);
+//     }
 
-#ifdef CPLUG_BUILD_STANDALONE
-    {
-        Plugin* p = p;
-        // plot_expander(nvg, lm->width, gui_height);
-        // plot_peak_detection(nvg, lm->width, gui_height);
-        // plot_peak_distortion(nvg, im, lm->width, gui_height);
-        // plot_peak_upwards_compression(nvg, im, lm->width, gui_height);
-        float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
-        float phase = xt_atomic_load_f32(&p->gui_osc_phase);
-        plot_oscilloscope(nvg, lm->width - 230, 10, 220, 180, p->sample_rate, midi, phase);
+// #ifdef CPLUG_BUILD_STANDALONE
+//     {
+//         Plugin* p = p;
+//         // plot_expander(nvg, lm->width, gui_height);
+//         // plot_peak_detection(nvg, lm->width, gui_height);
+//         // plot_peak_distortion(nvg, im, lm->width, gui_height);
+//         // plot_peak_upwards_compression(nvg, im, lm->width, gui_height);
+//         float midi  = xt_atomic_load_f32(&p->gui_osc_midi);
+//         float phase = xt_atomic_load_f32(&p->gui_osc_phase);
+//         plot_oscilloscope(nvg, lm->width - 230, 10, 220, 180, p->sample_rate, midi, phase);
 
-        imgui_rect  rect   = {lm->width - 220, 10, lm->width - 60, 25};
-        const float offset = 10 + (rect.b - rect.y);
-        im_slider(nvg, im, rect, &g_output_gain_dB, -24, 0, "%.2fdB", "Output");
-        // rect.y += offset;
-        // rect.b += offset;
-        // im_slider(nvg, im, rect, &g_attack_ms, 0, 50, "%.2fms", "Attack");
-        // rect.y += offset;
-        // rect.b += offset;
-        // im_slider(nvg, im, rect, &g_release_ms, 0, 50, "%.2fms", "Release");
-        // rect.y += offset;
-        // rect.b += offset;
-        // im_slider(nvg, im, rect, &g_lp_Q, 0.01, 10, "%.3f", "LP Q");
-        // rect.y += offset;
-        // rect.b += offset;
-        // im_slider(nvg, im, rect, &g_hp_Q, 0.05, 2, "%.3f", "HP Q");
-    }
-#endif
-    */
+//         imgui_rect  rect   = {lm->width - 220, 10, lm->width - 60, 25};
+//         const float offset = 10 + (rect.b - rect.y);
+//         im_slider(nvg, im, rect, &g_output_gain_dB, -24, 0, "%.2fdB", "Output");
+//         // rect.y += offset;
+//         // rect.b += offset;
+//         // im_slider(nvg, im, rect, &g_attack_ms, 0, 50, "%.2fms", "Attack");
+//         // rect.y += offset;
+//         // rect.b += offset;
+//         // im_slider(nvg, im, rect, &g_release_ms, 0, 50, "%.2fms", "Release");
+//         // rect.y += offset;
+//         // rect.b += offset;
+//         // im_slider(nvg, im, rect, &g_lp_Q, 0.01, 10, "%.3f", "LP Q");
+//         // rect.y += offset;
+//         // rect.b += offset;
+//         // im_slider(nvg, im, rect, &g_hp_Q, 0.05, 2, "%.3f", "HP Q");
+//     }
+// #endif
 
     // LFO toggle button
     {
         imgui_rect rect = gui->lfo_toggle_button;
-        snvg_command_draw_nvg(nvg, NVG_LABEL("ayy lmao"));
+        snvg_command_draw_nvg(nvg, XVG_LABEL("ayy lmao"));
 
         bool lfo_open = p->lfo_section_open;
 
@@ -2512,21 +2530,21 @@ void pw_tick(void* _gui)
     // imgui_rect   threshold_rect = {20, 40, 220, 60};
     // im_slider(nvg, im, threshold_rect, &g_pd_threshold, -96, -36, "%.2fdB", "Threshold");
 
-    snvg_command_end_pass(nvg, NVG_LABEL("end main framebuffer"));
+    snvg_command_end_pass(nvg, XVG_LABEL("end main framebuffer"));
 
     snvg_command_begin_pass(
         gui->nvg,
         &(sg_pass){
             .action    = {.colors[0] = {.load_action = SG_LOADACTION_DONTCARE}},
             .swapchain = gui->swapchain,
-            .label     = NVG_LABEL("swapchain / main"),
+            .label     = XVG_LABEL("swapchain / main"),
         },
         0,
         0,
         lm->width,
         lm->height,
         0);
-    snvg_command_draw_nvg(nvg, NVG_LABEL("swapchain"));
+    snvg_command_draw_nvg(nvg, XVG_LABEL("swapchain"));
 
     nvgBeginPath(nvg);
     nvgRect(nvg, 0, 0, lm->width, lm->height);
@@ -2620,16 +2638,12 @@ void pw_tick(void* _gui)
         pw_set_mouse_cursor(gui->pw, PW_CURSOR_DEFAULT);
     }
 
-    snvg_command_end_pass(nvg, NVG_LABEL("end swapchain"));
-    // nvgEndFrame() sends data to GPU.
-    // This function is ~50% of frame time
-    nvgEndFrame(gui->nvg);
+    */
+    xvg_command_end_pass(&gui->xvg, XVG_LABEL("swapchain-pass-end"));
+    xvg_end_frame(xvg, gui->plugin->width, gui->plugin->height);
     sg_commit(); // flip swapchain
-    resources_end_frame(&gui->resource_manager, gui->nvg);
+    // resources_end_frame(&gui->resource_manager, gui->nvg);
     imgui_end_frame(&gui->imgui);
-
-    // println("GPU upload: %llu", gui->nvg->frame_stats.uploaded_bytes);
-
     sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 

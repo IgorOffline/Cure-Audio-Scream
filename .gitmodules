@@ -10,3 +10,9 @@
 [submodule "modules/wip_libs"]
 	path = modules/wip_libs
 	url = https://github.com/Tremus/wip_libs
+[submodule "modules/xvg"]
+	path = modules/xvg
+	url = https://github.com/Tremus/xvg
+[submodule "modules/freetype"]
+	path = modules/freetype
+	url = https://github.com/freetype/freetype

@@ -1,24 +1,19 @@
 #pragma once
 #include "imgui.h"
 #include "plugin.h"
-#include <nanovg2.h>
-#include <sokol_gfx.h>
-
-#include "libs/texteditor.h"
-#include "libs/tooltip.h"
 #include <xhl/vector.h>
+#include <xvg.h>
 
-#include "resource_manager.h"
+// #include <sokol_gfx.h>
+// #include <nanovg2.h>
+// #include "libs/texteditor.h"
+// #include "libs/tooltip.h"
 
-#include "im_points.h"
+// #include "resource_manager.h"
+
+// #include "im_points.h"
 
 // #define SHOW_FPS
-
-typedef struct
-{
-    float   x, y;
-    int16_t u, v;
-} vertex_t;
 
 // Assortment of cached lengths of things in the GUI
 typedef struct LayoutMetrics
@@ -62,19 +57,15 @@ typedef struct GUI
 {
     LinkedArena* arena;
 
-    Plugin*     plugin;
-    void*       pw;
-    void*       sg;
-    NVGcontext* nvg;
-    int         font_id;
-    float       dpi;
+    Plugin* plugin;
+    void*   pw;
+    void*   sg;
+    // NVGcontext* nvg;
+    int   font_id;
+    float content_scale;
 
-    ResourceManager resource_manager;
-
-    int        active_param_text_input; // enum ParamID, or -1 if inactive
-    TextEditor texteditor;
-
-    struct imgui_context imgui;
+    XVG           xvg;
+    imgui_context imgui;
 
     LayoutMetrics layout;
     imgui_rect    lfo_toggle_button;
@@ -99,10 +90,16 @@ typedef struct GUI
     int        logo_height;
     unsigned   logo_events;
     imgui_rect logo_area;
+    /*
+    ResourceManager resource_manager;
+
+    int        active_param_text_input; // enum ParamID, or -1 if inactive
+    TextEditor texteditor;
 
     IMPointsData imp;
 
     Tooltip tooltip;
+    */
 
     uint64_t gui_create_time;
     uint64_t last_resize_time;
@@ -118,29 +115,53 @@ typedef struct GUI
 #endif // SHOW_FPS
 } GUI;
 
-static const NVGcolour C_WHITE         = nvgHexColour(0xffffffff);
-static const NVGcolour C_TEXT_LIGHT_BG = nvgHexColour(0x707880FF);
-static const NVGcolour C_TEXT_DARK_BG  = nvgHexColour(0x828A91FF);
+// static const NVGcolour C_WHITE         = nvgHexColour(0xffffffff);
+// static const NVGcolour C_TEXT_LIGHT_BG = nvgHexColour(0x707880FF);
+// static const NVGcolour C_TEXT_DARK_BG  = nvgHexColour(0x828A91FF);
 
-static const NVGcolour C_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
-static const NVGcolour C_BG_DARK  = nvgHexColour(0x151B32FF);
-static const NVGcolour C_BG_LFO   = nvgHexColour(0x090E20FF);
+// static const NVGcolour C_BG_LIGHT = nvgHexColour(0xC9D3DDFF);
+// static const NVGcolour C_BG_DARK  = nvgHexColour(0x151B32FF);
+// static const NVGcolour C_BG_LFO   = nvgHexColour(0x090E20FF);
 
-static const NVGcolour C_GREY_1 = nvgHexColour(0xB5BEC7FF);
-static const NVGcolour C_GREY_2 = nvgHexColour(0x636A78FF);
-static const NVGcolour C_GREY_3 = nvgHexColour(0x353940FF);
+// static const NVGcolour C_GREY_1 = nvgHexColour(0xB5BEC7FF);
+// static const NVGcolour C_GREY_2 = nvgHexColour(0x636A78FF);
+// static const NVGcolour C_GREY_3 = nvgHexColour(0x353940FF);
 
-static const NVGcolour C_DARK_BLUE    = nvgHexColour(0x459CB4FF);
-static const NVGcolour C_LIGHT_BLUE   = nvgHexColour(0xACDEECFF);
-static const NVGcolour C_LIGHT_BLUE_2 = nvgHexColour(0x97E6FCFF);
-static const NVGcolour C_BTN_HOVER    = (NVGcolour){1, 1, 1, 0.2};
-static const NVGcolour C_GREEN        = nvgHexColour(0x62E32BFF);
-static const NVGcolour C_RED          = nvgHexColour(0xFF4757FF);
+// static const NVGcolour C_DARK_BLUE    = nvgHexColour(0x459CB4FF);
+// static const NVGcolour C_LIGHT_BLUE   = nvgHexColour(0xACDEECFF);
+// static const NVGcolour C_LIGHT_BLUE_2 = nvgHexColour(0x97E6FCFF);
+// static const NVGcolour C_BTN_HOVER    = (NVGcolour){1, 1, 1, 0.2};
+// static const NVGcolour C_GREEN        = nvgHexColour(0x62E32BFF);
+// static const NVGcolour C_RED          = nvgHexColour(0xFF4757FF);
 
-static const NVGcolour C_GRID_PRIMARY   = nvgHexColour(0x515762FF);
-static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x40464FFF);
-static const NVGcolour C_GRID_TERTIARY  = C_GRID_SECONDARY;
-// static const NVGcolour C_GRID_TERTIARY  = nvgHexColour(0x2C2F35FF);
+// static const NVGcolour C_GRID_PRIMARY   = nvgHexColour(0x515762FF);
+// static const NVGcolour C_GRID_SECONDARY = nvgHexColour(0x40464FFF);
+// static const NVGcolour C_GRID_TERTIARY  = C_GRID_SECONDARY;
+// // static const NVGcolour C_GRID_TERTIARY  = nvgHexColour(0x2C2F35FF);
+
+static const unsigned C_WHITE         = 0xffffffff;
+static const unsigned C_TEXT_LIGHT_BG = 0x707880FF;
+static const unsigned C_TEXT_DARK_BG  = 0x828A91FF;
+
+static const unsigned C_BG_LIGHT = 0xC9D3DDFF;
+static const unsigned C_BG_DARK  = 0x151B32FF;
+static const unsigned C_BG_LFO   = 0x090E20FF;
+
+static const unsigned C_GREY_1 = 0xB5BEC7FF;
+static const unsigned C_GREY_2 = 0x636A78FF;
+static const unsigned C_GREY_3 = 0x353940FF;
+
+static const unsigned C_DARK_BLUE    = 0x459CB4FF;
+static const unsigned C_LIGHT_BLUE   = 0xACDEECFF;
+static const unsigned C_LIGHT_BLUE_2 = 0x97E6FCFF;
+static const unsigned C_BTN_HOVER    = 0xffffff33;
+static const unsigned C_GREEN        = 0x62E32BFF;
+static const unsigned C_RED          = 0xFF4757FF;
+
+static const unsigned C_GRID_PRIMARY   = 0x515762FF;
+static const unsigned C_GRID_SECONDARY = 0x40464FFF;
+static const unsigned C_GRID_TERTIARY  = C_GRID_SECONDARY;
+// static const unsigned C_GRID_TERTIARY  = nvgHexColour(0x2C2F35FF);
 
 // For snapping to certain pixel boundaries
 #define snapf(val, interval) (roundf((val) / (interval)) * (interval))

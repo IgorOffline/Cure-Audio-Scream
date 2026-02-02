@@ -368,7 +368,11 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
 
     if (p->gui)
     {
-        GUI* gui                   = p->gui;
+        GUI* gui = p->gui;
+
+        // TODO: XVG
+        /*
         gui->imp.main_points_valid = false;
+        */
     }
 }

@@ -107,18 +107,23 @@ set(PLUGIN_DEFINITIONS
 
 set(PLUGIN_SOURCES
     src/plugin.c
-    src/gui.c
-    src/gui_lfo.c
-    src/im_points.c
-    src/resource_manager.c
     src/state.c
-    src/libs/texteditor.c
-    src/libs/tooltip.c
+    
+    src/gui.c
+
+    # src/gui_lfo.c
+    # src/im_points.c
+    # src/resource_manager.c
+    # src/libs/texteditor.c
+    # src/libs/tooltip.c
+    # modules/wip_libs/src/nanovg2.c
+    modules/xvg/xvg.c
+    src/libs/freetype_scu.c
+    src/libs/stb_rect_pack.c
 
     src/libs/stb_image.c
     modules/wip_libs/src/imgui.c
     modules/wip_libs/src/linked_arena.c
-    modules/wip_libs/src/nanovg2.c
     )
 
 set(PLUGIN_INCLUDE
@@ -126,6 +131,9 @@ set(PLUGIN_INCLUDE
     modules/CPLUG/src/
     modules/sokol_gfx_multiinstance
     modules/wip_libs/src/
+    modules/xvg/
+    modules/freetype/include
+    modules/freetype/src/base
 
     src/libs
     src/shaders/
