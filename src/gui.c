@@ -122,13 +122,6 @@ void* pw_create_gui(void* _plugin, void* _pw)
     });
 
     xvg_init(&gui->xvg);
-    // TODO: XVG
-    /*
-    gui->nvg = nvgCreateContext(NVG_ANTIALIAS);
-    xassert(gui->nvg);
-
-    resources_init(&gui->resource_manager, 4096);
-
     // Load font
     {
         char path[1024];
@@ -146,23 +139,25 @@ void* pw_create_gui(void* _plugin, void* _pw)
 #endif
         };
 
-        int font_id  = -1;
-        int font_idx = 0;
+        XVGFont font     = {0};
+        int     font_idx = 0;
 
         do
         {
-            font_id = nvgCreateFont(gui->nvg, "default", font_paths[font_idx]);
-            if (font_id == -1)
+            font = xvg_add_font_from_path(&gui->xvg, font_paths[font_idx]);
+            if (font.id == 0)
             {
                 println("[CRITICAL] Failed to open fallback font at path %s", path);
             }
             font_idx++;
         }
-        while (font_id == -1 && font_idx < ARRLEN(font_paths));
+        while (font.id == 0 && font_idx < ARRLEN(font_paths));
 
-        gui->font_id = font_id;
+        gui->font = font;
     }
 
+    // TODO: XVG
+    /*
     // Logo
     {
         void*  file_data     = NULL;
@@ -209,6 +204,8 @@ void* pw_create_gui(void* _plugin, void* _pw)
 
     gui->active_param_text_input = -1;
     ted_init(&gui->texteditor, gui->nvg);
+
+    resources_init(&gui->resource_manager, 4096);
     */
 
     uint64_t now_ns            = xtime_now_ns();
@@ -1167,8 +1164,6 @@ void pw_tick(void* _gui)
 
     xvg_draw_solid_rectangle(xvg, 50, 50, 50, 50, 0xffffffff);
 
-    // TODO: XVG
-    /*
 // Synth HUD
 #ifdef SYNTH_HUD
     SNVGcallState calls_synth_hud = {0};
@@ -1189,68 +1184,20 @@ void pw_tick(void* _gui)
 #endif // SYNTH_HUD
 
     // Background
-    {
-        nvgBeginPath(nvg);
-        nvgRect(nvg, 0, 0, lm->width, lm->height);
-        static const NVGcolour stop0 = nvgHexColour(0x151B33FF);
-        static const NVGcolour stop1 = nvgHexColour(0x090E1FFF);
-        nvgSetPaint(nvg, nvgLinearGradient(nvg, 0, 0, 0, lm->height, stop0, stop1));
-        nvgFill(nvg);
-    }
-
+    XVGGradient bg_grad = xvg_make_linear_gradient(0x151B33FF, 0x090E1FFF, 0, 0, 0, lm->height);
+    xvg_draw_solid_rectangle_with_gradient(xvg, 0, 0, lm->width, lm->height, bg_grad);
     // Header
     {
-        nvgSetFontSize(nvg, 24 * lm->param_scale);
-        nvgSetColour(nvg, C_BG_LIGHT);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-        nvgText(nvg, lm->width * 0.5f, lm->height_header * 0.5f + 4, "SCREAM", NULL);
-
-        // Cure Audio logo
-        snvg_command_custom(nvg, gui, do_logo_shader, XVG_LABEL("Logo shader"));
-        snvg_command_draw_nvg(nvg, XVG_LABEL("main framebuffer 2"));
-
-        float x, y, w, h, b, img_scale;
-        y         = 8;
-        b         = lm->height_header - 10 + 8;
-        h         = b - y;
-        img_scale = h / gui->logo_height;
-        w         = gui->logo_width * img_scale;
-        // x                = lm->width - 16 - w;
-        x                = 16;
-        gui->logo_area   = (imgui_rect){x, y, x + w, y + h};
-        gui->logo_events = imgui_get_events_rect(im, 'cure', &gui->logo_area);
-        if (gui->logo_events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-        if (gui->logo_events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            click_curelogo = true;
-        // nvgBeginPath(nvg);
-        // nvgRect(nvg, x, y, w, h);
-        // nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_texview, 1, nvg->sampler_linear));
-        // nvgFill(nvg);
-
-        // Exacoustics logo
-        {
-            float src_w = 34, src_h = 26 + 2;
-            float logo_x = x + w + BORDER_PADDING;
-
-            float logo_scale = h / src_h;
-
-            unsigned events = imgui_get_events_rect(im, 'exac', &(imgui_rect){logo_x, y, logo_x + w, b});
-            if (events & IMGUI_EVENT_MOUSE_ENTER)
-                pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-            if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-                click_exaclogo = true;
-
-            bool hover = !!(events & IMGUI_EVENT_MOUSE_HOVER);
-            draw_exacoustics_logo_svg(nvg, logo_scale, logo_x, y, hover);
-        }
+        float cx = lm->width * 0.5f;
+        float cy = lm->height_header * 0.5f + 4;
+        xvg_draw_text(xvg, cx, cy, "SCREAM", 0, 24 * lm->param_scale, XVG_ALIGN_CC, C_BG_LIGHT);
 
         // Output gain
-        const int output_gain_with = 120 * lm->param_scale;
-        nvgSetFontSize(nvg, 12 * lm->param_scale);
-        imgui_rect rect = {0, 0, lm->width - 16, lm->height_header + 8};
-        rect.x          = floorf(rect.r - output_gain_with);
-        uint32_t events = imgui_get_events_rect(im, 'outg', &rect);
+        const int  output_gain_with = 120 * lm->param_scale;
+        float      fsize            = 12 * lm->param_scale;
+        imgui_rect rect             = {0, 0, lm->width - 16, lm->height_header + 8};
+        rect.x                      = floorf(rect.r - output_gain_with);
+        uint32_t events             = imgui_get_events_rect(im, 'outg', &rect);
         handle_param_events(gui, PARAM_OUTPUT_GAIN, events, 200);
 
         extern int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double value);
@@ -1259,15 +1206,12 @@ void pw_tick(void* _gui)
         char   label[16];
         int    label_len = param_value_to_string(PARAM_OUTPUT_GAIN, label, sizeof(label), value);
 
-        nvgSetColour(nvg, C_GREY_1);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CR);
-        nvgText(nvg, rect.r, (rect.b - rect.y) * 0.5f, label, label + label_len);
-
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgText(nvg, rect.x, (rect.b - rect.y) * 0.5f, "OUTPUT", NULL);
+        xvg_draw_text(xvg, rect.r, (rect.b - rect.y) * 0.5f, label, label + label_len, fsize, XVG_ALIGN_CR, C_GREY_1);
+        xvg_draw_text(xvg, rect.x, (rect.b - rect.y) * 0.5f, "OUTPUT", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
     }
 
+    // TODO: XVG
+    /*
     // Footer bottom left
     {
         nvgSetFontSize(nvg, 12 * lm->param_scale);
@@ -2524,6 +2468,49 @@ void pw_tick(void* _gui)
         //     nvgSetPaint(nvg, paint);
         //     nvgFill(nvg);
         // }
+    }
+
+    // Logos
+    {
+        // Cure Audio logo
+        snvg_command_custom(nvg, gui, do_logo_shader, XVG_LABEL("Logo shader"));
+        snvg_command_draw_nvg(nvg, XVG_LABEL("main framebuffer 2"));
+
+        float x, y, w, h, b, img_scale;
+        y         = 8;
+        b         = lm->height_header - 10 + 8;
+        h         = b - y;
+        img_scale = h / gui->logo_height;
+        w         = gui->logo_width * img_scale;
+        // x                = lm->width - 16 - w;
+        x                = 16;
+        gui->logo_area   = (imgui_rect){x, y, x + w, y + h};
+        gui->logo_events = imgui_get_events_rect(im, 'cure', &gui->logo_area);
+        if (gui->logo_events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+        if (gui->logo_events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+            click_curelogo = true;
+        // nvgBeginPath(nvg);
+        // nvgRect(nvg, x, y, w, h);
+        // nvgSetPaint(nvg, nvgImagePattern(nvg, x, y, w, h, 0, gui->logo_texview, 1, nvg->sampler_linear));
+        // nvgFill(nvg);
+
+        // Exacoustics logo
+        {
+            float src_w = 34, src_h = 26 + 2;
+            float logo_x = x + w + BORDER_PADDING;
+
+            float logo_scale = h / src_h;
+
+            unsigned events = imgui_get_events_rect(im, 'exac', &(imgui_rect){logo_x, y, logo_x + w, b});
+            if (events & IMGUI_EVENT_MOUSE_ENTER)
+                pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+            if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+                click_exaclogo = true;
+
+            bool hover = !!(events & IMGUI_EVENT_MOUSE_HOVER);
+            draw_exacoustics_logo_svg(nvg, logo_scale, logo_x, y, hover);
+        }
     }
 
     // extern float g_pd_threshold;

@@ -61,8 +61,8 @@ typedef struct GUI
     void*   pw;
     void*   sg;
     // NVGcontext* nvg;
-    int   font_id;
-    float content_scale;
+    XVGFont font;
+    float   content_scale;
 
     XVG           xvg;
     imgui_context imgui;
