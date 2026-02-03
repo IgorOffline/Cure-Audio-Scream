@@ -1514,7 +1514,7 @@ void pw_tick(void* _gui)
 
                 char label  = '1';
                 label      += j;
-                xvg_draw_text(xvg, c.x + j, c.y, &label, &label + 1, fsize, XVG_ALIGN_CC_TIGHT, C_TEXT_LIGHT_BG);
+                xvg_draw_text(xvg, c.x, c.y, &label, &label + 1, fsize, XVG_ALIGN_CC_TIGHT, C_TEXT_LIGHT_BG);
                 xvg_draw_circle(xvg, c.x, c.y, mod_amt_radius, mod_amt_stroke_width, C_GREY_1);
 
                 float amt = modamt.data[j];
@@ -1522,8 +1522,7 @@ void pw_tick(void* _gui)
                     xvg_draw_arc(xvg, c.x, c.y, mod_amt_radius, 0, amt, mod_amt_stroke_width, true, C_DARK_BLUE);
             }
         }
-        // TODO: XVG
-        /*
+
         // Parameter control
         for (int i = 0; i < ARRLEN(lm->param_positions_cx); i++)
         {
@@ -1545,8 +1544,8 @@ void pw_tick(void* _gui)
                     RADIUS_INNER           = 80 / 2,
                     RADIUS_OUTER           = 88 / 2,
                     RADIUS_INLET           = 108 / 2,
-                    RADIUS_INNER_VALUE_ARC = 120 / 2,
-                    RADIUS_OUTER_VALUE_ARC = 136 / 2,
+                    RADIUS_INNER_VALUE_ARC = 124 / 2,
+                    RADIUS_OUTER_VALUE_ARC = 140 / 2,
                 };
                 imgui_pt pt = {lm->param_positions_cx[i], lm->cy_param};
 
@@ -1560,65 +1559,40 @@ void pw_tick(void* _gui)
                     const float r90  = roundf(r100 * 0.9f);
                     const float r80  = roundf(r100 * 0.8f);
 
-                    static const NVGcolour stop100 = nvgHexColour(0x40454AFF);
-                    static const NVGcolour stop90  = nvgHexColour(0xB7C7D7FF);
-                    static const NVGcolour stop80  = C_BG_LIGHT;
+                    static const unsigned stop100 = 0x40454AFF;
+                    static const unsigned stop90  = 0xB7C7D7FF;
+                    static const unsigned stop80  = C_BG_LIGHT;
+                    float                 blur1   = r100 - r90;
+                    float                 blur2   = r90 - r80;
 
-                    NVGpaint grad_100_90 = nvgRadialGradient(nvg, pt.x, pt.y, r90, r100, stop90, stop100);
-                    nvgBeginPath(nvg);
-                    nvgCircle(nvg, pt.x, pt.y, r100);
-                    nvgSetPaint(nvg, grad_100_90);
-                    nvgFill(nvg);
+                    XVGGradient grad_100_90 = xvg_make_shadow(stop100, stop90, 0, 0, blur1, -blur1 * 0.5, true);
+                    xvg_draw_circle_with_gradient(xvg, pt.x, pt.y, r100, 0, grad_100_90);
 
-                    NVGpaint grad_90_80 = nvgRadialGradient(nvg, pt.x, pt.y, r80, r90, stop80, stop90);
-                    nvgBeginPath(nvg);
-                    nvgCircle(nvg, pt.x, pt.y, r90);
-                    nvgSetPaint(nvg, grad_90_80);
-                    nvgFill(nvg);
+                    XVGGradient grad_90_80 = xvg_make_shadow(stop90, stop80, 0, 0, blur2, 0, true);
+                    xvg_draw_circle_with_gradient(xvg, pt.x, pt.y, r90, 0, grad_90_80);
                 }
 
                 // Outer knob
-                const float radius_outer = roundf(RADIUS_OUTER * lm->param_scale);
-                const float outer_y      = pt.y - radius_outer;
-                const float outer_h      = radius_outer * 2;
-
-                // Outer knob outer shadow
                 {
-                    const float y            = pt.y + 16 * lm->param_scale;
-                    const float inner_radius = radius_outer - 8 * lm->param_scale;
-                    const float outer_radius = radius_outer + 4 * lm->param_scale;
+                    const float radius_outer = roundf(RADIUS_OUTER * lm->param_scale);
+                    const float outer_y      = pt.y - radius_outer;
+                    const float outer_h      = radius_outer * 2;
 
-                    static const NVGcolour icol = {0, 0, 0, 0.25f};
-                    static const NVGcolour ocol = {0, 0, 0, 0};
-                    NVGpaint grad = nvgRadialGradient(nvg, pt.x, y, inner_radius, outer_radius, icol, ocol);
-                    nvgBeginPath(nvg);
-                    nvgCircle(nvg, pt.x, y, outer_radius);
-                    nvgSetPaint(nvg, grad);
-                    nvgFill(nvg);
-                }
+                    const float y         = pt.y + 16 * lm->param_scale;
+                    const float drop_blur = 8 * lm->param_scale;
+                    XVGGradient drop      = xvg_make_shadow(0x0, 0x40, 0, 0, drop_blur, 0, false);
+                    xvg_draw_circle_with_gradient(xvg, pt.x, y, radius_outer + drop_blur, 0, drop);
 
-                {
-                    static const NVGcolour stop0 = nvgHexColour(0xD4DFEAFF);
-                    static const NVGcolour stop1 = nvgHexColour(0xB5BFC8FF);
+                    const float top     = outer_y + outer_h * 0.13f;
+                    const float bottom  = outer_y + outer_h * 0.84f;
+                    XVGGradient lingrad = xvg_make_linear_gradient(0xD4DFEAFF, 0xB5BFC8FF, 0, top, 0, bottom);
+                    xvg_draw_circle_with_gradient(xvg, pt.x, pt.y, radius_outer, 0, lingrad);
 
-                    const float top         = outer_y + outer_h * 0.13f;
-                    const float bottom      = outer_y + outer_h * 0.84f;
-                    NVGpaint    out_lingrad = nvgLinearGradient(nvg, 0, top, 0, bottom, stop0, stop1);
-                    nvgBeginPath(nvg);
-                    nvgCircle(nvg, pt.x, pt.y, radius_outer);
-                    nvgSetPaint(nvg, out_lingrad);
-                    nvgFill(nvg);
-                }
-
-                // Outer knob inner shadow
-                {
-                    static const NVGcolour icol = {1, 1, 1, 0};
-                    static const NVGcolour ocol = {1, 1, 1, 0.8};
-                    NVGpaint grad = nvgRadialGradient(nvg, pt.x, pt.y + 1, radius_outer - 1, radius_outer, icol, ocol);
-                    nvgBeginPath(nvg);
-                    nvgCircle(nvg, pt.x, pt.y, radius_outer);
-                    nvgSetPaint(nvg, grad);
-                    nvgFill(nvg);
+                    float       y_offset = 1;
+                    float       in_blur  = 2;
+                    XVGGradient inner =
+                        xvg_make_shadow(0xffffffcc, 0xffffff00, 0, y_offset + in_blur, in_blur, -in_blur, true);
+                    xvg_draw_circle_with_gradient(xvg, pt.x, pt.y, radius_outer, 0, inner);
                 }
 
                 // Inner
@@ -1628,29 +1602,23 @@ void pw_tick(void* _gui)
                 const float inner_s0_y   = inner_y + inner_h * 0.16f;
                 const float inner_s1_y   = inner_y + inner_h * 0.87f;
 
-                static const NVGcolour in_lin_s0 = nvgHexColour(0xB5BFC8FF);
-                static const NVGcolour in_lin_s1 = nvgHexColour(0xD4DFEAFF);
-                NVGpaint inner_grad = nvgLinearGradient(nvg, 0, inner_s0_y, 0, inner_s1_y, in_lin_s0, in_lin_s1);
-
-                nvgBeginPath(nvg);
-                nvgCircle(nvg, pt.x, pt.y, radius_inner);
-                nvgSetPaint(nvg, inner_grad);
-                nvgFill(nvg);
+                XVGGradient inner_grad = xvg_make_linear_gradient(0xB5BFC8FF, 0xD4DFEAFF, 0, inner_s0_y, 0, inner_s1_y);
+                xvg_draw_circle_with_gradient(xvg, pt.x, pt.y, radius_inner, 0, inner_grad);
 
 // Slider Tick/Notch
-// Angle radians
-// 120deg
-#define SLIDER_START_RAD 2.0943951023931953f
-// 120deg + 360deg * 0.8333
-#define SLIDER_END_RAD 7.330173418865945f
+// Angles in turns
+// 7 o'clock
+#define SLIDER_START_TURN -0.4166666666666667
+// 5 o'clock
+#define SLIDER_END_TURN 0.4166666666666667
 // end - start
-#define SLIDER_LENGTH_RAD 5.23577831647275f
+#define SLIDER_LENGTH_TURN 0.8333333333333334
 
                 const float value_norm  = cplug_normaliseParameterValue(p, i, value_d);
-                const float angle_value = SLIDER_START_RAD + value_norm * SLIDER_LENGTH_RAD;
+                const float angle_value = SLIDER_START_TURN + value_norm * SLIDER_LENGTH_TURN;
 
-                const float angle_x = cosf(angle_value);
-                const float angle_y = sinf(angle_value);
+                const float angle_x = cosf(angle_value * XM_TAUf - XM_HALF_PIf);
+                const float angle_y = sinf(angle_value * XM_TAUf - XM_HALF_PIf);
 
                 float tick_radius_start = radius_inner - 10 * lm->param_scale;
                 float tick_radius_end   = radius_inner * 0.4f;
@@ -1658,21 +1626,10 @@ void pw_tick(void* _gui)
                 const imgui_pt pt1      = {pt.x + tick_radius_start * angle_x, pt.y + tick_radius_start * angle_y};
                 const imgui_pt pt2      = {pt.x + tick_radius_end * angle_x, pt.y + tick_radius_end * angle_y};
                 float          stroke_w = 6 * lm->param_scale;
-                nvgSetLineCap(nvg, NVG_ROUND);
 
-                nvgBeginPath(nvg); // Skeumorphic inner shadow
-                nvgMoveTo(nvg, pt1.x, pt1.y);
-                nvgLineTo(nvg, pt2.x, pt2.y);
-                nvgSetColour(nvg, (NVGcolour){1, 1, 1, 1});
-                nvgStroke(nvg, stroke_w);
-
-                nvgBeginPath(nvg);
-                nvgMoveTo(nvg, pt1.x, pt1.y - 1);
-                nvgLineTo(nvg, pt2.x, pt2.y - 1);
-                nvgSetColour(nvg, nvgHexColour(0x242E56FF));
-                nvgStroke(nvg, stroke_w);
-
-                nvgSetLineCap(nvg, NVG_BUTT);
+                xvg_draw_line_round(xvg, pt1.x, pt1.y - 1, pt2.x, pt2.y - 1, stroke_w, 0xff);
+                xvg_draw_line_round(xvg, pt1.x, pt1.y + 1, pt2.x, pt2.y + 1, stroke_w, 0xffffffff);
+                xvg_draw_line_round(xvg, pt1.x, pt1.y, pt2.x, pt2.y, stroke_w, 0x242E56FF);
 
                 // Value arc
                 float arc_radius[] = {
@@ -1685,10 +1642,8 @@ void pw_tick(void* _gui)
                 {
                     const bool is_modulated = fabsf(modamts.data[lfo_idx]) != 0;
 
-                    nvgBeginPath(nvg);
-                    nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], SLIDER_START_RAD, SLIDER_END_RAD, NVG_CW);
-                    nvgSetColour(nvg, C_GREY_1);
-                    nvgStroke(nvg, stroke_w);
+                    float r = arc_radius[lfo_idx];
+                    xvg_draw_arc(xvg, pt.x, pt.y, r, SLIDER_START_TURN, SLIDER_END_TURN, stroke_w, true, C_GREY_1);
 
                     if (is_modulated)
                     {
@@ -1699,42 +1654,30 @@ void pw_tick(void* _gui)
                         {
                             float mod_value_norm        = value_norm + modamts.data[lfo_idx];
                             mod_value_norm              = xm_clampf(mod_value_norm, 0, 1);
-                            const float mod_angle_value = SLIDER_START_RAD + mod_value_norm * SLIDER_LENGTH_RAD;
+                            const float mod_angle_value = SLIDER_START_TURN + mod_value_norm * SLIDER_LENGTH_TURN;
 
-                            float angle_start = xm_minf(angle_value, mod_angle_value);
-                            float angle_end   = xm_maxf(angle_value, mod_angle_value);
-
-                            nvgBeginPath(nvg);
-                            nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], angle_start, angle_end, NVG_CW);
-                            nvgSetColour(nvg, C_DARK_BLUE);
-                            nvgStroke(nvg, stroke_w * 1.3);
+                            xvg_draw_arc(xvg, pt.x, pt.y, r, angle_value, mod_angle_value, stroke_w, true, C_DARK_BLUE);
                         }
                         float mod_value_norm        = value_norm + modamts.data[lfo_idx] * lfo_amt.data[lfo_idx];
                         mod_value_norm              = xm_clampf(mod_value_norm, 0, 1);
-                        const float mod_angle_value = SLIDER_START_RAD + mod_value_norm * SLIDER_LENGTH_RAD;
+                        const float mod_angle_value = SLIDER_START_TURN + mod_value_norm * SLIDER_LENGTH_TURN;
 
-                        float angle_start = xm_minf(angle_value, mod_angle_value);
-                        float angle_end   = xm_maxf(angle_value, mod_angle_value);
-
-                        nvgBeginPath(nvg);
-                        nvgArc(nvg, pt.x, pt.y, arc_radius[lfo_idx], angle_start, angle_end, NVG_CW);
-                        nvgSetColour(nvg, C_DARK_BLUE);
-                        nvgStroke(nvg, stroke_w * 1.3);
+                        xvg_draw_arc(xvg, pt.x, pt.y, r, angle_value, mod_angle_value, stroke_w, true, C_DARK_BLUE);
                     }
                 }
 
                 if (modamts.u64 == 0)
                 {
-                    nvgBeginPath(nvg);
-                    nvgArc(nvg, pt.x, pt.y, arc_radius[0], SLIDER_START_RAD, angle_value, NVG_CW);
-                    nvgSetColour(nvg, C_GREY_2);
-                    nvgStroke(nvg, stroke_w);
+                    float r = arc_radius[0];
+                    xvg_draw_arc(xvg, pt.x, pt.y, r, SLIDER_START_TURN, angle_value, stroke_w, true, C_GREY_2);
                 }
                 break;
             }
             case PARAM_INPUT_GAIN:
             case PARAM_WET:
             {
+                // TODO: XVG
+                /*
                 float       param_width  = param_id == PARAM_INPUT_GAIN ? INPUT_WIDTH : WET_WIDTH;
                 const float meter_width  = snapf(param_width * lm->param_scale, 2);
                 const float meter_height = snapf(VERTICAL_SLIDER_HEIGHT * lm->param_scale, 2);
@@ -2252,6 +2195,7 @@ void pw_tick(void* _gui)
                         nvgFill(nvg);
                     }
                 }
+                */
                 break;
             }
             default:
@@ -2259,8 +2203,6 @@ void pw_tick(void* _gui)
                 break;
             }
         }
-
-        */
     }
     // TODO: XVG
     /*
@@ -2496,6 +2438,7 @@ void pw_tick(void* _gui)
     {
         tooltip_draw(&gui->tooltip, nvg, gui->arena, gui->frame_start_time, lm->width, lm->height, lm->param_scale);
     }
+    */
 
     // FPS HUD
 #ifdef SHOW_FPS
@@ -2525,8 +2468,6 @@ void pw_tick(void* _gui)
         // double actual_fps = 1000.0 / ((frame_duration_last_frame >> 10) * 1024e-6);
         double actual_fps = 1000.0 / ((avg_frame_time_duration_ns >> 10) * 1024e-6);
 
-        nvgSetFontSize(nvg, 14);
-        nvgSetColour(nvg, C_RED);
         char text[96] = {0};
         int  len      = snprintf(
             text,
@@ -2535,7 +2476,6 @@ void pw_tick(void* _gui)
             (cpu_amt * 100),
             frame_time_ms,
             actual_fps);
-        nvgSetTextAlign(nvg, NVG_ALIGN_TL);
 
         // if (p->audio_cpu_usage)
         // {
@@ -2549,23 +2489,9 @@ void pw_tick(void* _gui)
         // }
         // nvgText(nvg, 8, 8, text, text + len);
 
-        nvgSetTextLineHeight(nvg, 1.5);
-        nvgTextBox(nvg, 8, 8, 1000, text, text + len);
-
-        // Show window dimensions w/h
-        uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
-        uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
-        uint64_t threshold_1sec         = 1000000000;
-        uint64_t threshold_1_2sec       = 1200000000;
-        if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
-        {
-            len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
-            nvgSetTextAlign(nvg, NVG_ALIGN_BR);
-            nvgText(nvg, lm->width - 8, lm->height - 8, text, text + len);
-        }
+        xvg_draw_text_ex(xvg, 8, 8, text, text + len, 14, XVG_ALIGN_TL, C_RED, 0, 1.5);
     }
 #endif // SHOW_FPS
-    */
 
     unsigned bg_events = imgui_get_events_rect(im, 'bg', &(imgui_rect){0, 0, lm->width, lm->height});
     if (bg_events & IMGUI_EVENT_MOUSE_ENTER)
