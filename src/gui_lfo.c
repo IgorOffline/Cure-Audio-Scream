@@ -1,4 +1,3 @@
-// TODO: XVG
 #include "dsp.h"
 #include "gui.h"
 
@@ -20,6 +19,8 @@ static inline int main_get_lfo_pattern_idx(Plugin* p)
     return xm_droundi(v);
 }
 
+// TODO: XVG
+/*
 void do_lfo_shaders(void* uptr)
 {
     GUI*           gui = uptr;
@@ -133,15 +134,14 @@ void draw_crotchet_svg(NVGcontext* nvg, const float scale, float x, float y)
     // clang-format off
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 5.01502f, y + scale * 12.8449f);
-    nvgBezierTo(nvg, x + scale * 2.98149f, y + scale * 13.7081f, x + scale * 0.983125f, y + scale * 13.5836f, x + scale * 0.551536f, y + scale * 12.5669f);
-    nvgBezierTo(nvg, x + scale * 0.119946f, y + scale * 11.5501f, x + scale * 1.41857f, y + scale * 10.0261f, x + scale * 3.45209f, y + scale * 9.16292f);
-    nvgBezierTo(nvg, x + scale * 4.35265f, y + scale * 8.78066f, x + scale * 5.24631f, y + scale * 8.5921f, x + scale * 6.00005f, y + scale * 8.58896f);
-    nvgLineTo(nvg, x + scale * 6.00005f, y + scale * 0.0f);
-    nvgLineTo(nvg, x + scale * 8.00016f, y + scale * 0.0f);
-    nvgLineTo(nvg, x + scale * 7.99796f, y + scale * 9.89037f);
-    nvgBezierTo(nvg, x + scale * 7.99702f, y + scale * 9.92657f, x + scale * 7.99446f, y + scale * 9.96313f, x + scale * 7.99032f, y + scale * 10.0f);
-    nvgBezierTo(nvg, x + scale * 7.88258f, y + scale * 10.9586f, x + scale * 6.70155f, y + scale * 12.1291f, x + scale * 5.01502f, y + scale * 12.8449f);
-    nvgClosePath(nvg);
+    nvgBezierTo(nvg, x + scale * 2.98149f, y + scale * 13.7081f, x + scale * 0.983125f, y + scale * 13.5836f, x + scale
+* 0.551536f, y + scale * 12.5669f); nvgBezierTo(nvg, x + scale * 0.119946f, y + scale * 11.5501f, x + scale * 1.41857f,
+y + scale * 10.0261f, x + scale * 3.45209f, y + scale * 9.16292f); nvgBezierTo(nvg, x + scale * 4.35265f, y + scale
+* 8.78066f, x + scale * 5.24631f, y + scale * 8.5921f, x + scale * 6.00005f, y + scale * 8.58896f); nvgLineTo(nvg, x +
+scale * 6.00005f, y + scale * 0.0f); nvgLineTo(nvg, x + scale * 8.00016f, y + scale * 0.0f); nvgLineTo(nvg, x + scale
+* 7.99796f, y + scale * 9.89037f); nvgBezierTo(nvg, x + scale * 7.99702f, y + scale * 9.92657f, x + scale * 7.99446f, y
++ scale * 9.96313f, x + scale * 7.99032f, y + scale * 10.0f); nvgBezierTo(nvg, x + scale * 7.88258f, y + scale
+* 10.9586f, x + scale * 6.70155f, y + scale * 12.1291f, x + scale * 5.01502f, y + scale * 12.8449f); nvgClosePath(nvg);
     nvgFill(nvg);
     // clang-format on
 }
@@ -154,17 +154,14 @@ void draw_loopicon_svg(NVGcontext* nvg, const float scale, float x, float y, NVG
 
     nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 10.0f, y + scale * 9.0f);
-    nvgBezierTo(nvg, x + scale * 7.23858f, y + scale * 9.0f, x + scale * 5.0f, y + scale * 11.2386f, x + scale * 5.0f, y + scale * 14.0f);
-    nvgBezierTo(nvg, x + scale * 5.0f, y + scale * 16.7614f, x + scale * 7.23858f, y + scale * 19.0f, x + scale * 10.0f, y + scale * 19.0f);
-    nvgLineTo(nvg, x + scale * 11.0f, y + scale * 19.0f);
-    nvgLineTo(nvg, x + scale * 11.0f, y + scale * 17.0f);
-    nvgLineTo(nvg, x + scale * 10.0f, y + scale * 17.0f);
-    nvgBezierTo(nvg, x + scale * 8.34315f, y + scale * 17.0f, x + scale * 7.0f, y + scale * 15.6569f, x + scale * 7.0f, y + scale * 14.0f);
-    nvgBezierTo(nvg, x + scale * 7.0f, y + scale * 12.3431f, x + scale * 8.34315f, y + scale * 11.0f, x + scale * 10.0f, y + scale * 11.0f);
-    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 11.0f);
-    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 14.0f);
-    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 10.0f);
-    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 6.0f);
+    nvgBezierTo(nvg, x + scale * 7.23858f, y + scale * 9.0f, x + scale * 5.0f, y + scale * 11.2386f, x + scale * 5.0f, y
++ scale * 14.0f); nvgBezierTo(nvg, x + scale * 5.0f, y + scale * 16.7614f, x + scale * 7.23858f, y + scale * 19.0f, x +
+scale * 10.0f, y + scale * 19.0f); nvgLineTo(nvg, x + scale * 11.0f, y + scale * 19.0f); nvgLineTo(nvg, x + scale
+* 11.0f, y + scale * 17.0f); nvgLineTo(nvg, x + scale * 10.0f, y + scale * 17.0f); nvgBezierTo(nvg, x + scale
+* 8.34315f, y + scale * 17.0f, x + scale * 7.0f, y + scale * 15.6569f, x + scale * 7.0f, y + scale * 14.0f);
+    nvgBezierTo(nvg, x + scale * 7.0f, y + scale * 12.3431f, x + scale * 8.34315f, y + scale * 11.0f, x + scale * 10.0f,
+y + scale * 11.0f); nvgLineTo(nvg, x + scale * 12.0f, y + scale * 11.0f); nvgLineTo(nvg, x + scale * 12.0f, y + scale
+* 14.0f); nvgLineTo(nvg, x + scale * 16.0f, y + scale * 10.0f); nvgLineTo(nvg, x + scale * 12.0f, y + scale * 6.0f);
     nvgLineTo(nvg, x + scale * 12.0f, y + scale * 9.0f);
     nvgLineTo(nvg, x + scale * 10.0f, y + scale * 9.0f);
     nvgClosePath(nvg);
@@ -172,19 +169,15 @@ void draw_loopicon_svg(NVGcontext* nvg, const float scale, float x, float y, NVG
 
     // nvgBeginPath(nvg);
     nvgMoveTo(nvg, x + scale * 18.0f, y + scale * 19.0f);
-    nvgBezierTo(nvg, x + scale * 20.7614f, y + scale * 19.0f, x + scale * 23.0f, y + scale * 16.7614f, x + scale * 23.0f, y + scale * 14.0f);
-    nvgBezierTo(nvg, x + scale * 23.0f, y + scale * 11.2386f, x + scale * 20.7614f, y + scale * 9.0f, x + scale * 18.0f, y + scale * 9.0f);
-    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 9.0f);
-    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 11.0f);
-    nvgLineTo(nvg, x + scale * 18.0f, y + scale * 11.0f);
-    nvgBezierTo(nvg, x + scale * 19.6569f, y + scale * 11.0f, x + scale * 21.0f, y + scale * 12.3431f, x + scale * 21.0f, y + scale * 14.0f);
-    nvgBezierTo(nvg, x + scale * 21.0f, y + scale * 15.6569f, x + scale * 19.6569f, y + scale * 17.0f, x + scale * 18.0f, y + scale * 17.0f);
-    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 17.0f);
-    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 14.0f);
-    nvgLineTo(nvg, x + scale * 12.0f, y + scale * 18.0f);
-    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 22.0f);
-    nvgLineTo(nvg, x + scale * 16.0f, y + scale * 19.0f);
-    nvgLineTo(nvg, x + scale * 18.0f, y + scale * 19.0f);
+    nvgBezierTo(nvg, x + scale * 20.7614f, y + scale * 19.0f, x + scale * 23.0f, y + scale * 16.7614f, x + scale
+* 23.0f, y + scale * 14.0f); nvgBezierTo(nvg, x + scale * 23.0f, y + scale * 11.2386f, x + scale * 20.7614f, y + scale
+* 9.0f, x + scale * 18.0f, y + scale * 9.0f); nvgLineTo(nvg, x + scale * 17.0f, y + scale * 9.0f); nvgLineTo(nvg, x +
+scale * 17.0f, y + scale * 11.0f); nvgLineTo(nvg, x + scale * 18.0f, y + scale * 11.0f); nvgBezierTo(nvg, x + scale
+* 19.6569f, y + scale * 11.0f, x + scale * 21.0f, y + scale * 12.3431f, x + scale * 21.0f, y + scale * 14.0f);
+    nvgBezierTo(nvg, x + scale * 21.0f, y + scale * 15.6569f, x + scale * 19.6569f, y + scale * 17.0f, x + scale
+* 18.0f, y + scale * 17.0f); nvgLineTo(nvg, x + scale * 16.0f, y + scale * 17.0f); nvgLineTo(nvg, x + scale * 16.0f, y +
+scale * 14.0f); nvgLineTo(nvg, x + scale * 12.0f, y + scale * 18.0f); nvgLineTo(nvg, x + scale * 16.0f, y + scale
+* 22.0f); nvgLineTo(nvg, x + scale * 16.0f, y + scale * 19.0f); nvgLineTo(nvg, x + scale * 18.0f, y + scale * 19.0f);
     nvgClosePath(nvg);
 
     nvgFill(nvg);
@@ -200,19 +193,15 @@ void draw_Retrigicon_svg(NVGcontext* nvg, const float scale, float x, float y, N
     nvgBeginPath(nvg);
 
     nvgMoveTo(nvg, x + scale * 17.0f, y + scale * 18.0f);
-    nvgBezierTo(nvg, x + scale * 19.7614f, y + scale * 18.0f, x + scale * 22.0f, y + scale * 15.7614f, x + scale * 22.0f, y + scale * 13.0f);
-    nvgBezierTo(nvg, x + scale * 22.0f, y + scale * 10.2386f, x + scale * 19.7614f, y + scale * 8.0f, x + scale * 17.0f, y + scale * 8.0f);
-    nvgLineTo(nvg, x + scale * 13.0f, y + scale * 8.0f);
-    nvgLineTo(nvg, x + scale * 13.0f, y + scale * 10.0f);
-    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 10.0f);
-    nvgBezierTo(nvg, x + scale * 18.6569f, y + scale * 10.0f, x + scale * 20.0f, y + scale * 11.3431f, x + scale * 20.0f, y + scale * 13.0f);
-    nvgBezierTo(nvg, x + scale * 20.0f, y + scale * 14.6569f, x + scale * 18.6569f, y + scale * 16.0f, x + scale * 17.0f, y + scale * 16.0f);
-    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 16.0f);
-    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 13.0f);
-    nvgLineTo(nvg, x + scale * 11.0f, y + scale * 17.0f);
-    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 21.0f);
-    nvgLineTo(nvg, x + scale * 15.0f, y + scale * 18.0f);
-    nvgLineTo(nvg, x + scale * 17.0f, y + scale * 18.0f);
+    nvgBezierTo(nvg, x + scale * 19.7614f, y + scale * 18.0f, x + scale * 22.0f, y + scale * 15.7614f, x + scale
+* 22.0f, y + scale * 13.0f); nvgBezierTo(nvg, x + scale * 22.0f, y + scale * 10.2386f, x + scale * 19.7614f, y + scale
+* 8.0f, x + scale * 17.0f, y + scale * 8.0f); nvgLineTo(nvg, x + scale * 13.0f, y + scale * 8.0f); nvgLineTo(nvg, x +
+scale * 13.0f, y + scale * 10.0f); nvgLineTo(nvg, x + scale * 17.0f, y + scale * 10.0f); nvgBezierTo(nvg, x + scale
+* 18.6569f, y + scale * 10.0f, x + scale * 20.0f, y + scale * 11.3431f, x + scale * 20.0f, y + scale * 13.0f);
+    nvgBezierTo(nvg, x + scale * 20.0f, y + scale * 14.6569f, x + scale * 18.6569f, y + scale * 16.0f, x + scale
+* 17.0f, y + scale * 16.0f); nvgLineTo(nvg, x + scale * 15.0f, y + scale * 16.0f); nvgLineTo(nvg, x + scale * 15.0f, y +
+scale * 13.0f); nvgLineTo(nvg, x + scale * 11.0f, y + scale * 17.0f); nvgLineTo(nvg, x + scale * 15.0f, y + scale
+* 21.0f); nvgLineTo(nvg, x + scale * 15.0f, y + scale * 18.0f); nvgLineTo(nvg, x + scale * 17.0f, y + scale * 18.0f);
     nvgClosePath(nvg);
 
     nvgMoveTo(nvg, x + scale * 6.0f, y + scale * 6.0f);
@@ -253,20 +242,24 @@ void draw_Oneshoticon_svg(NVGcontext* nvg, const float scale, float x, float y, 
     nvgFill(nvg);
     // clang-format on
 }
+*/
 
-void add_up_down_triangles(NVGcontext* nvg, imgui_rect rect)
+void add_up_down_triangles(XVG* xvg, imgui_rect rect)
 {
-    float w  = rect.r - rect.x;
+    float w = rect.r - rect.x;
+    // float h = w * 0.75f;
     float cy = (rect.b + rect.y) * 0.5f;
-    nvgMoveTo(nvg, rect.r, rect.y + 0.75f * w);
-    nvgLineTo(nvg, rect.x + w * 0.5f, rect.y);
-    nvgLineTo(nvg, rect.x, rect.y + 0.75f * w);
-    nvgClosePath(nvg);
+    // nvgMoveTo(nvg, rect.r, rect.y + 0.75f * w);
+    // nvgLineTo(nvg, rect.x + w * 0.5f, rect.y);
+    // nvgLineTo(nvg, rect.x, rect.y + 0.75f * w);
+    // nvgClosePath(nvg);
+    xvg_draw_triangle(xvg, rect.x, cy - w * 0.5f, w, w, 0.0f, 0, C_GREY_1);
+    xvg_draw_triangle(xvg, rect.x, cy + w * 0.5f, w, w, 0.5f, 0, C_GREY_1);
 
-    nvgMoveTo(nvg, rect.r, rect.b - 0.75f * w);
-    nvgLineTo(nvg, rect.x + w * 0.5f, rect.b);
-    nvgLineTo(nvg, rect.x, rect.b - 0.75f * w);
-    nvgClosePath(nvg);
+    // nvgMoveTo(nvg, rect.r, rect.b - 0.75f * w);
+    // nvgLineTo(nvg, rect.x + w * 0.5f, rect.b);
+    // nvgLineTo(nvg, rect.x, rect.b - 0.75f * w);
+    // nvgClosePath(nvg);
 }
 
 typedef struct ButtonStripIndexes
@@ -349,7 +342,7 @@ void draw_lfo_section(GUI* gui)
     LINKED_ARENA_LEAK_DETECT_BEGIN(gui->arena);
 
     Plugin*        p   = gui->plugin;
-    NVGcontext*    nvg = gui->nvg;
+    XVG*           xvg = &gui->xvg;
     imgui_context* im  = &gui->imgui;
     LayoutMetrics* lm  = &gui->layout;
     IMPointsData*  imp = &gui->imp;
@@ -378,13 +371,13 @@ void draw_lfo_section(GUI* gui)
     const float PATTERN_SLIDER_WIDTH         = PATTERN_WIDTH - 2 * PATTERN_NUMBER_LABEL_PADDING;
     const float PATTERN_TRIANGLE_HEIGHT      = floorf(12 * SCALE);
 
-    const float DISPLAY_PADDING_TOP    = floorf(48 * lm->content_scale);
-    const float DISPLAY_PADDING_BOTTOM = floorf(32 * lm->content_scale);
-    const float FONT_SIZE              = 14 * SCALE;
+    const float    DISPLAY_PADDING_TOP    = floorf(48 * lm->content_scale);
+    const float    DISPLAY_PADDING_BOTTOM = floorf(32 * lm->content_scale);
+    const unsigned FONT_SIZE              = (unsigned)(14 * SCALE);
 
     if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_CONTENT_SCALE_FACTOR_CHANGED)))
     {
-        imp->theme.col_line           = nvgCompressColour(C_LIGHT_BLUE_2);
+        imp->theme.col_line           = C_LIGHT_BLUE_2;
         imp->theme.line_stroke_width  = 2 * SCALE;
         imp->theme.point_click_radius = 12 * SCALE;
         imp->theme.point_radius       = 4 * SCALE;
@@ -392,11 +385,11 @@ void draw_lfo_section(GUI* gui)
 
         imp->theme.col_point_hover_bg = 0xffffff33;
 
-        imp->theme.col_skewpoint_inner    = nvgCompressColour(C_BG_LFO);
-        imp->theme.col_skewpoint_outer    = nvgCompressColour(C_LIGHT_BLUE_2);
+        imp->theme.col_skewpoint_inner    = C_BG_LFO;
+        imp->theme.col_skewpoint_outer    = C_LIGHT_BLUE_2;
         imp->theme.skewpoint_stroke_width = 1.5f * SCALE;
 
-        imp->theme.col_point          = nvgCompressColour(C_LIGHT_BLUE_2);
+        imp->theme.col_point          = C_LIGHT_BLUE_2;
         imp->theme.col_point_selected = 0xffff00ff;
 
         imp->theme.col_selection_box = 0x007fffff;
@@ -404,8 +397,7 @@ void draw_lfo_section(GUI* gui)
         imp->points_valid = false;
     }
 
-    // TODO: rather than cache a line of points, cache the vertices from NanoVG.
-    IMPointsFrameContext fstate                 = imp_frame_context_new(imp, nvg, im, gui->arena, gui->pw);
+    IMPointsFrameContext fstate                 = imp_frame_context_new(imp, xvg, im, gui->arena, gui->pw);
     bool                 should_clear_lfo_trail = false;
     // int  next_pattern_length                                = 0;
 
@@ -417,12 +409,8 @@ void draw_lfo_section(GUI* gui)
     const float display_b   = display_y + display_h;
     const float top_text_cy = display_y + (CONTENT_PADDING_Y + LFO_TAB_HEIGHT * 0.5f);
 
-    nvgBeginPath(nvg);
-    nvgRoundedRect(nvg, lm->content_x + PADDING, display_y, display_w, display_h, 6);
-    nvgSetPaint(
-        nvg,
-        nvgLinearGradient(nvg, 0, display_y, 0, display_b, nvgHexColour(0x242838FF), nvgHexColour(0x0C101DFF)));
-    nvgFill(nvg);
+    XVGGradient g_bg = xvg_make_linear_gradient(0x242838FF, 0x0C101DFF, 0, display_y, 0, display_b);
+    xvg_draw_rectangle_with_gradient(xvg, lm->content_x + PADDING, display_y, display_w, display_h, 6, 0, g_bg);
 
     // LFO tabs
     {
@@ -460,49 +448,40 @@ void draw_lfo_section(GUI* gui)
             bool is_selected = i == p->selected_lfo_idx;
             bool is_hovering = i == data.hover_idx && data.mouse_hold_idx == -1;
 
-            NVGcolour bg_col   = is_selected ? C_LIGHT_BLUE_2 : C_BTN_HOVER;
-            NVGcolour text_col = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
-            // NVGcolour text_col = is_selected ? C_BG_LFO : is_hovering ? C_WHITE : C_TEXT_DARK_BG;
+            unsigned bg_col   = is_selected ? C_LIGHT_BLUE_2 : C_BTN_HOVER;
+            unsigned text_col = is_selected ? C_BG_LFO : is_hovering ? C_LIGHT_BLUE_2 : C_TEXT_DARK_BG;
+            // unsigned text_col = is_selected ? C_BG_LFO : is_hovering ? C_WHITE : C_TEXT_DARK_BG;
 
             if (is_selected)
             {
-                NVGcolour glow_icol = C_DARK_BLUE;
-                NVGcolour glow_ocol = glow_icol;
-                glow_ocol.a         = 0;
-                float glow_radius   = 12;
+                unsigned glow_icol   = C_DARK_BLUE & 0xffffff60;
+                unsigned glow_ocol   = C_DARK_BLUE & 0xffffff00;
+                float    glow_radius = 12;
                 // glow
-                float gx = x - glow_radius;
-                float gy = y - glow_radius;
-                float gw = LFO_TAB_WIDTH + 2 * glow_radius;
-                float gh = LFO_TAB_HEIGHT + 2 * glow_radius;
-                nvgBeginPath(nvg);
-                nvgRect(nvg, gx, gy, gw, gh);
-                NVGpaint paint =
-                    nvgBoxGradient(nvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4, glow_radius, glow_icol, glow_ocol);
-                nvgSetPaint(nvg, paint);
-                nvgFill(nvg);
+                XVGGradient tab_shadow = xvg_make_shadow(glow_ocol, glow_icol, 0, 0, glow_radius, 0, false);
+                xvg_draw_rectangle_with_gradient(
+                    xvg,
+                    x - glow_radius,
+                    y - glow_radius,
+                    LFO_TAB_WIDTH + 2 * glow_radius,
+                    LFO_TAB_HEIGHT + 2 * glow_radius,
+                    4,
+                    0,
+                    tab_shadow);
 
                 // tab
-                nvgBeginPath(nvg);
-                nvgRoundedRect(nvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4);
-                nvgSetColour(nvg, bg_col);
-                nvgFill(nvg);
+                xvg_draw_rectangle(xvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4, 0, bg_col);
             }
             else
             {
-                nvgBeginPath(nvg);
-                nvgRoundedRect(nvg, x + 0.5f, y + 0.5f, LFO_TAB_WIDTH - 1, LFO_TAB_HEIGHT - 1, 4);
-                nvgSetColour(nvg, text_col);
-                nvgStroke(nvg, 1.1); // rounded edges looks better when stroke width >1
+                xvg_draw_rectangle(xvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4, 1.1, bg_col);
             }
 
             char label[]  = "LFO 1";
             label[4]     += i;
-
-            nvgSetColour(nvg, text_col);
-            nvgSetFontSize(nvg, FONT_SIZE);
-            nvgSetTextAlign(nvg, NVG_ALIGN_CC);
-            nvgText(nvg, x + LFO_TAB_WIDTH * 0.5f, y + LFO_TAB_HEIGHT * 0.5f, label, label + 5);
+            float cx      = x + LFO_TAB_WIDTH * 0.5f;
+            float cy      = y + LFO_TAB_HEIGHT * 0.5f;
+            xvg_draw_text(xvg, cx, cy, label, label + 5, FONT_SIZE, XVG_ALIGN_CC, text_col);
         }
     }
 
@@ -574,26 +553,17 @@ void draw_lfo_section(GUI* gui)
             }
         }
 
-        nvgSetFontSize(nvg, FONT_SIZE);
-        nvgSetColour(nvg, C_TEXT_DARK_BG);
-        nvgSetTextAlign(nvg, NVG_ALIGN_CL);
-        nvgText(nvg, rect.x, top_text_cy, "GRID", NULL);
+        xvg_draw_text(xvg, rect.x, top_text_cy, "GRID", NULL, FONT_SIZE, XVG_ALIGN_CL, C_TEXT_DARK_BG);
 
         // Up & down "buttons"
-        float btn_left = floor(rect.r - 5 * SCALE);
-        float btn_top  = floor(top_text_cy - FONT_SIZE * 0.4f);
-        float btn_bot  = ceilf(top_text_cy + FONT_SIZE * 0.35f);
+        float btn_left = floor(rect.r - 6 * SCALE);
+        float btn_top  = floor(top_text_cy - FONT_SIZE * 0.75f);
+        float btn_bot  = floor(top_text_cy + FONT_SIZE * 0.4f);
 
-        nvgBeginPath(nvg);
-        add_up_down_triangles(nvg, (imgui_rect){btn_left, btn_top, rect.r, btn_bot});
-
-        nvgSetColour(nvg, C_GREY_1);
-        nvgFill(nvg);
-
-        nvgSetTextAlign(nvg, NVG_ALIGN_CR);
+        add_up_down_triangles(xvg, (imgui_rect){btn_left, btn_top, rect.r, btn_bot});
         char label[8];
         snprintf(label, sizeof(label), "%d", ngrid);
-        nvgText(nvg, rect.r - 9 * SCALE, top_text_cy, label, 0);
+        xvg_draw_text(xvg, rect.r - 9 * SCALE, top_text_cy, label, 0, FONT_SIZE, XVG_ALIGN_CR, C_GREY_1);
     }
 
     // Rate
@@ -612,7 +582,8 @@ void draw_lfo_section(GUI* gui)
     btn_loop_type.b = sl_rate.b;
     btn_loop_type.r = btn_rate_type.x - 20 * SCALE;
     btn_loop_type.x = btn_loop_type.r - NUM_LOOP_TYPES * (sl_rate.b - sl_rate.y);
-
+    // TODO: XVG
+    /*
     // Rate type buttons
     {
         int     lfo_idx  = p->selected_lfo_idx;
@@ -1515,6 +1486,7 @@ void draw_lfo_section(GUI* gui)
     // x = 0.3333,      y = 0.25, skew = 0.56
     // x = 0.6666,      y = 0.75, skew = 0.44
     // x = 1 - (1 / 7), y = 0.96, skew = 1 - 0.731994
+    */
 
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
 }

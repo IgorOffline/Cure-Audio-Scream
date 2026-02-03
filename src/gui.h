@@ -92,11 +92,8 @@ typedef struct GUI
     TextEditor      texteditor;
     ResourceManager resource_manager;
 
-    // TODO: XVG
-    /*
     IMPointsData imp;
-    */
-    Tooltip tooltip;
+    Tooltip      tooltip;
 
     uint64_t gui_create_time;
     uint64_t last_resize_time;

@@ -111,8 +111,8 @@ set(PLUGIN_SOURCES
     
     src/gui.c
 
-    # src/gui_lfo.c
-    # src/im_points.c
+    src/gui_lfo.c
+    src/im_points.c
     src/resource_manager.c
     src/libs/texteditor.c
     src/libs/tooltip.c

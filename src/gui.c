@@ -49,11 +49,8 @@ enum
 void gui_handle_param_change(void* _gui, ParamID param_id)
 {
     GUI* gui = _gui;
-    // TODO: XVG
-    /*
     if (param_id == PARAM_PATTERN_LFO_1 || param_id == PARAM_PATTERN_LFO_2)
         gui->imp.main_points_valid = false;
-    */
 }
 
 static void my_sg_logger(
@@ -230,10 +227,7 @@ void pw_destroy_gui(void* _gui)
     ted_deinit(&gui->texteditor);
     resources_deinit(&gui->resource_manager, &gui->xvg);
 
-    // TODO: XVG
-    /*
     imp_deinit(&gui->imp);
-    */
     xvg_deinit(&gui->xvg);
     sg_shutdown(gui->sg);
 
@@ -2191,8 +2185,6 @@ void pw_tick(void* _gui)
             pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
     }
 
-    // TODO: XVG
-    /*
     if (p->lfo_section_open)
     {
         extern void draw_lfo_section(GUI*);
@@ -2216,7 +2208,8 @@ void pw_tick(void* _gui)
         //     nvgFill(nvg);
         // }
     }
-
+    // TODO: XVG
+    /*
     // Logos
     {
         // Cure Audio logo

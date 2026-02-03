@@ -86,7 +86,7 @@ typedef struct IMPointsData
 typedef struct IMPointsFrameContext
 {
     IMPointsData*         imp;   // not owned
-    struct NVGcontext*    nvg;   // not owned
+    struct XVG*           xvg;   // not owned
     struct imgui_context* im;    // not owned
     struct LinkedArena*   arena; // not owned
     void*                 pw;    // not owned
@@ -101,16 +101,12 @@ typedef struct IMPointsFrameContext
     int  delete_pt_idx;
 } IMPointsFrameContext;
 
-static IMPointsFrameContext imp_frame_context_new(
-    IMPointsData*         imp,
-    struct NVGcontext*    nvg,
-    struct imgui_context* im,
-    struct LinkedArena*   arena,
-    void*                 pw)
+static IMPointsFrameContext
+imp_frame_context_new(IMPointsData* imp, struct XVG* xvg, struct imgui_context* im, struct LinkedArena* arena, void* pw)
 {
     IMPointsFrameContext framestate = {0};
     framestate.imp                  = imp;
-    framestate.nvg                  = nvg;
+    framestate.xvg                  = xvg;
     framestate.im                   = im;
     framestate.arena                = arena;
     framestate.pw                   = pw;
@@ -157,11 +153,11 @@ void imp_render_y_values(const IMPointsData*, float* buffer, size_t bufferlen, f
 #include "dsp.h"
 #include <cplug_extensions/window.h>
 #include <imgui.h>
-#include <nanovg2.h>
 #include <sort.h>
 #include <xhl/array.h>
 #include <xhl/debug.h>
 #include <xhl/maths.h>
+#include <xvg.h>
 
 // TODO: a block allocator would be really nice for all of these points arrays.
 // They're all a similar size in bytes, except for the path cache
@@ -1212,22 +1208,24 @@ void imp_handle_grid_events(
 void imp_draw(IMPointsFrameContext* fstate)
 {
     IMPointsData* imp = fstate->imp;
-    NVGcontext*   nvg = fstate->nvg;
-    xassert(nvg);
+    XVG*          xvg = fstate->xvg;
+    xassert(xvg);
 
+    // TODO: XVG
+    /*
     // Draw path
     {
         const int     N   = xarr_len(imp->path_cache);
         const xvec2f* it  = imp->path_cache;
         const xvec2f* end = it + N;
-        nvgBeginPath(nvg);
-        nvgMoveTo(nvg, it->x, it->y);
+        nvgBeginPath(xvg);
+        nvgMoveTo(xvg, it->x, it->y);
         while (++it != end)
-            nvgLineTo(nvg, it->x, it->y);
+            nvgLineTo(xvg, it->x, it->y);
 
         NVGcolour col = nvgHexColour(imp->theme.col_line);
-        nvgSetColour(nvg, col);
-        nvgStroke(nvg, imp->theme.line_stroke_width);
+        nvgSetColour(xvg, col);
+        nvgStroke(xvg, imp->theme.line_stroke_width);
     }
 
     // Hover point
@@ -1241,32 +1239,32 @@ void imp_draw(IMPointsFrameContext* fstate)
         if (hover_pt)
         {
             xassert(fstate->delete_pt_idx == -1);
-            nvgBeginPath(nvg);
-            nvgCircle(nvg, hover_pt->x, hover_pt->y, imp->theme.point_click_radius);
-            nvgSetColour(nvg, nvgHexColour(imp->theme.col_point_hover_bg));
-            nvgFill(nvg);
+            nvgBeginPath(xvg);
+            nvgCircle(xvg, hover_pt->x, hover_pt->y, imp->theme.point_click_radius);
+            nvgSetColour(xvg, nvgHexColour(imp->theme.col_point_hover_bg));
+            nvgFill(xvg);
         }
     }
 
     // Skew points
     {
-        nvgBeginPath(nvg);
+        nvgBeginPath(xvg);
         for (int i = 0; i < xarr_len(imp->skew_points); i++)
         {
             xvec2f pt = imp->skew_points[i];
-            nvgCircle(nvg, pt.x, pt.y, imp->theme.skew_point_radius);
+            nvgCircle(xvg, pt.x, pt.y, imp->theme.skew_point_radius);
         }
-        nvgSetColour(nvg, nvgHexColour(imp->theme.col_skewpoint_inner));
-        nvgFill(nvg);
+        nvgSetColour(xvg, nvgHexColour(imp->theme.col_skewpoint_inner));
+        nvgFill(xvg);
 
-        nvgBeginPath(nvg);
+        nvgBeginPath(xvg);
         for (int i = 0; i < xarr_len(imp->skew_points); i++)
         {
             xvec2f pt = imp->skew_points[i];
-            nvgCircle(nvg, pt.x, pt.y, imp->theme.skew_point_radius);
+            nvgCircle(xvg, pt.x, pt.y, imp->theme.skew_point_radius);
         }
-        nvgSetColour(nvg, nvgHexColour(imp->theme.col_skewpoint_outer));
-        nvgStroke(nvg, imp->theme.skewpoint_stroke_width);
+        nvgSetColour(xvg, nvgHexColour(imp->theme.col_skewpoint_outer));
+        nvgStroke(xvg, imp->theme.skewpoint_stroke_width);
     }
 
     // Regular points
@@ -1300,13 +1298,13 @@ void imp_draw(IMPointsFrameContext* fstate)
             if (i == num_points - 1)
                 pt_idx = 0;
 
-            nvgBeginPath(nvg);
-            nvgCircle(nvg, pt.x, pt.y, imp->theme.point_radius);
+            nvgBeginPath(xvg);
+            nvgCircle(xvg, pt.x, pt.y, imp->theme.point_radius);
             if (selected_points_flags & (1llu << pt_idx))
-                nvgSetColour(nvg, col_selected);
+                nvgSetColour(xvg, col_selected);
             else
-                nvgSetColour(nvg, col_normal);
-            nvgFill(nvg);
+                nvgSetColour(xvg, col_normal);
+            nvgFill(xvg);
         }
     }
 
@@ -1322,16 +1320,17 @@ void imp_draw(IMPointsFrameContext* fstate)
         NVGcolour bg_col = col;
         bg_col.a         = 0.25f;
 
-        nvgBeginPath(nvg);
-        nvgRect2(nvg, area.x, area.y, area.r, area.b);
-        nvgSetColour(nvg, bg_col);
-        nvgFill(nvg);
+        nvgBeginPath(xvg);
+        nvgRect2(xvg, area.x, area.y, area.r, area.b);
+        nvgSetColour(xvg, bg_col);
+        nvgFill(xvg);
 
-        nvgBeginPath(nvg);
-        nvgRect2(nvg, area.x + 0.5f, area.y + 0.5f, area.r - 0.5f, area.b - 0.5f);
-        nvgSetColour(nvg, col);
-        nvgStroke(nvg, 1);
+        nvgBeginPath(xvg);
+        nvgRect2(xvg, area.x + 0.5f, area.y + 0.5f, area.r - 0.5f, area.b - 0.5f);
+        nvgSetColour(xvg, col);
+        nvgStroke(xvg, 1);
     }
+    */
 }
 
 void imp_run(
