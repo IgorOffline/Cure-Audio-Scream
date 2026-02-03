@@ -32,6 +32,26 @@ typedef struct IMPointsArea
     float x, y, r, b;
 } IMPointsArea;
 
+typedef struct IMPointsLineCacheStraight
+{
+    float x1, y1, x2, y2;
+} IMPointsLineCacheStraight;
+typedef struct IMPointsLineCachePlot
+{
+    float    x, y, w, h;
+    unsigned begin_idx, end_idx;
+} IMPointsLineCachePlot;
+
+typedef struct IMPointsLineCache
+{
+    unsigned                   num_lines;
+    unsigned                   num_plots;
+    IMPointsLineCacheStraight* lines;
+    IMPointsLineCachePlot*     plots;
+    size_t                     num_y_values;
+    float                      y_values[];
+} IMPointsLineCache;
+
 typedef struct IMPointsData
 {
     IMPointsArea area;
@@ -62,6 +82,9 @@ typedef struct IMPointsData
     int selected_point_idx;
 
     xvec2f* path_cache;
+
+    size_t             path_cache2_cap_bytes;
+    IMPointsLineCache* path_cache2;
 
     struct
     {
@@ -171,6 +194,7 @@ void imp_deinit(IMPointsData* imp)
     xarr_free(imp->points_copy);
     xarr_free(imp->skew_points_copy);
     xarr_free(imp->path_cache);
+    xfree(imp->path_cache2);
 }
 
 void imp_clear_selection(IMPointsData* imp)
@@ -1207,8 +1231,8 @@ void imp_handle_grid_events(
 // Draw points
 void imp_draw(IMPointsFrameContext* fstate)
 {
-    IMPointsData* imp = fstate->imp;
-    XVG*          xvg = fstate->xvg;
+    const IMPointsData* imp = fstate->imp;
+    XVG*                xvg = fstate->xvg;
     xassert(xvg);
 
     // Draw path
@@ -1227,6 +1251,28 @@ void imp_draw(IMPointsFrameContext* fstate)
         nvgSetColour(xvg, col);
         nvgStroke(xvg, imp->theme.line_stroke_width)
         */
+
+        const IMPointsLineCache* lc = imp->path_cache2;
+        for (int i = 0; i < lc->num_lines; i++)
+        {
+            IMPointsLineCacheStraight* l = lc->lines + i;
+            xvg_draw_line_round(xvg, l->x1, l->y1, l->x2, l->y2, imp->theme.line_stroke_width, imp->theme.col_line);
+        }
+        for (int i = 0; i < lc->num_plots; i++)
+        {
+            IMPointsLineCachePlot* plot = lc->plots + i;
+
+            xvg_draw_line_plot(
+                xvg,
+                plot->x,
+                plot->y,
+                plot->w,
+                plot->h,
+                lc->y_values + plot->begin_idx,
+                0,
+                imp->theme.line_stroke_width,
+                imp->theme.col_line);
+        }
     }
 
     // Hover point
@@ -1433,9 +1479,29 @@ void imp_run(
 
     if (fstate->should_update_cached_path)
     {
-        float     area_w     = imp->area.r - imp->area.x;
-        const int points_cap = area_w + xarr_len(imp->points);
+        const size_t N          = xarr_len(imp->points);
+        float        area_w     = imp->area.r - imp->area.x;
+        const int    points_cap = area_w + N;
         xarr_setcap(imp->path_cache, points_cap);
+
+        // Path cache 2
+        {
+            size_t lines_cap = (N - 1) * sizeof(*imp->path_cache2->lines);
+            size_t plots_cap = (N - 1) * sizeof(*imp->path_cache2->plots);
+            size_t y_cap     = ((int)area_w + N * 2) * sizeof(*imp->path_cache2->y_values);
+            size_t total_cap = sizeof(*imp->path_cache2) + lines_cap + plots_cap + y_cap;
+            if (total_cap > imp->path_cache2_cap_bytes)
+            {
+                imp->path_cache2   = xrealloc(imp->path_cache2, total_cap);
+                unsigned char* ptr = (unsigned char*)imp->path_cache2;
+
+                imp->path_cache2->plots = (IMPointsLineCachePlot*)(ptr + total_cap - plots_cap);
+                imp->path_cache2->lines = (IMPointsLineCacheStraight*)(ptr + total_cap - plots_cap - lines_cap);
+            }
+            imp->path_cache2->num_lines    = 0;
+            imp->path_cache2->num_plots    = 0;
+            imp->path_cache2->num_y_values = 0;
+        }
 
         xvec2f* points  = imp->path_cache;
         int     npoints = 0;
@@ -1443,14 +1509,17 @@ void imp_run(
 
         xvec2f pos = {imp->area.x, imp->area.b};
 
+        IMPointsLineCache* lc = imp->path_cache2;
+
         const xvec2f* pt      = imp->points;
         const xvec2f* next_pt = imp->points + 1;
-        const xvec2f* end     = imp->points + xarr_len(imp->points) - 1;
+        const xvec2f* end     = imp->points + N - 1;
         const xvec2f* skew_pt = imp->skew_points;
 
         points[npoints++] = *pt;
         while (pt != end)
         {
+            /*
             if (pos.x >= next_pt->x)
             {
                 points[npoints++] = *next_pt;
@@ -1476,6 +1545,76 @@ void imp_run(
 
                 pos.x += 1.0f;
             }
+            */
+            bool add_straight_line = false;
+
+            float x1 = floorf(pt->x);
+            float y1 = floorf(pt->y);
+            float x2 = floorf(next_pt->x);
+            float y2 = floorf(next_pt->y);
+
+            if (x1 == x2 || y1 == y2)
+            {
+                add_straight_line = true;
+            }
+            else
+            {
+                float skew_amt = 0.5f;
+                if (pt->y != next_pt->y)
+                    skew_amt = xm_normf(skew_pt->y, next_pt->y, pt->y);
+                if (pt->y > next_pt->y)
+                    skew_amt = 1 - skew_amt;
+
+                if (skew_amt == 0.5f)
+                {
+                    add_straight_line = true;
+                }
+                else // Make plot
+                {
+                    float w = x2 - x1;
+                    float h = fabsf(y2 - y1);
+                    xassert(w >= 1);
+
+                    const unsigned y_begin = lc->num_y_values;
+
+                    float*      data     = lc->y_values + y_begin;
+                    const int   plot_len = w + 1; // include the right most point
+                    const float inc      = 1.0f / w;
+
+                    const float plot_y1 = y1 > y2 ? 0 : 1;
+                    const float plot_y2 = y1 > y2 ? 1 : 0;
+
+                    for (int i = 0; i < plot_len; i++)
+                    {
+                        float norm_pos = i * inc;
+                        data[i]        = interp_points(norm_pos, skew_amt, plot_y1, plot_y2);
+                    }
+                    lc->num_y_values += plot_len;
+
+                    lc->plots[lc->num_plots++] = (IMPointsLineCachePlot){
+                        .x         = x1,
+                        .y         = xm_minf(y1, y2),
+                        .w         = plot_len,
+                        .h         = h,
+                        .begin_idx = y_begin,
+                        .end_idx   = lc->num_y_values,
+                    };
+                }
+            }
+
+            if (add_straight_line)
+            {
+                imp->path_cache2->lines[imp->path_cache2->num_lines++] = (IMPointsLineCacheStraight){
+                    .x1 = pt->x,
+                    .y1 = pt->y,
+                    .x2 = next_pt->x,
+                    .y2 = next_pt->y,
+                };
+            }
+
+            pt++;
+            next_pt++;
+            skew_pt++;
         }
 
         xvec2f(*view_points)[1024] = (void*)imp->path_cache;
