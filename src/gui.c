@@ -1304,9 +1304,9 @@ void pw_tick(void* _gui)
         xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, h, 8, 0, lighting);
 
         // Gentle reds and greens to add depth
-        XVGGradient metallic =
-            xvg_make_linear_gradient(0xAC48000c, 0xBCEB2008, 8, lm->content_y, width, lm->top_content_bottom);
-        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, height, 8, 0, metallic);
+        // XVGGradient metallic =
+        //     xvg_make_linear_gradient(0xAC48000c, 0xBCEB2008, 8, lm->content_y, width, lm->top_content_bottom);
+        // xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, height, 8, 0, metallic);
 
         // Inner shadows
         const float blur_radius = 8;
@@ -1676,8 +1676,7 @@ void pw_tick(void* _gui)
             case PARAM_INPUT_GAIN:
             case PARAM_WET:
             {
-                // TODO: XVG
-                /*
+
                 float       param_width  = param_id == PARAM_INPUT_GAIN ? INPUT_WIDTH : WET_WIDTH;
                 const float meter_width  = snapf(param_width * lm->param_scale, 2);
                 const float meter_height = snapf(VERTICAL_SLIDER_HEIGHT * lm->param_scale, 2);
@@ -1689,76 +1688,45 @@ void pw_tick(void* _gui)
                 rect.y = roundf(lm->cy_param - meter_height * 0.5f);
                 rect.b = roundf(lm->cy_param + meter_height * 0.5f);
 
+                float w = rect.r - rect.x;
+                float h = rect.b - rect.y;
+
                 // Shadows
                 {
-                    // Top
-                    imgui_rect shadow_rect = rect;
-                    // Translate NW 4px
-                    shadow_rect.x -= 4;
-                    shadow_rect.y -= 4;
-                    shadow_rect.r -= 4;
-                    shadow_rect.b -= 4;
-                    // Expand 4px
-                    shadow_rect.x    -= 4;
-                    shadow_rect.y    -= 4;
-                    shadow_rect.r    += 4;
-                    shadow_rect.b    += 4;
-                    const float blur  = 12;
+                    float blur   = 8 * lm->param_scale;
+                    float spread = 2 * lm->param_scale;
 
-                    float w = shadow_rect.r - shadow_rect.x;
-                    float h = shadow_rect.b - shadow_rect.y;
+                    float offset = 4;
 
                     // NVGcolour top_iol = nvgHexColour(0xE9EDF1E0);
-                    static const NVGcolour top_iol  = nvgHexColour(0xE9EDF1BF);
-                    static const NVGcolour top_ocol = nvgHexColour(0xE9EDF100);
+                    static const unsigned top_iol  = 0xE9EDF1BF;
+                    static const unsigned top_ocol = 0xE9EDF100;
 
-                    NVGpaint paint =
-                        nvgBoxGradient(nvg, shadow_rect.x, shadow_rect.y, w, h, blur, blur, top_iol, top_ocol);
+                    XVGGradient tl_shadow = xvg_make_shadow(0xFFFFFF00, 0xFFFFFF7F, 0, 0, blur, -spread, false);
+                    // XVGGradient tl_shadow = xvg_make_shadow(top_ocol, top_iol, 0, 0, blur, -spread, false);
+                    xvg_draw_rectangle_with_gradient(
+                        xvg,
+                        rect.x - blur - spread - offset,
+                        rect.y - blur - spread - offset,
+                        w + (blur + spread) * 2,
+                        h + (blur + spread) * 2,
+                        4 + blur,
+                        0,
+                        tl_shadow);
 
-                    // Expand
-                    shadow_rect.x -= blur;
-                    shadow_rect.y -= blur;
-                    shadow_rect.r += blur;
-                    shadow_rect.b += blur;
-                    w              = shadow_rect.r - shadow_rect.x;
-                    h              = shadow_rect.b - shadow_rect.y;
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, shadow_rect.x, shadow_rect.y, w, h, blur);
-                    nvgSetPaint(nvg, paint);
-                    nvgFill(nvg);
-
-                    // Bottom
-                    shadow_rect = rect;
-                    // Translate NW 4px
-                    shadow_rect.x += 4;
-                    shadow_rect.y += 4;
-                    shadow_rect.r += 4;
-                    shadow_rect.b += 4;
-                    // Expand 4px
-                    shadow_rect.x -= 4;
-                    shadow_rect.y -= 4;
-                    shadow_rect.r += 4;
-                    shadow_rect.b += 4;
-
-                    w = shadow_rect.r - shadow_rect.x;
-                    h = shadow_rect.b - shadow_rect.y;
-
-                    static const NVGcolour bot_iol  = nvgHexColour(0xABB2BABF);
-                    static const NVGcolour bot_ocol = nvgHexColour(0xABB2BA00);
-
-                    paint = nvgBoxGradient(nvg, shadow_rect.x, shadow_rect.y, w, h, blur, blur, bot_iol, bot_ocol);
-
-                    // Expand
-                    shadow_rect.x -= blur;
-                    shadow_rect.y -= blur;
-                    shadow_rect.r += blur;
-                    shadow_rect.b += blur;
-                    w              = shadow_rect.r - shadow_rect.x;
-                    h              = shadow_rect.b - shadow_rect.y;
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, shadow_rect.x, shadow_rect.y, w, h, blur);
-                    nvgSetPaint(nvg, paint);
-                    nvgFill(nvg);
+                    static const unsigned bot_iol   = 0xABB2BABF;
+                    static const unsigned bot_ocol  = 0xABB2BA00;
+                    XVGGradient           br_shadow = xvg_make_shadow(0x0, 0x20, 0, 0, blur, -spread, false);
+                    // XVGGradient br_shadow = xvg_make_shadow(bot_ocol, bot_iol, 0, 0, blur, -spread, false);
+                    xvg_draw_rectangle_with_gradient(
+                        xvg,
+                        rect.x - blur - spread + offset,
+                        rect.y - blur - spread + offset,
+                        w + (blur + spread) * 2,
+                        h + (blur + spread) * 2,
+                        4 + blur,
+                        0,
+                        br_shadow);
                 }
 
                 if (param_id == PARAM_INPUT_GAIN)
@@ -1793,21 +1761,15 @@ void pw_tick(void* _gui)
 
                     double value_d = handle_param_events(gui, PARAM_INPUT_GAIN, events, ch_h);
 
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, rect.x, rect.y, rect.r - rect.x, rect.b - rect.y, 4 * lm->param_scale);
-                    nvgSetColour(nvg, nvgHexColour(0x2C2F35FF));
-
-                    static const NVGcolour bg_grad_stop0 = nvgHexColour(0x2C2F35FF);
-                    static const NVGcolour bg_grad_stop1 = nvgHexColour(0x585E6AFF);
-                    const NVGpaint         bg_paint =
-                        nvgLinearGradient(nvg, 0, rect.y, 0, rect.b, bg_grad_stop0, bg_grad_stop1);
-                    nvgSetPaint(nvg, bg_paint);
-                    nvgFill(nvg);
+                    static const unsigned bg_grad_stop0 = 0x2C2F35FF;
+                    static const unsigned bg_grad_stop1 = 0x585E6AFF;
+                    XVGGradient grad = xvg_make_linear_gradient(bg_grad_stop0, bg_grad_stop1, 0, rect.y, 0, rect.b);
+                    xvg_draw_rectangle_with_gradient(xvg, rect.x, rect.y, w, h, 4 * lm->param_scale, 0, grad);
+                    // xvg_draw_rectangle(xvg, rect.x, rect.y, w, h, 4 * lm->param_scale, 0, 0x4A4E5AFF);
 
                     const float mod_amt_padding     = floorf(2 * lm->param_scale);
                     const float mod_amt_strokewidth = floorf(3 * lm->param_scale);
 
-                    nvgBeginPath(nvg);
                     for (int j = 0; j < ARRLEN(modamts.data); j++)
                     {
                         if (fabsf(modamts.data[j]) != 0)
@@ -1840,13 +1802,8 @@ void pw_tick(void* _gui)
                                 r = rect.r - mod_amt_padding;
                             }
 
-                            nvgRect2(nvg, l, y_top, r, y_bot);
+                            xvg_draw_solid_rectangle(xvg, l, y_top, r - l, y_bot - y_top, C_DARK_BLUE);
                         }
-                    }
-                    if (modamts.u64)
-                    {
-                        nvgSetColour(nvg, C_DARK_BLUE);
-                        nvgFill(nvg);
                     }
 
                     xvec2f peaks;
@@ -1854,44 +1811,38 @@ void pw_tick(void* _gui)
 
                     // Value icon
                     {
-                        float icon_x = icon_r - icon_width;
+                        float shadow_offset = 2;
+                        float icon_x        = icon_r - icon_width;
 
                         float shadow_radius = 8;
 
-                        float icon_y = xm_lerpf(value_d, ch_b, ch_y);
+                        float       icon_cy = xm_lerpf(value_d, ch_b, ch_y);
+                        float       icon_y  = icon_cy - icon_width * 0.5f;
+                        float       icon_cx = icon_x + icon_width * 0.5f;
+                        XVGGradient dshadow =
+                            xvg_make_shadow(0x0, 0x40, 0, 0, shadow_radius, -shadow_radius * 0.5f, false);
+                        xvg_draw_triangle_with_gradient(
+                            xvg,
+                            icon_x - shadow_radius,
+                            icon_y - shadow_radius + shadow_offset,
+                            icon_width + shadow_radius * 2,
+                            icon_width + shadow_radius * 2,
+                            0.75f,
+                            0,
+                            dshadow);
 
-                        static const NVGcolour icol      = {0, 0, 0, 0.3};
-                        static const NVGcolour ocol      = {0, 0, 0, 0};
-                        float                  shadow_cx = icon_r - icon_width * 0.3f;
-                        NVGpaint paint = nvgRadialGradient(nvg, shadow_cx, icon_y + 2, 0, shadow_radius, icol, ocol);
-
-                        nvgBeginPath(nvg);
-                        nvgCircle(nvg, shadow_cx, icon_y + 2, shadow_radius);
-                        nvgSetPaint(nvg, paint);
-                        nvgFill(nvg);
-
-                        nvgBeginPath(nvg);
-                        nvgMoveTo(nvg, icon_x, icon_y);
-                        nvgLineTo(nvg, icon_r, icon_y - 8 * lm->param_scale);
-                        nvgLineTo(nvg, icon_r, icon_y + 8 * lm->param_scale);
-                        nvgClosePath(nvg);
-                        nvgSetColour(nvg, C_GREY_2);
-                        nvgFill(nvg);
+                        xvg_draw_triangle(xvg, icon_x, icon_y, icon_width, icon_width, 0.75f, 0, C_GREY_2);
                     }
 
                     // Background
-                    nvgBeginPath(nvg);
+                    static const unsigned ch_grad_stop0 = 0x6C7483FF;
+                    static const unsigned ch_grad_stop1 = 0x7C8493FF;
+                    XVGGradient ch_bg_grad = xvg_make_linear_gradient(ch_grad_stop0, ch_grad_stop1, 0, ch_y, 0, ch_b);
                     for (int ch = 0; ch < 2; ch++)
                     {
-                        nvgRoundedRect(nvg, ch_x[ch], ch_y, ch_w, ch_h, 2 * lm->param_scale);
+                        float br = 2 * lm->param_scale;
+                        xvg_draw_rectangle_with_gradient(xvg, ch_x[ch], ch_y, ch_w, ch_h, br, 0, ch_bg_grad);
                     }
-
-                    static const NVGcolour ch_grad_stop0 = nvgHexColour(0x6C7483FF);
-                    static const NVGcolour ch_grad_stop1 = nvgHexColour(0x7C8493FF);
-
-                    const NVGpaint ch_bg_grad = nvgLinearGradient(nvg, 0, ch_y, 0, ch_b, ch_grad_stop0, ch_grad_stop1);
-                    nvgSetPaint(nvg, ch_bg_grad);
-                    nvgFill(nvg);
 
                     const double release_time_slow =
                         xm_fast_dB_to_gain((RANGE_INPUT_GAIN_MIN - RANGE_INPUT_GAIN_MAX) / (60 * 2));
@@ -1909,8 +1860,6 @@ void pw_tick(void* _gui)
                     }
 
                     // Decaying Peak
-                    nvgBeginPath(nvg);
-                    bool has_peaks = false;
                     for (int ch = 0; ch < 2; ch++)
                     {
                         float peak_dB_1 = xm_fast_gain_to_dB(gui->input_gain_peaks_slow[ch]);
@@ -1918,14 +1867,10 @@ void pw_tick(void* _gui)
                         {
                             float norm        = xm_normf(peak_dB_1, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
                             float peak_height = norm * ch_h;
-                            nvgRoundedRect(nvg, ch_x[ch], ch_b - peak_height, ch_w, peak_height, 2 * lm->param_scale);
-                            has_peaks = true;
+                            float br          = 2 * lm->param_scale;
+                            float bot         = ch_b - peak_height;
+                            xvg_draw_rectangle(xvg, ch_x[ch], bot, ch_w, peak_height, br, 0, C_DARK_BLUE);
                         }
-                    }
-                    if (has_peaks)
-                    {
-                        nvgSetColour(nvg, C_DARK_BLUE);
-                        nvgFill(nvg);
                     }
 
                     // Realtime Peak
@@ -1956,24 +1901,18 @@ void pw_tick(void* _gui)
                             float gw = ch_w + blur * 2;
                             float gh = rt_peak_h[ch] + blur * 2;
 
-                            static const NVGcolour icol = nvgHexColour(0x4DB9FC72);
-                            static const NVGcolour ocol = nvgHexColour(0x4DB9FC00);
-
-                            NVGpaint paint = nvgBoxGradient(
-                                nvg,
-                                gx + blur * 0.5f,
-                                gy + blur * 0.5,
-                                gw - blur,
-                                gh - blur,
-                                blur,
-                                blur,
-                                icol,
-                                ocol);
-
-                            nvgBeginPath(nvg);
-                            nvgRoundedRect(nvg, gx, gy, gw, gh, blur);
-                            nvgSetPaint(nvg, paint);
-                            nvgFill(nvg);
+                            // static const unsigned C_DARK_BLUE    = 0x459CB4FF;
+                            // static const unsigned C_LIGHT_BLUE   = 0xACDEECFF;
+                            XVGGradient dshadow = xvg_make_shadow(0x459CB400, 0xACDEEC40, 0, 0, blur, 0, false);
+                            xvg_draw_rectangle_with_gradient(
+                                xvg,
+                                gx - blur,
+                                gy - blur,
+                                gw + 2 * blur,
+                                gh + 2 * blur,
+                                blur * 2,
+                                0,
+                                dshadow);
                         }
                     }
 
@@ -1982,21 +1921,14 @@ void pw_tick(void* _gui)
                     {
                         if (rt_peak_dB[ch] > RANGE_INPUT_GAIN_MIN)
                         {
-                            nvgBeginPath(nvg);
-                            nvgSetColour(nvg, nvgHexColour(0xACDEECFF));
-                            nvgRoundedRect(nvg, ch_x[ch], rt_peak_y[ch], ch_w, rt_peak_h[ch], 2);
-                            nvgFill(nvg);
+                            xvg_draw_rectangle(xvg, ch_x[ch], rt_peak_y[ch], ch_w, rt_peak_h[ch], 2, 0, C_LIGHT_BLUE);
                         }
                     }
 
                     // 0dB notch
                     float zero_dB_pos = xm_normf(0, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
                     float zero_dB_y   = ch_b - zero_dB_pos * ch_h;
-                    nvgBeginPath(nvg);
-                    nvgMoveTo(nvg, rect.x, zero_dB_y);
-                    nvgLineTo(nvg, rect.r, zero_dB_y);
-                    nvgSetPaint(nvg, bg_paint);
-                    nvgStroke(nvg, 1);
+                    xvg_draw_solid_rectangle_with_gradient(xvg, rect.x, zero_dB_y, w, 1, grad);
 
                     // Peak label + gain suggestion
                     float peak_dB    = xm_maxf(gui->input_gain_peaks_slow[0], gui->input_gain_peaks_slow[1]);
@@ -2007,52 +1939,40 @@ void pw_tick(void* _gui)
                     if (peak_dB < -120)
                         peak_dB = ninf;
 
+                    unsigned txt_col = 0;
                     if (peak_dB >= -5 && peak_dB <= 1)
-                        nvgSetColour(nvg, C_GREEN);
+                        txt_col = C_GREEN;
                     else if (peak_dB == ninf)
-                        nvgSetColour(nvg, C_GREY_2);
+                        txt_col = C_GREY_2;
                     else
-                        nvgSetColour(nvg, C_RED);
+                        txt_col = C_RED;
 
-                    nvgSetFontSize(nvg, 8 * lm->param_scale);
                     char peak_label[16];
                     snprintf(peak_label, sizeof(peak_label), "%.2f", peak_dB);
-                    nvgText(nvg, (rect.x + rect.r) * 0.5f, rect.y + peak_label_height * 0.5f, peak_label, NULL);
+                    float cx    = (rect.x + rect.r) * 0.5f;
+                    float txt_y = rect.y + peak_label_height * 0.5f;
+                    xvg_draw_text(xvg, cx, txt_y, peak_label, NULL, 8 * lm->param_scale, XVG_ALIGN_CC, txt_col);
                 }
                 else // param_id == PARAM_WET || param_id == PARAM_OUTPUT_GAIN
                 {
-                    // BG colour
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * lm->param_scale);
-                    nvgSetColour(nvg, C_BG_LIGHT);
-                    nvgFill(nvg);
+                    // BG
+                    float br = 4 * lm->param_scale;
+                    xvg_draw_rectangle(xvg, rect.x, rect.y, meter_width, meter_height, br, 0, C_BG_LIGHT);
 
                     // Inner shadow
-                    nvgBeginPath(nvg);
-                    float       shadow_y = rect.y + 2;
-                    NVGcolour   icol     = {0, 0, 0, 0};
-                    NVGcolour   ocol     = {0, 0, 0, 0.15};
-                    const float blur1    = 4; // * lm->param_scale; // Doesn't look great scaled
-                    NVGpaint    paint    = nvgBoxGradient(
-                        nvg,
-                        rect.x + blur1 * 0.5,
-                        shadow_y + blur1 * 0.5,
-                        meter_width - blur1,
-                        meter_height - blur1,
-                        blur1,
-                        blur1,
-                        icol,
-                        ocol);
-                    nvgSetPaint(nvg, paint);
-                    nvgRoundedRect(nvg, rect.x, rect.y, meter_width, meter_height, 4 * lm->param_scale);
-                    nvgFill(nvg);
+                    const float blur1   = 4; // * lm->param_scale; // Doesn't look great scaled
+                    XVGGradient ishadow = xvg_make_shadow(0x70, 0x0, 0, 2, blur1, -blur1, true);
+                    xvg_draw_rectangle_with_gradient(xvg, rect.x, rect.y, meter_width, meter_height, br, 0, ishadow);
+                    float bot_offset = -2 - blur1 * 0.5;
+                    ishadow = xvg_make_shadow(0xffffff70, 0xffffff00, bot_offset, bot_offset, blur1, -blur1, true);
+                    xvg_draw_rectangle_with_gradient(xvg, rect.x, rect.y, meter_width, meter_height, br, 0, ishadow);
 
                     imgui_rect handle  = rect;
                     handle.x          += 2; // padding
                     handle.y          += 2;
                     handle.r          -= 2;
                     handle.b          -= 2;
-                    float w            = handle.r - handle.x;
+                    w                  = handle.r - handle.x;
                     float drag_y       = handle.y + w * 0.5f;
                     float drag_b       = handle.b - w * 0.5f;
                     float drag_height  = drag_b - drag_y;
@@ -2067,94 +1987,65 @@ void pw_tick(void* _gui)
                     };
                     const float y_inc = (drag_height + w * 0.5f) / (float)NOTCH_COUNT;
 
-                    float notch_x = handle.x + w * 0.25;
-                    float notch_r = handle.x + w * 0.75;
-                    nvgBeginPath(nvg);
+                    float notch_x = handle.x + w * 0.25f;
+                    float notch_w = w * 0.5f;
                     for (int n = 1; n < NOTCH_COUNT - 1; n++)
                     {
-                        float y = roundf(drag_y + n * y_inc) + 0.5f;
-                        nvgMoveTo(nvg, notch_x, y);
-                        nvgLineTo(nvg, notch_r, y);
+                        float y = floorf(drag_y + n * y_inc);
+                        xvg_draw_solid_rectangle(xvg, notch_x, y, notch_w, 1, C_GREY_1);
                     }
                     notch_x = handle.x + w * 0.125;
-                    notch_r = handle.x + w * 0.875;
+                    notch_w = w * 0.75f;
 
-                    float top_y = roundf(drag_y) + 0.5f;
-                    nvgMoveTo(nvg, notch_x, top_y);
-                    nvgLineTo(nvg, notch_r, top_y);
-                    float bot_y = roundf(drag_b) + 0.5f;
-                    nvgMoveTo(nvg, notch_x, bot_y);
-                    nvgLineTo(nvg, notch_r, bot_y);
-
-                    nvgSetColour(nvg, C_GREY_1);
-                    nvgStroke(nvg, 1);
+                    float top_y = floorf(drag_y) + 0.5f;
+                    float bot_y = floorf(drag_b) + 0.5f;
+                    xvg_draw_solid_rectangle(xvg, notch_x, top_y, notch_w, 1, C_GREY_1);
+                    xvg_draw_solid_rectangle(xvg, notch_x, bot_y, notch_w, 1, C_GREY_1);
 
                     // Handle drop shadow
                     float handle_cy = xm_lerpf(value_d, drag_b, drag_y);
                     handle.y        = handle_cy - w * 0.5f;
 
-                    const float blur2 = 4 * lm->param_scale;
-                    nvgBeginPath(nvg);
-                    icol       = (NVGcolour){0, 0, 0, 0.3};
-                    ocol       = (NVGcolour){0, 0, 0, 0};
-                    float sh_x = handle.x + 1;
-                    float sh_y = handle.y + 3;
-
-                    paint = nvgBoxGradient(0, sh_x, sh_y, w, w, 4 * lm->param_scale, blur2, icol, ocol);
-                    nvgSetPaint(nvg, paint);
-                    nvgRoundedRect(nvg, sh_x - blur2, sh_y - blur2, w + blur2 * 2, w + blur2 * 2, 4 * lm->param_scale);
-                    nvgFill(nvg);
+                    const float blur2        = 4 * lm->param_scale;
+                    float       handle_w     = handle.r - handle.x;
+                    XVGGradient handle_dshad = xvg_make_shadow(0x0, 0x99, 0, 0, blur2, 0, false);
+                    xvg_draw_rectangle_with_gradient(
+                        xvg,
+                        handle.x - blur2 + 1,
+                        handle.y - blur2 + 3,
+                        handle_w + blur2 * 2,
+                        handle_w + blur2 * 2,
+                        blur2,
+                        0,
+                        handle_dshad);
 
                     // Handle BG
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
-                    NVGcolour stop1 = nvgHexColour(0xB5BFC8FF);
-                    NVGcolour stop2 = nvgHexColour(0xD5DFEAFF);
-                    paint = nvgLinearGradient(0, 0, handle_cy - w * 0.35, 0, handle_cy + w * 0.35, stop1, stop2);
-                    nvgSetPaint(nvg, paint);
-                    nvgFill(nvg);
+                    float s1_y = handle_cy - w * 0.35;
+                    float s2_y = handle_cy + w * 0.35;
 
+                    XVGGradient handle_bg = xvg_make_linear_gradient(0xB5BFC8FF, 0xD5DFEAFF, 0, s1_y, 0, s2_y);
+                    float       hbr       = 4 * lm->param_scale;
+                    xvg_draw_rectangle_with_gradient(xvg, handle.x, handle.y, handle_w, handle_w, hbr, 0, handle_bg);
                     // Top inner shadow
-                    icol  = (NVGcolour){1, 1, 1, 0};
-                    ocol  = (NVGcolour){1, 1, 1, 0.3};
-                    paint = nvgBoxGradient(0, handle.x, handle.y + 2, w, w, 4 * lm->param_scale, 1, icol, ocol);
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
-                    nvgSetPaint(nvg, paint);
-                    nvgFill(nvg);
+                    XVGGradient handle_ishad =
+                        xvg_make_shadow(0xffffff7c, 0xffffff00, 0, blur2 + 2, blur2, -blur2, true);
+                    xvg_draw_rectangle_with_gradient(xvg, handle.x, handle.y, handle_w, handle_w, hbr, 0, handle_ishad);
                     // Bottom inner shadow
-                    icol  = (NVGcolour){0, 0, 0, 0};
-                    ocol  = (NVGcolour){0, 0, 0, 0.2};
-                    paint = nvgBoxGradient(0, handle.x, handle.y - 2, w, w, 4 * lm->param_scale, 1, icol, ocol);
-                    nvgBeginPath(nvg);
-                    nvgRoundedRect(nvg, handle.x, handle.y, w, w, 4 * lm->param_scale);
-                    nvgSetPaint(nvg, paint);
-                    nvgFill(nvg);
+                    handle_ishad = xvg_make_shadow(0x40, 0x0, 0, -blur2 - 2, blur2, -blur2, true);
+                    xvg_draw_rectangle_with_gradient(xvg, handle.x, handle.y, handle_w, handle_w, hbr, 0, handle_ishad);
 
                     // Handle notch
-                    float snapped_y = floorf(handle_cy) - 1;
-                    // float snapped_y = floorf(handle_cy) + 0.5f;
-                    nvgBeginPath(nvg);
-                    nvgMoveTo(nvg, notch_x, snapped_y);
-                    nvgLineTo(nvg, notch_r, snapped_y);
-                    nvgSetColour(nvg, nvgHexColour(0x242E56FF));
-                    nvgStroke(nvg, 2);
+                    int snapped_y = (int)handle_cy;
 
-                    nvgMoveTo(nvg, notch_x, snapped_y - 2);
-                    nvgLineTo(nvg, notch_r, snapped_y - 2);
-                    nvgSetColour(nvg, nvgHexColour(0x9199A0FF));
-                    nvgStroke(nvg, 2);
-                    nvgBeginPath(nvg);
-                    nvgMoveTo(nvg, notch_x, snapped_y + 2);
-                    nvgLineTo(nvg, notch_r, snapped_y + 2);
-                    nvgSetColour(nvg, nvgHexColour(0xDCE2E9FF));
-                    nvgStroke(nvg, 1);
+                    xvg_draw_solid_rectangle(xvg, notch_x, snapped_y, notch_w, 1, 0x242E56FF);
+                    xvg_draw_solid_rectangle(xvg, notch_x, snapped_y - 1, notch_w, 1, 0x9199A0FF); // shadow
+                    xvg_draw_solid_rectangle(xvg, notch_x, snapped_y + 1, notch_w, 1, 0xDCE2E9FF); // shadow
 
                     const float mod_amt_padding     = 4;
                     const float mod_amt_strokewidth = 3;
                     const float mod_amt_delta       = mod_amt_padding + mod_amt_strokewidth;
 
-                    nvgBeginPath(nvg);
+                    // nvgBeginPath(nvg);
                     for (int j = 0; j < ARRLEN(modamts.data); j++)
                     {
                         if (fabsf(modamts.data[j]) != 0)
@@ -2186,16 +2077,10 @@ void pw_tick(void* _gui)
                                 r = rect.r + mod_amt_padding + mod_amt_strokewidth;
                             }
 
-                            nvgRect2(nvg, l, y_top, r, y_bot);
+                            xvg_draw_solid_rectangle(xvg, l, y_top, r - l, y_bot - y_top, C_DARK_BLUE);
                         }
                     }
-                    if (modamts.u64)
-                    {
-                        nvgSetColour(nvg, C_DARK_BLUE);
-                        nvgFill(nvg);
-                    }
                 }
-                */
                 break;
             }
             default:
