@@ -2309,8 +2309,9 @@ void pw_tick(void* _gui)
         uint64_t cpu_numerator   = avg_frame_time_duration_ns >> 10; // fast integer divide by 1024
         uint64_t cpu_denominator = max_frame_time_ns >> 10;          // fast integer divide by 1024
 
-        double cpu_amt       = (double)cpu_numerator / (double)cpu_denominator;
-        double frame_time_ms = (double)cpu_numerator * 1024e-6; // correct for 1024 int 'division'
+        double cpu_amt           = (double)cpu_numerator / (double)cpu_denominator;
+        double avg_frame_time_ms = (double)cpu_numerator * 1024e-6;                 // correct for 1024 int 'division'
+        double frame_time_ms = (double)(frame_duration_last_frame >> 10) * 1024e-6; // correct for 1024 int 'division'
         // double approx_fps    = 1000 / frame_time_ms; // Potential FPS
 
         // uint64_t actual
@@ -2323,10 +2324,12 @@ void pw_tick(void* _gui)
         int  len      = snprintf(
             text,
             sizeof(text),
-            "GUI AVG CPU: %.2lf%%\nAVG Frame Time: %.3lfms.\nMax FPS: %.lf",
+            "GUI AVG CPU: %.2lf%%\nAVG Frame Time: %.3lfms.\nFrame Time: %.3lfms.\nMax FPS: %.lf",
             (cpu_amt * 100),
+            avg_frame_time_ms,
             frame_time_ms,
             actual_fps);
+        xassert(len < sizeof(text) - 1);
 
         // if (p->audio_cpu_usage)
         // {

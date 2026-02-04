@@ -377,7 +377,7 @@ void draw_lfo_section(GUI* gui)
     if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_CONTENT_SCALE_FACTOR_CHANGED)))
     {
         imp->theme.col_line           = C_LIGHT_BLUE_2;
-        imp->theme.line_stroke_width  = 2 * SCALE;
+        imp->theme.line_stroke_width  = 2;
         imp->theme.point_click_radius = 12 * SCALE;
         imp->theme.point_radius       = 4 * SCALE;
         imp->theme.skew_point_radius  = 3 * SCALE;
