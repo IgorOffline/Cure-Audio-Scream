@@ -2291,6 +2291,8 @@ void pw_tick(void* _gui)
     }
     */
 
+    // xvg_draw_rectangle_with_gradient(xvg, 0, 0, lm->width, lm->height, 0, 0, xvg_make_image_fill(xvg->text.atlases[0].img_view, xvg->smp_linear, 0, 0, 256, 256, 0xffffffff));
+
     // FPS HUD
 #ifdef SHOW_FPS
     {
