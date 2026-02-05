@@ -898,6 +898,78 @@ void draw_checkbox(XVG* xvg, float width, float cy, float r, float scale, bool o
     }
 }
 
+void draw_background(GUI* gui)
+{
+    XVG* xvg = &gui->xvg;
+
+    LayoutMetrics* lm = &gui->layout;
+
+    XVGGradient bg_grad = xvg_make_linear_gradient(0x151B33FF, 0x090E1FFF, 0, 0, 0, lm->height);
+    xvg_draw_solid_rectangle_with_gradient(xvg, 0, 0, lm->width, lm->height, bg_grad);
+
+    float width  = lm->width - 16;
+    float height = lm->content_b - lm->content_y;
+    xvg_draw_rectangle(xvg, 8, lm->content_y, width, height, 8, 0, C_BG_LIGHT);
+
+    float cx = lm->width * 0.5f;
+    float h  = lm->top_content_height;
+    // Mimic light reflections
+    XVGGradient lighting =
+        xvg_make_radial_gradient(0xffffff7f, 0xffffff00, cx, lm->content_y + h * 0.2, lm->width * 0.6f, h * 0.75f);
+    xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, h, 8, 0, lighting);
+
+    // Gentle reds and greens to add depth
+    // XVGGradient metallic =
+    //     xvg_make_linear_gradient(0xAC48000c, 0xBCEB2008, 8, lm->content_y, width, lm->top_content_bottom);
+    // xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, height, 8, 0, metallic);
+
+    // Inner shadows
+    const float blur_radius = 8;
+    float       grad_x      = lm->content_x - blur_radius * 0.5f;
+    float       grad_r      = lm->content_r + blur_radius * 0.5f;
+    float       grad_w      = grad_r - grad_x;
+
+    // Top inner shadow (light)
+    XVGGradient top_shadow = xvg_make_shadow(0xffffffdf, 0xffffff00, 0, 10, 4, -8, true);
+    xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, 16, 8, 0, top_shadow);
+
+    // Bottom inner shadow (dark)
+    XVGGradient bot_shadow = xvg_make_shadow(0x7f, 0, 0, -10, 4, -8, true);
+    xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_b - 16, width, 16, 8, 0, bot_shadow);
+
+    // // Dots
+    const float DOT_DIAMETER = 6;
+    const float DOT_RADIUS   = DOT_DIAMETER / 2;
+    const float DOT_PADDING  = 6;
+
+    const float left_dot_cx  = roundf(lm->content_x + 8 + DOT_RADIUS);
+    const float right_dot_cx = roundf(lm->content_r - 8 - DOT_RADIUS);
+    const float top_dot_cy   = roundf(lm->content_y + 8 + DOT_RADIUS);
+    const float dot_offset   = roundf(DOT_DIAMETER + DOT_PADDING);
+
+    const xvec2f points[] = {
+        // Left
+        {left_dot_cx, top_dot_cy},
+        {left_dot_cx + dot_offset, top_dot_cy},
+        {left_dot_cx + dot_offset + dot_offset, top_dot_cy},
+        {left_dot_cx, top_dot_cy + dot_offset},
+        {left_dot_cx, top_dot_cy + dot_offset + dot_offset},
+        // Right
+        {right_dot_cx, top_dot_cy},
+        {right_dot_cx - dot_offset, top_dot_cy},
+        {right_dot_cx - dot_offset - dot_offset, top_dot_cy},
+        {right_dot_cx, top_dot_cy + dot_offset},
+        {right_dot_cx, top_dot_cy + dot_offset + dot_offset},
+    };
+    _Static_assert(ARRLEN(points) == 10, "Should be 5 dots each side");
+    for (int i = 0; i < ARRLEN(points); i++)
+    {
+        xvg_draw_circle(xvg, points[i].x, points[i].y - 1, DOT_RADIUS, 0, 0x0);        // fake bevelled edge
+        xvg_draw_circle(xvg, points[i].x, points[i].y + 1, DOT_RADIUS, 0, 0xffffffff); // fake bevelled edge
+        xvg_draw_circle(xvg, points[i].x, points[i].y, DOT_RADIUS, 0, 0x111629FF);
+    }
+}
+
 void pw_tick(void* _gui)
 {
     GUI*    gui = _gui;
@@ -1146,8 +1218,6 @@ void pw_tick(void* _gui)
             .label  = XVG_LABEL("swapchain-pass-begin")},
         XVG_LABEL("swapchain-pass-begin"));
 
-    xvg_draw_solid_rectangle(xvg, 50, 50, 50, 50, 0xffffffff);
-
 // Synth HUD
 #ifdef SYNTH_HUD
     SNVGcallState calls_synth_hud = {0};
@@ -1168,8 +1238,10 @@ void pw_tick(void* _gui)
 #endif // SYNTH_HUD
 
     // Background
-    XVGGradient bg_grad = xvg_make_linear_gradient(0x151B33FF, 0x090E1FFF, 0, 0, 0, lm->height);
-    xvg_draw_solid_rectangle_with_gradient(xvg, 0, 0, lm->width, lm->height, bg_grad);
+    // NOTE: this is the heaviest draw call in the entire GUI, likely due to the high pixel coverage
+    // Currently its 50% of all consumed GPU usage
+    draw_background(gui);
+
     // Header
     {
         float cx = lm->width * 0.5f;
@@ -1194,163 +1266,8 @@ void pw_tick(void* _gui)
         xvg_draw_text(xvg, rect.x, (rect.b - rect.y) * 0.5f, "OUTPUT", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
     }
 
-    // Footer bottom left
-    {
-        const float checkbox_height = floorf(12 * lm->param_scale);
-        float       fsize           = checkbox_height;
-
-        // Autogain
-        Rect rect;
-        rect.x = 16;
-        rect.y = lm->content_b;
-        rect.r = rect.x + 96 * lm->param_scale;
-        rect.b = lm->height;
-
-        unsigned events = imgui_get_events_rect(im, 'auto', &rect);
-
-        static const char* DESCRIPTION_AUTOGAIN = "When Autogain is on it adjusts the input gain to a stable level "
-                                                  "that delivers a consistent sound inside Scream's "
-                                                  "internal saturation and feedback loop";
-        tooltip_handle_events(&gui->tooltip, rect, DESCRIPTION_AUTOGAIN, gui->frame_start_time, events);
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            p->autogain_on ^= 1;
-
-        float cy          = rect_cy(&rect);
-        bool  autogain_on = p->autogain_on;
-        xvg_draw_text(xvg, rect.x, cy, "AUTOGAIN", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
-        draw_checkbox(xvg, checkbox_height, cy, rect.r, lm->param_scale, autogain_on);
-
-        // Keytracking
-        rect.x = rect.r + BORDER_PADDING * 4;
-        rect.r = rect.x + 152 * lm->param_scale;
-
-        events = imgui_get_events_rect(im, 'ktrk', &rect);
-
-        static const char* DESCRIPTION_KEYTRACKING =
-            "When MIDI keytracking is on, the filters cutoff position will be offset relative to the last MIDI note "
-            "sent to the plugin. This feature likely requires routing MIDI to this plugin inside your DAW.";
-        tooltip_handle_events(&gui->tooltip, rect, DESCRIPTION_KEYTRACKING, gui->frame_start_time, events);
-        if (events & IMGUI_EVENT_MOUSE_ENTER)
-            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
-        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
-            p->midi_keytracking_on ^= 1;
-
-        bool midi_keytracking_on = p->midi_keytracking_on;
-        xvg_draw_text(xvg, rect.x, cy, "MIDI KEYTRACKING", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
-        draw_checkbox(xvg, checkbox_height, cy, rect.r, lm->param_scale, midi_keytracking_on);
-    }
-
-    // Footer bottom right
-    {
-        char text[128] = {0};
-        int  len       = 0;
-
-        // Show window dimensions w/h on resize
-        uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
-        uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
-        uint64_t threshold_1sec         = 1000000000;
-        uint64_t threshold_1_2sec       = 1200000000;
-        if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
-        {
-            len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
-        }
-        else
-        {
-#if defined(_WIN32)
-#define PLATFORM_NAME "Windows"
-#elif defined(__APPLE__)
-#define PLATFORM_NAME "macOS"
-#endif
-
-            const char*    plugin_type_name = "";
-            const uint32_t plugin_type      = gui->plugin->cplug_ctx->type;
-            if (plugin_type == CPLUG_PLUGIN_IS_STANDALONE)
-                plugin_type_name = "Standalone";
-            if (plugin_type == CPLUG_PLUGIN_IS_VST3)
-                plugin_type_name = "VST3";
-            if (plugin_type == CPLUG_PLUGIN_IS_CLAP)
-                plugin_type_name = "CLAP";
-            if (plugin_type == CPLUG_PLUGIN_IS_AUV2)
-                plugin_type_name = "Audio Unit";
-#ifdef _WIN32
-            const char* os_name = "Windows";
-#elif __APPLE__
-            const char* os_name = "macOS";
-#endif
-            len = snprintf(text, sizeof(text), "v%s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
-        }
-        float fsize = 12 * lm->param_scale;
-        xvg_draw_text(xvg, lm->width - 8, lm->height - 8, text, text + len, fsize, XVG_ALIGN_BR, C_TEXT_DARK_BG);
-    }
-
-    // Main content background
-    {
-        float width  = lm->width - 16;
-        float height = lm->content_b - lm->content_y;
-        xvg_draw_rectangle(xvg, 8, lm->content_y, width, height, 8, 0, C_BG_LIGHT);
-
-        float cx = lm->width * 0.5f;
-        float h  = lm->top_content_height;
-        // Mimic light reflections
-        XVGGradient lighting =
-            xvg_make_radial_gradient(0xffffff7f, 0xffffff00, cx, lm->content_y + h * 0.2, lm->width * 0.6f, h * 0.75f);
-        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, h, 8, 0, lighting);
-
-        // Gentle reds and greens to add depth
-        // XVGGradient metallic =
-        //     xvg_make_linear_gradient(0xAC48000c, 0xBCEB2008, 8, lm->content_y, width, lm->top_content_bottom);
-        // xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, height, 8, 0, metallic);
-
-        // Inner shadows
-        const float blur_radius = 8;
-        float       grad_x      = lm->content_x - blur_radius * 0.5f;
-        float       grad_r      = lm->content_r + blur_radius * 0.5f;
-        float       grad_w      = grad_r - grad_x;
-
-        // Top inner shadow (light)
-        XVGGradient top_shadow = xvg_make_shadow(0xffffffdf, 0xffffff00, 0, 10, 4, -8, true);
-        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_y, width, 16, 8, 0, top_shadow);
-
-        // Bottom inner shadow (dark)
-        XVGGradient bot_shadow = xvg_make_shadow(0x7f, 0, 0, -10, 4, -8, true);
-        xvg_draw_rectangle_with_gradient(xvg, 8, lm->content_b - 16, width, 16, 8, 0, bot_shadow);
-
-        // // Dots
-        const float DOT_DIAMETER = 6;
-        const float DOT_RADIUS   = DOT_DIAMETER / 2;
-        const float DOT_PADDING  = 6;
-
-        const float left_dot_cx  = roundf(lm->content_x + 8 + DOT_RADIUS);
-        const float right_dot_cx = roundf(lm->content_r - 8 - DOT_RADIUS);
-        const float top_dot_cy   = roundf(lm->content_y + 8 + DOT_RADIUS);
-        const float dot_offset   = roundf(DOT_DIAMETER + DOT_PADDING);
-
-        const xvec2f points[] = {
-            // Left
-            {left_dot_cx, top_dot_cy},
-            {left_dot_cx + dot_offset, top_dot_cy},
-            {left_dot_cx + dot_offset + dot_offset, top_dot_cy},
-            {left_dot_cx, top_dot_cy + dot_offset},
-            {left_dot_cx, top_dot_cy + dot_offset + dot_offset},
-            // Right
-            {right_dot_cx, top_dot_cy},
-            {right_dot_cx - dot_offset, top_dot_cy},
-            {right_dot_cx - dot_offset - dot_offset, top_dot_cy},
-            {right_dot_cx, top_dot_cy + dot_offset},
-            {right_dot_cx, top_dot_cy + dot_offset + dot_offset},
-        };
-        _Static_assert(ARRLEN(points) == 10, "Should be 5 dots each side");
-        for (int i = 0; i < ARRLEN(points); i++)
-        {
-            xvg_draw_circle(xvg, points[i].x, points[i].y - 1, DOT_RADIUS, 0, 0x0);        // fake bevelled edge
-            xvg_draw_circle(xvg, points[i].x, points[i].y + 1, DOT_RADIUS, 0, 0xffffffff); // fake bevelled edge
-            xvg_draw_circle(xvg, points[i].x, points[i].y, DOT_RADIUS, 0, 0x111629FF);
-        }
-    }
-
     // Params
+    // /*
     {
         static const ParamID param_ids[] = {PARAM_INPUT_GAIN, PARAM_CUTOFF, PARAM_SCREAM, PARAM_RESONANCE, PARAM_WET};
         _Static_assert(ARRLEN(param_ids) == ARRLEN(lm->param_positions_cx), "");
@@ -2085,6 +2002,7 @@ void pw_tick(void* _gui)
         }
     }
     xvg_command_custom(xvg, gui, do_knob_shader, XVG_LABEL("Knob shader"));
+    // */
 
     //     const float peak_gain = p->gui_output_peak_gain;
     //     if (peak_gain > 1)
@@ -2208,6 +2126,98 @@ void pw_tick(void* _gui)
         //     nvgFill(nvg);
         // }
     }
+
+    // Footer bottom left
+    {
+        const float checkbox_height = floorf(12 * lm->param_scale);
+        float       fsize           = checkbox_height;
+
+        // Autogain
+        Rect rect;
+        rect.x = 16;
+        rect.y = lm->content_b;
+        rect.r = rect.x + 96 * lm->param_scale;
+        rect.b = lm->height;
+
+        unsigned events = imgui_get_events_rect(im, 'auto', &rect);
+
+        static const char* DESCRIPTION_AUTOGAIN = "When Autogain is on it adjusts the input gain to a stable level "
+                                                  "that delivers a consistent sound inside Scream's "
+                                                  "internal saturation and feedback loop";
+        tooltip_handle_events(&gui->tooltip, rect, DESCRIPTION_AUTOGAIN, gui->frame_start_time, events);
+        if (events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+            p->autogain_on ^= 1;
+
+        float cy          = rect_cy(&rect);
+        bool  autogain_on = p->autogain_on;
+        xvg_draw_text(xvg, rect.x, cy, "AUTOGAIN", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
+        draw_checkbox(xvg, checkbox_height, cy, rect.r, lm->param_scale, autogain_on);
+
+        // Keytracking
+        rect.x = rect.r + BORDER_PADDING * 4;
+        rect.r = rect.x + 152 * lm->param_scale;
+
+        events = imgui_get_events_rect(im, 'ktrk', &rect);
+
+        static const char* DESCRIPTION_KEYTRACKING =
+            "When MIDI keytracking is on, the filters cutoff position will be offset relative to the last MIDI note "
+            "sent to the plugin. This feature likely requires routing MIDI to this plugin inside your DAW.";
+        tooltip_handle_events(&gui->tooltip, rect, DESCRIPTION_KEYTRACKING, gui->frame_start_time, events);
+        if (events & IMGUI_EVENT_MOUSE_ENTER)
+            pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
+        if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
+            p->midi_keytracking_on ^= 1;
+
+        bool midi_keytracking_on = p->midi_keytracking_on;
+        xvg_draw_text(xvg, rect.x, cy, "MIDI KEYTRACKING", NULL, fsize, XVG_ALIGN_CL, C_TEXT_DARK_BG);
+        draw_checkbox(xvg, checkbox_height, cy, rect.r, lm->param_scale, midi_keytracking_on);
+    }
+
+    // Footer bottom right
+    {
+        char text[128] = {0};
+        int  len       = 0;
+
+        // Show window dimensions w/h on resize
+        uint64_t time_since_creation_ns = gui->frame_start_time - gui->gui_create_time;
+        uint64_t time_since_resize_ns   = gui->frame_start_time - gui->last_resize_time;
+        uint64_t threshold_1sec         = 1000000000;
+        uint64_t threshold_1_2sec       = 1200000000;
+        if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
+        {
+            len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
+        }
+        else
+        {
+#if defined(_WIN32)
+#define PLATFORM_NAME "Windows"
+#elif defined(__APPLE__)
+#define PLATFORM_NAME "macOS"
+#endif
+
+            const char*    plugin_type_name = "";
+            const uint32_t plugin_type      = gui->plugin->cplug_ctx->type;
+            if (plugin_type == CPLUG_PLUGIN_IS_STANDALONE)
+                plugin_type_name = "Standalone";
+            if (plugin_type == CPLUG_PLUGIN_IS_VST3)
+                plugin_type_name = "VST3";
+            if (plugin_type == CPLUG_PLUGIN_IS_CLAP)
+                plugin_type_name = "CLAP";
+            if (plugin_type == CPLUG_PLUGIN_IS_AUV2)
+                plugin_type_name = "Audio Unit";
+#ifdef _WIN32
+            const char* os_name = "Windows";
+#elif __APPLE__
+            const char* os_name = "macOS";
+#endif
+            len = snprintf(text, sizeof(text), "v%s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
+        }
+        float fsize = 12 * lm->param_scale;
+        xvg_draw_text(xvg, lm->width - 8, lm->height - 8, text, text + len, fsize, XVG_ALIGN_BR, C_TEXT_DARK_BG);
+    }
+
     // TODO: XVG
     /*
     // Logos
@@ -2291,7 +2301,9 @@ void pw_tick(void* _gui)
     }
     */
 
-    // xvg_draw_rectangle_with_gradient(xvg, 0, 0, lm->width, lm->height, 0, 0, xvg_make_image_fill(xvg->text.atlases[0].img_view, xvg->smp_linear, 0, 0, 256, 256, 0xffffffff));
+    // For looking at the text atlas (debugging)
+    // xvg_draw_rectangle_with_gradient(xvg, 0, 0, lm->width, lm->height, 0, 0,
+    // xvg_make_image_fill(xvg->text.atlases[0].img_view, xvg->smp_linear, 0, 0, 256, 256, 0xffffffff));
 
     // FPS HUD
 #ifdef SHOW_FPS
