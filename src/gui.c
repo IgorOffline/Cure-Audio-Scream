@@ -118,6 +118,11 @@ void* pw_create_gui(void* _plugin, void* _pw)
         .pipeline_pool_size = 512,
     });
 
+    tooltip_init(&gui->tooltip);
+    gui->tooltip.settings.colour_border = 0x8A94A8ff;
+    gui->tooltip.settings.colour_text   = 0x5D636Aff;
+    gui->tooltip.settings.colour_bg     = 0xD4D7DEff;
+
     xvg_init(&gui->xvg);
     // Load font
     {
@@ -664,7 +669,7 @@ void open_hyperlink(const char* url)
 
 void draw_checkbox(XVG* xvg, float width, float cy, float r, float scale, bool on)
 {
-    Rect box;
+    imgui_rect box;
     box.x = floorf(r - width);
     box.r = ceilf(r);
     box.y = floorf(cy - width * 0.5f);
@@ -1926,7 +1931,7 @@ void pw_tick(void* _gui)
         float       fsize           = checkbox_height;
 
         // Autogain
-        Rect rect;
+        imgui_rect rect;
         rect.x = 16;
         rect.y = lm->content_b;
         rect.r = rect.x + 96 * lm->param_scale;
@@ -2084,7 +2089,7 @@ void pw_tick(void* _gui)
         snvg_calls_join(nvg, &calls_synth_hud);
 #endif // SYNTH_HUD
 
-    if (gui->tooltip.text)
+    if (gui->tooltip.state.text)
     {
         tooltip_draw(&gui->tooltip, xvg, gui->arena, gui->frame_start_time, lm->width, lm->height, lm->param_scale);
     }

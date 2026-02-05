@@ -200,6 +200,5 @@ enum
 // For snapping to certain pixel boundaries
 #define snapf(val, interval) (roundf((val) / (interval)) * (interval))
 
-typedef imgui_rect  Rect;
-static inline float rect_cx(const Rect* r) { return (r->r + r->x) * 0.5f; }
-static inline float rect_cy(const Rect* r) { return (r->b + r->y) * 0.5f; }
+static inline float rect_cx(const imgui_rect* r) { return (r->r + r->x) * 0.5f; }
+static inline float rect_cy(const imgui_rect* r) { return (r->b + r->y) * 0.5f; }

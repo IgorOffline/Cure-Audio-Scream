@@ -4,6 +4,7 @@
 #include <string.h>
 #include <xvg.h>
 
+
 // clang-format off
 enum
 {
@@ -29,22 +30,58 @@ enum
 
 typedef struct Tooltip
 {
-    const char* text;
+    struct
+    {
+        const char* text;
 
-    imgui_rect target_widget_dimensions;
+        imgui_rect target_widget_dimensions;
 
-    // Tracks when last call to tooltip_show() was made.
-    uint64_t time_shown_ns;
+        // Tracks when last call to tooltip_show() was made.
+        uint64_t time_shown_ns;
+    } state;
+
+    struct
+    {
+        float box_height;
+        float window_boundary;
+        float arrow_length;
+        float arrow_width;
+        float text_padding_x;
+        float text_padding_y;
+        float gap;
+        float font_size;
+
+        unsigned colour_bg;
+        unsigned colour_border;
+        unsigned colour_text;
+    } settings;
 } Tooltip;
+
+// Sets defaults
+static void tooltip_init(Tooltip* tt)
+{
+    tt->settings.box_height      = 20;
+    tt->settings.window_boundary = 8;
+    tt->settings.arrow_length    = 10;
+    tt->settings.arrow_width     = 10;
+    tt->settings.text_padding_x  = 10;
+    tt->settings.text_padding_y  = 6;
+    tt->settings.gap             = 4;
+    tt->settings.font_size       = 14;
+
+    tt->settings.colour_bg     = 0x000000ff;
+    tt->settings.colour_border = 0xffffffff;
+    tt->settings.colour_text   = 0xffffffff;
+}
 
 static void tooltip_show(Tooltip* tt, imgui_rect d, const char* text, uint64_t time_ns)
 {
-    tt->text                     = text;
-    tt->target_widget_dimensions = d;
-    tt->time_shown_ns            = time_ns;
+    tt->state.text                     = text;
+    tt->state.target_widget_dimensions = d;
+    tt->state.time_shown_ns            = time_ns;
 }
 
-static void tooltip_hide(Tooltip* tt) { memset(tt, 0, sizeof(*tt)); }
+static void tooltip_hide(Tooltip* tt) { memset(&tt->state, 0, sizeof(tt->state)); }
 
 static void tooltip_handle_events(Tooltip* tt, imgui_rect d, const char* txt, uint64_t time_ns, uint32_t events)
 {
