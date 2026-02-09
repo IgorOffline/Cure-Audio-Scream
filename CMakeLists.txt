@@ -9,6 +9,7 @@ project(Scream
     LANGUAGES C)
 set(COMPANY_NAME "Cure Audio")
 
+set(PRODUCT_NAME ${PROJECT_NAME}) # used by info.plist
 set(PRODUCT_COPYRIGHT ${COMPANY_NAME})
 set(PLUGIN_BUNDLE_ID "com.cureaudio.scream.plugin")
 set(APP_BUNDLE_ID "com.cureaudio.scream.app")
