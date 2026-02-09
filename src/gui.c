@@ -17,6 +17,7 @@
 
 #include <cplug_extensions/window.h>
 #include <stb_image.h>
+#include <stb_image_resize2.h>
 
 #include <imgui.h>
 #include <layout.h>
@@ -79,6 +80,151 @@ void* my_sg_allocator_alloc(size_t size, void* user_data)
     return ptr;
 }
 void my_sg_allocator_free(void* ptr, void* user_data) { MY_FREE(ptr); }
+
+// Source: https://github.com/floooh/sokol/issues/102
+// Modified to use STBIR
+sg_image make_icon_mipmaps(const sg_image_desc* desc_)
+{
+    sg_image_desc desc = *desc_;
+    // TODO: support floats
+    XVG_ASSERT(
+        desc.pixel_format == SG_PIXELFORMAT_RGBA8 || desc.pixel_format == SG_PIXELFORMAT_BGRA8 ||
+        desc.pixel_format == SG_PIXELFORMAT_R8);
+
+    unsigned num_channels = 1;
+    if (desc.pixel_format == SG_PIXELFORMAT_RGBA8 || desc.pixel_format == SG_PIXELFORMAT_BGRA8)
+        num_channels = 4;
+
+    stbir_pixel_layout layout_type = desc.pixel_format == SG_PIXELFORMAT_RGBA8   ? STBIR_RGBA
+                                     : desc.pixel_format == SG_PIXELFORMAT_BGRA8 ? STBIR_BGRA
+                                                                                 : STBIR_1CHANNEL;
+
+    int max_slices = desc.num_slices;
+    if (max_slices < 1)
+        max_slices = 1;
+
+    int w          = desc.width;
+    int h          = desc.height * max_slices;
+    int total_size = 0;
+
+    int target_max_mipmap_levels = desc.num_mipmaps;
+    if (target_max_mipmap_levels <= 0)
+        target_max_mipmap_levels = SG_MAX_MIPMAPS;
+    if (target_max_mipmap_levels > SG_MAX_MIPMAPS)
+        target_max_mipmap_levels = SG_MAX_MIPMAPS;
+
+    int max_mipmap_levels;
+    for (max_mipmap_levels = 1; max_mipmap_levels < target_max_mipmap_levels; ++max_mipmap_levels)
+    {
+        w /= 2;
+        h /= 2;
+
+        if (w < 1 || h < 1)
+            break;
+
+        total_size += (w * h * num_channels);
+    }
+
+    unsigned char* big_target = XVG_MALLOC(total_size);
+    unsigned char* target     = big_target;
+    XVG_ASSERT(big_target);
+
+    int target_width  = desc.width;
+    int target_height = desc.height;
+    int dst_height    = target_height * max_slices;
+
+    for (int level = 1; level < max_mipmap_levels; ++level)
+    {
+        unsigned char* src = (unsigned char*)desc.data.mip_levels[level - 1].ptr;
+        if (!src)
+            break;
+
+        int src_w      = target_width;
+        int src_h      = target_height;
+        target_width  /= 2;
+        target_height /= 2;
+        if (target_width < 1 && target_height < 1)
+            break;
+
+        if (target_width < 1)
+            target_width = 1;
+
+        if (target_height < 1)
+            target_height = 1;
+
+        dst_height              /= 2;
+        unsigned       img_size  = target_width * dst_height * num_channels;
+        unsigned char* dst       = target;
+
+        XVG_ASSERT(dst < big_target + total_size);
+
+        for (int slice = 0; slice < max_slices; ++slice)
+        {
+            // stbir_resize_uint8_srgb(
+            //     src,
+            //     src_w,
+            //     src_h,
+            //     src_w * num_channels,
+            //     dst,
+            //     target_width,
+            //     target_height,
+            //     target_width * num_channels,
+            //     layout_type);
+            // Hack to get icons looking good
+            int mitchell_offset = ICON_EXACOUSTICS_COLOUR + 1;
+            int src_h_mitchell  = src_w * mitchell_offset;
+            int src_h_points    = src_h - src_h_mitchell;
+
+            unsigned char* src_mitchell = src;
+            unsigned char* src_points   = src + src_h_mitchell * src_w * num_channels;
+
+            int dst_h_mitchell = target_width * mitchell_offset;
+            int dst_h_points   = target_height - dst_h_mitchell;
+
+            unsigned char* dst_mitchell = dst;
+            unsigned char* dst_points   = dst + dst_h_mitchell * target_width * num_channels;
+
+            stbir_resize(
+                src_mitchell,
+                src_w,
+                src_h_mitchell,
+                src_w * num_channels,
+                dst_mitchell,
+                target_width,
+                dst_h_mitchell,
+                target_width * num_channels,
+                layout_type,
+                STBIR_TYPE_UINT8_SRGB,
+                STBIR_EDGE_CLAMP,
+                STBIR_FILTER_MITCHELL);
+            stbir_resize(
+                src_points,
+                src_w,
+                src_h_points,
+                src_w * num_channels,
+                dst_points,
+                target_width,
+                dst_h_points,
+                target_width * num_channels,
+                layout_type,
+                STBIR_TYPE_UINT8_SRGB,
+                STBIR_EDGE_CLAMP,
+                STBIR_FILTER_POINT_SAMPLE);
+
+            src += (src_w * src_h * num_channels);
+            dst += (target_width * target_height * num_channels);
+        }
+        desc.data.mip_levels[level].ptr   = target;
+        desc.data.mip_levels[level].size  = img_size;
+        target                           += img_size;
+        desc.num_mipmaps                  = level + 1;
+    }
+    XVG_ASSERT(desc.num_mipmaps == max_mipmap_levels);
+
+    sg_image img = sg_make_image(&desc);
+    XVG_FREE(big_target);
+    return img;
+}
 
 void* pw_create_gui(void* _plugin, void* _pw)
 {
@@ -204,7 +350,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
                         .ptr  = img_buf,
                         .size = x * y * comp,
                     }};
-                gui->icons.img  = xvg_make_image_with_mipmaps(&img_desc);
+                gui->icons.img  = make_icon_mipmaps(&img_desc);
                 gui->icons.view = sg_make_view(&(sg_view_desc){.texture = gui->icons.img});
                 stbi_image_free(img_buf);
 
@@ -2310,15 +2456,14 @@ void pw_tick(void* _gui)
     xvg_end_frame(&gui->xvg);
 
     bool bg_match = do_bg_command_lists_match(gui);
-    println("bg_match: %hhu", bg_match);
-    if (!bg_match)
+    if (!bg_match) // redraw the background
     {
         xvg_command_list_end_frame(bg, gui->plugin->width, gui->plugin->height);
     }
     xvg_command_list_end_frame(xvg, gui->plugin->width, gui->plugin->height);
 
-    sg_commit(); // flip swapchain
-    // resources_end_frame(&gui->resource_manager, gui->nvg);
+    sg_commit();
+    resources_end_frame(&gui->resource_manager, &gui->xvg);
     imgui_end_frame(&gui->imgui);
     sg_set_global(NULL);
     LINKED_ARENA_LEAK_DETECT_END(gui->arena);
@@ -2327,6 +2472,10 @@ void pw_tick(void* _gui)
     gui->frame_end_time = xtime_now_ns();
 #endif
 
+    // TODO: d3d->present() happens after this tick() function exits, so this hyperlink stuff is still blocking call.
+    //       PW either needs a pw_preset() function added to its API, or I need to finally add retained mode click
+    //       callbacks to my IMGUI lib. The latter is probably the best option, since I need this for native file
+    //       browser stuff and file drag stuff anyway
     if (click_curelogo)
         open_hyperlink("https://cure.audio");
     if (click_exaclogo)

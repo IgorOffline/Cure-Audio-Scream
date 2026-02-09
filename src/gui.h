@@ -11,7 +11,7 @@
 
 // #include "im_points.h"
 
-#define SHOW_FPS
+// #define SHOW_FPS
 
 // Assortment of cached lengths of things in the GUI
 typedef struct LayoutMetrics
