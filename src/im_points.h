@@ -175,7 +175,6 @@ void imp_render_y_values(const IMPointsData*, float* buffer, size_t bufferlen, f
 #ifdef IM_POINTS_IMPL
 #undef IM_POINTS_IMPL
 
-#include "dsp.h"
 #include <cplug_extensions/window.h>
 #include <imgui.h>
 #include <sort.h>
@@ -258,6 +257,35 @@ void _imp_add_to_selection(IMPointsData* imp, int idx)
     }
 }
 
+// v - value between 0-1
+// a - skew amount between 0-1 where lower values push x closer to 0 and vice versa
+static float _imp_skewf(float v, float a)
+{
+    // va/(1-a-v+2va)
+    if (a <= 0)
+        return 0;
+    else if (a >= 1.0f)
+        return 1.0f;
+
+    float va = v * a;
+    return va / (1.0f - a - v + 2 * va);
+}
+
+// looks about as good as we can get on Godbolt
+static float _imp_interp_points(float norm_pos, float skew_amt, float point1_y, float point2_y)
+{
+    if (point1_y == point2_y)
+        return point2_y;
+
+    if (point1_y < point2_y)
+        norm_pos = (1.0f - norm_pos);
+    float skewed_pos = _imp_skewf(norm_pos, skew_amt);
+    if (point1_y < point2_y)
+        skewed_pos = (1.0f - skewed_pos);
+
+    return xm_lerpf(skewed_pos, point1_y, point2_y);
+}
+
 void _imp_update_skew_point(IMPointsData* imp, int i, float skew)
 {
     xassert(i < xarr_len(imp->skew_points));
@@ -276,7 +304,7 @@ void _imp_update_skew_point(IMPointsData* imp, int i, float skew)
         // skew amount controls y coord
         const xvec2f* pt1 = imp->points + i;
         const xvec2f* pt2 = imp->points + i + 1;
-        const float   y   = interp_points(0.5f, 1 - skew, pt1->y, pt2->y);
+        const float   y   = _imp_interp_points(0.5f, 1 - skew, pt1->y, pt2->y);
 
         imp->skew_points[i].y = y;
     }
@@ -512,7 +540,7 @@ void _imp_drag_and_draw(
             const xvec2f* skew_pt = imp->skew_points + right_idx - 1;
 
             float amt      = xm_normf(boundary_right, pt->x, next_pt->x);
-            interp_y_right = interp_points(amt, 1 - skew, pt->y, next_pt->y);
+            interp_y_right = _imp_interp_points(amt, 1 - skew, pt->y, next_pt->y);
         }
 
         if (num_points_at_left_boundary == 0)
@@ -524,7 +552,7 @@ void _imp_drag_and_draw(
             const xvec2f* skew_pt = imp->skew_points + left_idx;
 
             float amt     = xm_normf(boundary_left, pt->x, next_pt->x);
-            interp_y_left = interp_points(amt, 1 - skew, pt->y, next_pt->y);
+            interp_y_left = _imp_interp_points(amt, 1 - skew, pt->y, next_pt->y);
         }
 
         if (num_points_at_right_boundary == 0)
@@ -889,7 +917,7 @@ void imp_handle_point_events(IMPointsFrameContext* fstate, int num_grid_x, int n
                             }
                             else
                             {
-                                float y = interp_points(0.5f, 1 - skew, p1->y, p2->y);
+                                float y = _imp_interp_points(0.5f, 1 - skew, p1->y, p2->y);
 
                                 // x is always halfway between points
                                 sp->x = (p1->x + p2->x) * 0.5f;
@@ -1439,7 +1467,7 @@ void imp_run(
             }
             else
             {
-                float y = interp_points(0.5f, 1 - it->skew, p->y, next_p->y);
+                float y = _imp_interp_points(0.5f, 1 - it->skew, p->y, next_p->y);
 
                 // x is always halfway between points
                 sp->x = (p->x + next_p->x) * 0.5f;
@@ -1517,7 +1545,7 @@ void imp_run(
 
                 // A smart person could turn this into a bezier curve with only a few points (destination point +
                 // control points). I am not a smart person who can do that.
-                pos.y = interp_points(norm_pos, skew_amt, pt->y, next_pt->y);
+                pos.y = _imp_interp_points(norm_pos, skew_amt, pt->y, next_pt->y);
 
                 points[npoints++] = pos;
 
@@ -1581,7 +1609,7 @@ void imp_run(
                     for (int i = 0; i < plot_len; i++)
                     {
                         float norm_pos = i * inc;
-                        data[i]        = interp_points(norm_pos, skew_amt, plot_y1, plot_y2);
+                        data[i]        = _imp_interp_points(norm_pos, skew_amt, plot_y1, plot_y2);
                     }
                     lc->num_y_values += plot_len;
 
@@ -1674,7 +1702,7 @@ void imp_render_y_values(const IMPointsData* imp, float* buffer, size_t bufferle
 
             // A smart person could turn this into a bezier curve with only a few points (destination point +
             // control points). I am not a smart person who can do that.
-            float pt_y = interp_points(norm_pos, skew_amt, pt->y, next_pt->y);
+            float pt_y = _imp_interp_points(norm_pos, skew_amt, pt->y, next_pt->y);
 
             float y_height   = (area_h - (pt_y - imp->area.y));
             float y_rescaled = y_range_min + y_height * y_scale;
