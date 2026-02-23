@@ -271,16 +271,16 @@ static float _imp_skewf(float v, float a)
     return va / (1.0f - a - v + 2 * va);
 }
 
-// looks about as good as we can get on Godbolt
+// Looks about as good as we can get on Godbolt
 static float _imp_interp_points(float norm_pos, float skew_amt, float point1_y, float point2_y)
 {
     if (point1_y == point2_y)
         return point2_y;
 
-    if (point1_y < point2_y)
+    if (point1_y > point2_y)
         norm_pos = (1.0f - norm_pos);
     float skewed_pos = _imp_skewf(norm_pos, skew_amt);
-    if (point1_y < point2_y)
+    if (point1_y > point2_y)
         skewed_pos = (1.0f - skewed_pos);
 
     return xm_lerpf(skewed_pos, point1_y, point2_y);
