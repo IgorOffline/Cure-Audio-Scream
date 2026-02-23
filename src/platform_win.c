@@ -3,6 +3,7 @@
 #define XHL_MATHS_IMPL
 #define XHL_THREAD_IMPL
 #define XHL_TIME_IMPL
+#define XHL_STRING_IMPL
 
 #ifndef NDEBUG
 #define SOKOL_ASSERT(cond) (cond) ? (void)0 : __debugbreak()
@@ -15,6 +16,7 @@
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/maths.h>
+#include <xhl/string.h>
 #include <xhl/thread.h>
 #include <xhl/time.h>
 

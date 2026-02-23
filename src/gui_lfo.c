@@ -5,6 +5,7 @@
 #include <shaders.glsl.h>
 #include <sort.h>
 #include <stdio.h>
+#include <xhl/string.h>
 #include <xhl/time.h>
 
 #define LFO_PLAYHEAD_TRAIL_MAX_OPACITY 0.5f
@@ -199,13 +200,13 @@ int format_time(double ms, char* buf, size_t buflen)
 {
     int ms_rounded = xm_droundi(ms);
     if (ms_rounded < 10) // 10ms
-        return snprintf(buf, buflen, "%dms", ms_rounded);
+        return xtr_fmt(buf, buflen, 0, "%dms", ms_rounded);
     else if (ms_rounded < 1000) // 100ms
-        return snprintf(buf, buflen, "%dms", ms_rounded);
+        return xtr_fmt(buf, buflen, 0, "%dms", ms_rounded);
     else if (ms_rounded < 1000)
-        return snprintf(buf, buflen, "%dms", ms_rounded);
+        return xtr_fmt(buf, buflen, 0, "%dms", ms_rounded);
     else
-        return snprintf(buf, buflen, "%.1fs", ms * 0.001);
+        return xtr_fmt(buf, buflen, 0, "%.1fs", ms * 0.001);
 }
 
 void draw_lfo_section(GUI* gui)
@@ -433,7 +434,7 @@ void draw_lfo_section(GUI* gui)
 
         add_up_down_triangles(bg, (imgui_rect){btn_left, btn_top, rect.r, btn_bot});
         char label[8];
-        snprintf(label, sizeof(label), "%d", ngrid);
+        xfmt(label, 0, "%d", ngrid);
         xvg_draw_text(bg, rect.r - 9 * SCALE, top_text_cy, label, 0, FONT_SIZE, XVG_ALIGN_CR, C_GREY_1);
     }
 

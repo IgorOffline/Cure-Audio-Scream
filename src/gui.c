@@ -12,6 +12,7 @@
 #include <xhl/debug.h>
 #include <xhl/files.h>
 #include <xhl/maths.h>
+#include <xhl/string.h>
 #include <xhl/time.h>
 #include <xhl/vector.h>
 
@@ -280,15 +281,16 @@ void* pw_create_gui(void* _plugin, void* _pw)
         // Requires installer putting assets in correct folder
         int         len             = xfiles_get_user_directory(path, sizeof(path), XFILES_USER_DIRECTORY_APPDATA);
         const char* relpath_plugin  = XFILES_DIR_STR "Cure Audio" XFILES_DIR_STR "Scream" XFILES_DIR_STR;
-        len                        += snprintf(path + len, sizeof(path) - len, "%s", relpath_plugin);
+        len                        += xfmt(path, len, "%s", relpath_plugin);
 #else
         // Load from assets dir
-        int         len             = snprintf(path, sizeof(path), "%s", SRC_DIR);
+        int         len             = xfmt(path, 0, "%s", SRC_DIR);
         const char* relpath_plugin  = XFILES_DIR_STR "assets" XFILES_DIR_STR;
-        len                        += snprintf(path + len, sizeof(path) - len, "%s", relpath_plugin);
+        len                        += xfmt(path, len, "%s", relpath_plugin);
 #endif
 
-        snprintf(path + len, sizeof(path) - len, "%s", "Tomorrow-SemiBold.ttf");
+        // Don't increment path len
+        xfmt(path, len, "%s", "Tomorrow-SemiBold.ttf");
 
         const char* font_paths[] = {
             path,
@@ -319,7 +321,9 @@ void* pw_create_gui(void* _plugin, void* _pw)
         void*  file_data     = NULL;
         size_t file_data_len = 0;
         bool   ok            = false;
-        snprintf(path + len, sizeof(path) - len, "%s", "icons.png");
+
+        // Don't increment path len
+        xfmt(path, len, "%s", "icons.png");
 
         ok = xfiles_read(path, &file_data, &file_data_len);
         xassert(ok);
@@ -809,7 +813,7 @@ int thread_run_hyperlink(void* data)
     ShellExecuteA(NULL, "open", url, NULL, NULL, 1);
 #elif defined(__APPLE__)
     char buf[256];
-    snprintf(buf, sizeof(buf), "open %s", url);
+    xfmt(buf, 0, "open %s", url);
     system(buf);
 #endif
 
@@ -1964,7 +1968,7 @@ void pw_tick(void* _gui)
                         txt_col = C_RED;
 
                     char peak_label[16];
-                    snprintf(peak_label, sizeof(peak_label), "%.2f", peak_dB);
+                    xfmt(peak_label, 0, "%.2f", peak_dB);
                     float cx    = (rect.x + rect.r) * 0.5f;
                     float txt_y = rect.y + peak_label_height * 0.5f;
                     xvg_draw_text(xvg, cx, txt_y, peak_label, NULL, 8 * lm->param_scale, XVG_ALIGN_CC, txt_col);
@@ -2114,7 +2118,7 @@ void pw_tick(void* _gui)
     //         nvgSetColour(nvg, nvgRGBAf(1, 0.1, 0.1, 1));
     //         float dB = xm_fast_gain_to_dB(peak_gain);
     //         char  label[48];
-    //         snprintf(label, sizeof(label), "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
+    //         xfmt(label, 0, "[WARNING] Auto hardclipper: ON. %.2fdB", dB);
     //         nvgText(nvg, lm->width - 20, gui_height - 20, label, NULL);
     //     }
 
@@ -2290,7 +2294,7 @@ void pw_tick(void* _gui)
         uint64_t threshold_1_2sec       = 1200000000;
         if (time_since_resize_ns < threshold_1sec && time_since_creation_ns > threshold_1_2sec)
         {
-            len = snprintf(text, sizeof(text), "%dx%d", lm->width, lm->height);
+            len = xfmt(text, len, "%dx%d", lm->width, lm->height);
         }
         else
         {
@@ -2315,7 +2319,7 @@ void pw_tick(void* _gui)
 #elif __APPLE__
             const char* os_name = "macOS";
 #endif
-            len = snprintf(text, sizeof(text), "v%s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
+            len = xfmt(text, len, "v%s | %s | %s", CPLUG_PLUGIN_VERSION, plugin_type_name, os_name);
         }
         float fsize = 12 * lm->param_scale;
         xvg_draw_text(bg, lm->width - 8, lm->height - 8, text, text + len, fsize, XVG_ALIGN_BR, C_TEXT_DARK_BG);
@@ -2431,9 +2435,9 @@ void pw_tick(void* _gui)
         double actual_fps = 1000.0 / ((avg_frame_time_duration_ns >> 10) * 1024e-6);
 
         char text[96] = {0};
-        int  len      = snprintf(
+        int  len      = xfmt(
             text,
-            sizeof(text),
+            0,
             "GUI AVG CPU: %.2lf%%\nAVG Frame Time: %.3lfms.\nFrame Time: %.3lfms.\nMax FPS: %.lf",
             (cpu_amt * 100),
             avg_frame_time_ms,
@@ -2443,12 +2447,12 @@ void pw_tick(void* _gui)
 
         // if (p->audio_cpu_usage)
         // {
-        //     len += snprintf(text + len, sizeof(text) - len, "\nAudio CPU: %.2f%%", p->audio_cpu_usage * 100);
+        //     len += xfmt(text, 0, "\nAudio CPU: %.2f%%", p->audio_cpu_usage * 100);
 
         //     uint64_t audio_time_ns = p->audio_process_time;
         //     double   audio_time_ms = xtime_convert_ns_to_ms(audio_time_ns);
 
-        //     len += snprintf(text + len, sizeof(text) - len, "\nAudio Time: %.3fms", audio_time_ms);
+        //     len += xfmt(text, 0, "\nAudio Time: %.3fms", audio_time_ms);
         //     len += 0;
         // }
         // nvgText(nvg, 8, 8, text, text + len);

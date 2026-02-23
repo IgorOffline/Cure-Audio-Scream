@@ -1,6 +1,7 @@
 #include "plugin.h"
 #include <stdio.h>
 #include <xhl/maths.h>
+#include <xhl/string.h>
 
 #ifdef __APPLE__
 #define strcmpi my_strcmpi
@@ -353,46 +354,46 @@ int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double val
     {
         double Hz = 20 * pow(2, value * 10); // Denormalise Hz
         Hz        = xm_mind(Hz, 20000);
-        n         = snprintf(buf, bufsize, "%.2lfHz", Hz);
+        n         = xtr_fmt(buf, bufsize, 0, "%.2lfHz", Hz);
         break;
     }
     case PARAM_SCREAM:
     case PARAM_RESONANCE:
     case PARAM_WET:
-        n = snprintf(buf, bufsize, "%.2f%%", value * 100);
+        n = xtr_fmt(buf, bufsize, 0, "%.2f%%", value * 100);
         break;
     case PARAM_INPUT_GAIN:
     {
         double dB = xm_lerpd(value, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-        n         = snprintf(buf, bufsize, "%.2fdB", dB);
+        n         = xtr_fmt(buf, bufsize, 0, "%.2fdB", dB);
         break;
     }
     case PARAM_OUTPUT_GAIN:
     {
         double dB = xm_lerpd(value, RANGE_OUTPUT_GAIN_MIN, RANGE_OUTPUT_GAIN_MAX);
-        n         = snprintf(buf, bufsize, "%.2fdB", dB);
+        n         = xtr_fmt(buf, bufsize, 0, "%.2fdB", dB);
         break;
     }
     case PARAM_PATTERN_LFO_1:
     case PARAM_PATTERN_LFO_2:
     {
         int num = xm_droundi(xm_lerpd(value, 1, NUM_LFO_PATTERNS));
-        n       = snprintf(buf, bufsize, "%d", num);
+        n       = xtr_fmt(buf, bufsize, 0, "%d", num);
         break;
     }
     case PARAM_RATE_TYPE_LFO_1:
     case PARAM_RATE_TYPE_LFO_2:
         if (value < 0.5)
-            n = snprintf(buf, bufsize, "Sync");
+            n = xtr_fmt(buf, bufsize, 0, "Sync");
         else
-            n = snprintf(buf, bufsize, "ms");
+            n = xtr_fmt(buf, bufsize, 0, "ms");
         break;
     case PARAM_SYNC_RATE_LFO_1:
     case PARAM_SYNC_RATE_LFO_2:
     {
         int idx = xm_droundi(value);
         idx     = xm_clampi(idx, 0, LFO_RATE_COUNT - 1);
-        n       = snprintf(buf, bufsize, "%s", LFO_RATE_NAMES[idx]);
+        n       = xtr_fmt(buf, bufsize, 0, "%s", LFO_RATE_NAMES[idx]);
         break;
     }
     case PARAM_SEC_RATE_LFO_1:
@@ -420,7 +421,7 @@ int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double val
             fmtstr = "%.2fs";
         }
         xassert(fmtstr);
-        n = snprintf(buf, bufsize, fmtstr, sec);
+        n = xtr_fmt(buf, bufsize, 0, fmtstr, sec);
         break;
     }
     case PARAM_COUNT:
@@ -463,7 +464,7 @@ void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
     {
         str = NAMES[paramId];
     }
-    snprintf(buf, buflen, "%s", str);
+    xtr_fmt(buf, buflen, 0, "%s", str);
 }
 
 void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
