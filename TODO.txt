@@ -65,3 +65,10 @@ x get state working in new version
 
 x when holding down keys to play MIDI notes on the macOS standalone version, keydown events are repeatedly sent.
   This would be fine for a text input, but is a bug for anything else. It probably needs to be fixed on the CPLUG side
+
+(CPLUG)
+Figure out a simple way to copy a framebuffer straight to the swapchain (no shaders)
+Logic:
+  1. pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D)(void**)&pBackBuffer)
+  2. pDeviceContext->CopyResource(pBackBuffer, pSourceTexture)
+  3. pSwapChain->Present(0, 0)

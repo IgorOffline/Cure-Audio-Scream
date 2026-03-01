@@ -918,7 +918,6 @@ void cplug_process(void* _p, CplugProcessContext* ctx)
                     {
                         adsr_set_stage(adsr, ADSR_RELEASE);
                     }
-                    float adsr_gain = adsr_tick(adsr);
 
                     if (in_peak_dB < -24)
                         in_peak_dB = -24;
