@@ -248,11 +248,11 @@ extern unsigned long long SVG_DATA_One_shot_icon[];
 extern unsigned long long SVG_DATA_Crotchet[];
 
 static const unsigned long long* SVGS[] = {
-    SVG_DATA_Cure_Audio,     SVG_DATA_Exacoustics_white, SVG_DATA_Exacoustics_colour, SVG_DATA_PT_Select,
-    SVG_DATA_PT_Flat,        SVG_DATA_PT_Ramp_Up,        SVG_DATA_PT_Ramp_Down,       SVG_DATA_PT_Convex_Up,
-    SVG_DATA_PT_Convex_Down, SVG_DATA_PT_Concave_Up,     SVG_DATA_PT_Concave_Down,    SVG_DATA_PT_Cosine_Up,
-    SVG_DATA_PT_Cosine_Down, SVG_DATA_PT_Tri_Up,         SVG_DATA_PT_Tri_Down,        SVG_DATA_Loop_icon,
-    SVG_DATA_Retrig_icon,    SVG_DATA_One_shot_icon,     SVG_DATA_Crotchet,
+    SVG_DATA_Cure_Audio,      SVG_DATA_Exacoustics_white, SVG_DATA_Exacoustics_colour, SVG_DATA_PT_Select,
+    SVG_DATA_PT_Flat,         SVG_DATA_PT_Ramp_Up,        SVG_DATA_PT_Ramp_Down,       SVG_DATA_PT_Concave_Up,
+    SVG_DATA_PT_Concave_Down, SVG_DATA_PT_Convex_Up,      SVG_DATA_PT_Convex_Down,     SVG_DATA_PT_Cosine_Up,
+    SVG_DATA_PT_Cosine_Down,  SVG_DATA_PT_Tri_Up,         SVG_DATA_PT_Tri_Down,        SVG_DATA_Loop_icon,
+    SVG_DATA_Retrig_icon,     SVG_DATA_One_shot_icon,     SVG_DATA_Crotchet,
 };
 xstatic_assert(ARRLEN(SVGS) == ICON_COUNT, "");
 
