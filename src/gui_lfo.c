@@ -346,7 +346,7 @@ void draw_lfo_section(GUI* gui)
             }
             else
             {
-                xvg_draw_rectangle(xvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4, 1.1, bg_col);
+                xvg_draw_rectangle(xvg, x, y, LFO_TAB_WIDTH, LFO_TAB_HEIGHT, 4, 1.1, text_col);
             }
 
             char label[]  = "LFO 1";
