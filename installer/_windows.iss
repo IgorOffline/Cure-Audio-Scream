@@ -29,6 +29,7 @@ Components: vst3; Name: "{commonpf64}\Common Files\VST3\{#MyAppName}.vst3"; Attr
 Components: clap; Name: "{commonpf64}\Common Files\CLAP"
 
 [InstallDelete]
+; Note: These icons are now obsolete. We used them before the svg rasteriser was added
 Components: assets; Type: filesandordirs; Name: {userappdata}\{#MyBusinessName}\{#MyAppName}\cureaudio.png
 Components: assets; Type: filesandordirs; Name: {userappdata}\{#MyBusinessName}\{#MyAppName}\icons.png
 Components: vst3; Type: filesandordirs; Name: {commonpf64}\Common Files\VST3\{#MyAppName}.vst3
@@ -37,7 +38,6 @@ Components: clap; Type: filesandordirs; Name: {commonpf64}\Common Files\CLAP\{#M
 [Files]
 Components: assets; Source: "..\assets\Tomorrow-SemiBold.ttf";              DestDir: "{userappdata}\{#MyBusinessName}\{#MyAppName}";
 Components: assets; Source: "..\assets\OFL.txt";                            DestDir: "{userappdata}\{#MyBusinessName}\{#MyAppName}";     DestName: Tomorrow-OFL.txt
-Components: assets; Source: "..\assets\icons.png";                          DestDir: "{userappdata}\{#MyBusinessName}\{#MyAppName}";
 Components: vst3;   Source: "..\build\Release\{#MyAppName}.vst3";           DestDir: "{commonpf64}\Common Files\VST3";                   Flags: recursesubdirs
 Components: vst3;   Source: "..\assets\desktop.ini.in";                     DestDir: "{commonpf64}\Common Files\VST3\{#MyAppName}.vst3"; DestName: desktop.ini;     Attribs: system hidden
 Components: vst3;   Source: "..\assets\PlugIn.ico";                         DestDir: "{commonpf64}\Common Files\VST3\{#MyAppName}.vst3";                            Attribs: system hidden
