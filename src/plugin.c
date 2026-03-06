@@ -544,6 +544,54 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
         // Process
         for (int i = 0; i < num_frames; i++)
         {
+            if (has_modulation_or_smoothing)
+            {
+                _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(s.values), "");
+                _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(p->lfo_mod_amounts), "");
+                float modvals[NUM_AUTOMATABLE_PARAMS];
+                for (int j = 0; j < ARRLEN(s.values); j++)
+                {
+                    smoothvalue_tick(&s.values[j]);
+
+                    float v = s.values[j].current;
+
+                    // TODO: apply bidirectional algorithm?
+                    if (lfo_1_mod_flags & (1 << j))
+                        v += p->lfo_mod_amounts[j].data[0] * mod_buffer_1[i];
+                    if (lfo_2_mod_flags & (1 << j))
+                        v += p->lfo_mod_amounts[j].data[1] * mod_buffer_2[i];
+
+                    modvals[j] = xm_clampf(v, 0, 1);
+                }
+
+                lp_cutoff = modvals[PARAM_CUTOFF];
+                hp_cutoff = modvals[PARAM_SCREAM];
+                resonance = modvals[PARAM_RESONANCE];
+                in_gain   = modvals[PARAM_INPUT_GAIN];
+                wet       = modvals[PARAM_WET];
+
+                lp_Q = xm_lerpf(resonance, LP_Q_MIN, LP_Q_MAX);
+                hp_Q = xm_lerpf(resonance, HP_Q_MIN, HP_Q_MAX);
+
+                lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, CUTOFF_MAX) + keytracking_offset;
+                hp_cutoff  = xm_lerpf(hp_cutoff, HP_CUTOFF_MIN, CUTOFF_MAX);
+                hp_cutoff -= CUTOFF_MAX - lp_cutoff;
+
+                lp_cutoff = xm_midi_to_Hz(lp_cutoff);
+                hp_cutoff = xm_midi_to_Hz(hp_cutoff);
+                lp_cutoff = xm_clampf(lp_cutoff, 20, 20000);
+                hp_cutoff = xm_clampf(hp_cutoff, 20, 20000);
+
+                feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
+                feedback_gain = xm_fast_dB_to_gain(feedback_gain);
+
+                in_gain = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
+                in_gain = xm_fast_dB_to_gain(in_gain);
+
+                lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
+                hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
+            } // !!has_modulation_or_smoothing
+
             float x = audio[i];
 
             x *= in_gain;
@@ -595,54 +643,6 @@ void process_audio(Plugin* p, float** output, int start_sample, int num_frames)
             xassert(feed == feed);
 
             s.fb_yn_1 = feed;
-
-            if (has_modulation_or_smoothing)
-            {
-                _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(s.values), "");
-                _Static_assert(NUM_AUTOMATABLE_PARAMS == ARRLEN(p->lfo_mod_amounts), "");
-                float modvals[NUM_AUTOMATABLE_PARAMS];
-                for (int j = 0; j < ARRLEN(s.values); j++)
-                {
-                    smoothvalue_tick(&s.values[j]);
-
-                    float v = s.values[j].current;
-
-                    // TODO: apply bidirectional algorithm?
-                    if (lfo_1_mod_flags & (1 << j))
-                        v += p->lfo_mod_amounts[j].data[0] * mod_buffer_1[i];
-                    if (lfo_2_mod_flags & (1 << j))
-                        v += p->lfo_mod_amounts[j].data[1] * mod_buffer_2[i];
-
-                    modvals[j] = xm_clampf(v, 0, 1);
-                }
-
-                lp_cutoff = modvals[PARAM_CUTOFF];
-                hp_cutoff = modvals[PARAM_SCREAM];
-                resonance = modvals[PARAM_RESONANCE];
-                in_gain   = modvals[PARAM_INPUT_GAIN];
-                wet       = modvals[PARAM_WET];
-
-                lp_Q = xm_lerpf(resonance, LP_Q_MIN, LP_Q_MAX);
-                hp_Q = xm_lerpf(resonance, HP_Q_MIN, HP_Q_MAX);
-
-                lp_cutoff  = xm_lerpf(lp_cutoff, MIDI_NOTE_NUM_20Hz, CUTOFF_MAX) + keytracking_offset;
-                hp_cutoff  = xm_lerpf(hp_cutoff, HP_CUTOFF_MIN, CUTOFF_MAX);
-                hp_cutoff -= CUTOFF_MAX - lp_cutoff;
-
-                lp_cutoff = xm_midi_to_Hz(lp_cutoff);
-                hp_cutoff = xm_midi_to_Hz(hp_cutoff);
-                lp_cutoff = xm_clampf(lp_cutoff, 20, 20000);
-                hp_cutoff = xm_clampf(hp_cutoff, 20, 20000);
-
-                feedback_gain = xm_lerpf(resonance, FB_GAIN_MIN, FB_GAIN_MAX);
-                feedback_gain = xm_fast_dB_to_gain(feedback_gain);
-
-                in_gain = xm_lerpf(in_gain, RANGE_INPUT_GAIN_MIN, RANGE_INPUT_GAIN_MAX);
-                in_gain = xm_fast_dB_to_gain(in_gain);
-
-                lp_c = filter_LP(lp_cutoff, lp_Q, fs_inv);
-                hp_c = filter_HP(hp_cutoff, hp_Q, fs_inv);
-            } // !!has_modulation_or_smoothing
         } // Process
 #define ROUND_STATE_TO_ZERO(n)                                                                                         \
     if (fabsf(n) < 1.0e-8f)                                                                                            \
