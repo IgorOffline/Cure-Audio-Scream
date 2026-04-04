@@ -140,7 +140,7 @@ cat > ${PKG_DIR}/distribution.xml << XMLEND
         <line choice="com.CureAudio.Scream.pkg.clap"/>
         <line choice="com.CureAudio.Scream.pkg.vst3"/>
     </choices-outline>
-    <choice id="com.CureAudio.Scream.pkg.assets" visible="true" start_selected="true" title="Factory Content" enabled="false">
+    <choice id="com.CureAudio.Scream.pkg.assets" visible="true" start_selected="true" title="Required assets" enabled="false">
         <pkg-ref id="com.CureAudio.Scream.pkg.assets"/>
     </choice>
     <pkg-ref id="com.CureAudio.Scream.pkg.assets" version="${VERSION}">Scream_assets.pkg</pkg-ref>
