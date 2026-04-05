@@ -1,4 +1,7 @@
 # Scream
+Scream is a free, open source distortion plugin inspired by the iconic 2010 era “Scream” sound, built for modern producers who want aggressive tone, movement, and character in a standalone effect. Designed for drums, basses, synths, and vocals, Scream combines classic inspiration with modern workflow features like built-in modulation, flexible shaping, and broad plugin format support for today’s production environments.
+
+Download: https://cure.audio/scream
 
 This repo continues the work previously made by Speechrezz [here](https://github.com/Speechrezz/Scream-Filter).
 
