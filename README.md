@@ -8,7 +8,7 @@ Many ideas used by our design came from reading the paper [The Art of VA Filter 
 
 The parameters used by this plugin do not, and cannot match 1:1 with the parameters used by the original synths filter. We explain exactly why below.
 
-Instead we aim to capture a slightly larger parameter range, so as thgat similar, if not the same sounds can still be created only with slightly highler or lower parameter settings.
+Instead we aim to capture a slightly larger parameter range, so as that similar, if not the same sounds can still be created only with slightly highler or lower parameter settings.
 
 #### Gain
 
