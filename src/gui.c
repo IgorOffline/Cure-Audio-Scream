@@ -792,7 +792,7 @@ double handle_param_events(GUI* gui, ParamID param_id, uint32_t events, float dr
     }
     if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
     {
-        float delta = im->frame.delta_touchpad.y / drag_range_px;
+        float delta = im->frame.delta_scroll.y / drag_range_px;
         if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
             delta = -delta;
         if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
@@ -1335,7 +1335,7 @@ void pw_tick(void* _gui)
 #endif
     };
 
-    imgui_begin_frame(im);
+    imgui_begin_frame(im, gui->layout.width, gui->layout.height);
 
     xvg_begin_frame(&gui->xvg);
     xvg_command_list_begin_frame(gui->xvg_anim);
@@ -1590,7 +1590,7 @@ void pw_tick(void* _gui)
                 }
                 if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
                 {
-                    float delta = im->frame.delta_touchpad.y / 300;
+                    float delta = im->frame.delta_scroll.y / 300;
                     if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
                         delta = -delta;
                     if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)

@@ -171,7 +171,7 @@ void tooltip_draw(
 
     float text_x = d.x + TOOLTIP_TEXT_PADDING_X;
     float text_y = (d.b + d.y) * 0.5f;
-    xvg_draw_text_layout(xvg, layout, text_x, text_y, XVG_ALIGN_CL, tt->settings.colour_text);
+    xvg_draw_text_layout(xvg, layout, text_x, text_y, XVG_ALIGN_CL, 0, tt->settings.colour_text);
     xvg_release_text_layout(xvg, layout);
 
     LINKED_ARENA_TAGGED_LEAK_DETECT_END(xvg->arena, _nvg_arena);

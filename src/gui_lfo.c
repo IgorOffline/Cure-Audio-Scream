@@ -395,7 +395,7 @@ void draw_lfo_section(GUI* gui)
             }
             else if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
             {
-                float delta = im->frame.delta_touchpad.y / 200;
+                float delta = im->frame.delta_scroll.y / 200;
                 if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
                     delta = -delta;
                 if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)
@@ -661,7 +661,7 @@ void draw_lfo_section(GUI* gui)
             }
             else if (events & IMGUI_EVENT_TOUCHPAD_MOVE)
             {
-                float delta = im->frame.delta_touchpad.y / 200;
+                float delta = im->frame.delta_scroll.y / 200;
                 if (im->frame.modifiers_touchpad & PW_MOD_INVERTED_SCROLL)
                     delta = -delta;
                 if (im->frame.modifiers_touchpad & PW_MOD_PLATFORM_KEY_CTRL)

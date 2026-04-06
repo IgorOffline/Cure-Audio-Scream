@@ -988,7 +988,7 @@ void ted_draw(TextEditor* ted, uint64_t frame_time_ns, const char* placeholder, 
         if (glyphs_len)
         {
             unsigned col = has_keyboard_focus ? ted->theme.col_text_active : ted->theme.col_text_inactive;
-            xvg_draw_text_layout(xvg, layout, x, cy, alignment, col);
+            xvg_draw_text_layout(xvg, layout, x, cy, alignment, 0, col);
         }
     }
 
