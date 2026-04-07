@@ -1150,7 +1150,9 @@ void pw_tick(void* _gui)
 
         _MINIMUM_WIDTH = PARAMS_BOUNDARY_LEFT * 2 + VERTICAL_SLIDER_WIDTH * 2 + ROTARY_PARAM_OUTER_DIAMETER * 3,
     };
-    _Static_assert(_MINIMUM_WIDTH < GUI_MIN_WIDTH, "");
+    // 75% min width is the new minimum scale
+    const int min_width = ((_MINIMUM_WIDTH*3)/4);
+    _Static_assert(((_MINIMUM_WIDTH*3)/4) < GUI_MIN_WIDTH, "");
 
     // Recalculate layout metrics
     if (im->frame.events & ((1 << PW_EVENT_RESIZE_UPDATE) | (1 << PW_EVENT_CONTENT_SCALE_FACTOR_CHANGED)))
