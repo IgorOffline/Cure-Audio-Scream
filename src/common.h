@@ -21,8 +21,11 @@
 #define CPLUG_VST3_TUID_COMPONENT  'Cure', 'comp', 'SCRM', 0
 #define CPLUG_VST3_TUID_CONTROLLER 'Cure', 'edit', 'SCRM', 0
 
-#define CPLUG_AUV2_VIEW_CLASS     ScreamView
-#define CPLUG_AUV2_VIEW_CLASS_STR "ScreamView"
+#define MY_CONCAT_(a, b) a##b
+#define MY_CONCAT(a, b)  MY_CONCAT_(a, b)
+#ifdef CPLUG_BUILD_AUV2
+#define CPLUG_AUV2_VIEW_CLASS MY_CONCAT(PW_PREFIX, UIView)
+#endif
 
 #define CPLUG_CLAP_ID          "com.cureaudio.scream"
 #define CPLUG_CLAP_DESCRIPTION "Scream Filter"

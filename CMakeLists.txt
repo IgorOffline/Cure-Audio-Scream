@@ -11,7 +11,9 @@ set(COMPANY_NAME "Cure Audio")
 
 set(PRODUCT_NAME ${PROJECT_NAME}) # used by info.plist
 set(PRODUCT_COPYRIGHT ${COMPANY_NAME})
-set(PLUGIN_BUNDLE_ID "com.cureaudio.scream.plugin")
+set(AUV2_BUNDLE_ID "com.cureaudio.scream.auv2")
+set(CLAP_BUNDLE_ID "com.cureaudio.scream.clap")
+set(VST3_BUNDLE_ID "com.cureaudio.scream.vst3")
 set(APP_BUNDLE_ID "com.cureaudio.scream.app")
 # Full list of AU types & tags here:
 # https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/AudioUnit.html
@@ -114,6 +116,7 @@ set(PLUGIN_DEFINITIONS
     NVG_NO_STB
     SRC_DIR="${SRC_DIR}"
     BIN_DIR="${BIN_DIR}"
+    PW_PREFIX=${PROJECT_NAME}
     )
 
 set(PLUGIN_SOURCES
@@ -210,7 +213,7 @@ endif()
 function(configure_info_plist target_name bundle_identifier bundle_type bundle_extension)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/modules/CPLUG/example/Info.plist.in
-        ${CMAKE_BINARY_DIR}/${bundle_type}.plist
+        ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.${bundle_extension}/Contents/Info.plist
         @ONLY
     )
 
@@ -219,44 +222,60 @@ function(configure_info_plist target_name bundle_identifier bundle_type bundle_e
         MACOSX_BUNDLE TRUE
         OUTPUT_NAME ${PROJECT_NAME}
         BUNDLE_EXTENSION ${bundle_extension}
-        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_BINARY_DIR}/${bundle_type}.plist
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.${bundle_extension}/Contents/Info.plist
         CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.${bundle_extension}
     )
 endfunction()
 
 # All Plugin formats in one
 if (APPLE)
-    add_library(${PROJECT_NAME}_plugin MODULE
-        ${PLUGIN_SOURCES}
-        modules/CPLUG/src/cplug_clap.c
-        modules/CPLUG/src/cplug_vst3.c
-        modules/CPLUG/src/cplug_auv2.c)
+    add_library(${PROJECT_NAME}_auv2 MODULE ${PLUGIN_SOURCES} modules/CPLUG/src/cplug_auv2.c)
+    add_library(${PROJECT_NAME}_clap MODULE ${PLUGIN_SOURCES} modules/CPLUG/src/cplug_clap.c)
+    add_library(${PROJECT_NAME}_vst3 MODULE ${PLUGIN_SOURCES} modules/CPLUG/src/cplug_vst3.c)
+    configure_info_plist(${PROJECT_NAME}_auv2 ${AUV2_BUNDLE_ID} "BNDL" "component")
+    configure_info_plist(${PROJECT_NAME}_clap ${CLAP_BUNDLE_ID} "BNDL" "clap")
+    configure_info_plist(${PROJECT_NAME}_vst3 ${VST3_BUNDLE_ID} "BNDL" "vst3")
 
-    configure_info_plist(${PROJECT_NAME}_plugin ${PLUGIN_BUNDLE_ID} "BNDL" "clap")
-
+    file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.component/Contents/PkgInfo")
+    file(WRITE "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.component/Contents/PkgInfo" "BNDL????")
     file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap/Contents/PkgInfo")
     file(WRITE "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap/Contents/PkgInfo" "BNDL????")
+    file(TOUCH_NOCREATE "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3/Contents/PkgInfo")
+    file(WRITE "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3/Contents/PkgInfo" "BNDL????")
 
-    target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE
+    target_compile_definitions(${PROJECT_NAME}_auv2 PRIVATE
+         ${PLUGIN_DEFINITIONS}
         CPLUG_AUV2_VERSION_INT=${MACOSX_BUNDLE_VERSION_INT}
-        CPLUG_AUV2_BUNDLE_ID="${PLUGIN_BUNDLE_ID}"
+        CPLUG_AUV2_BUNDLE_ID="${AUV2_BUNDLE_ID}"
+        CPLUG_BUILD_AUV2
     )
+    target_compile_definitions(${PROJECT_NAME}_clap PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_CLAP)
+    target_compile_definitions(${PROJECT_NAME}_vst3 PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_VST3)
 
-    add_custom_command(TARGET ${PROJECT_NAME}_plugin POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3"
-        COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.component"
+    target_link_libraries(${PROJECT_NAME}_auv2 PRIVATE ${PLUGIN_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME}_clap PRIVATE ${PLUGIN_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME}_vst3 PRIVATE ${PLUGIN_LIBRARIES})
+    target_include_directories(${PROJECT_NAME}_auv2 PRIVATE ${PLUGIN_INCLUDE})
+    target_include_directories(${PROJECT_NAME}_clap PRIVATE ${PLUGIN_INCLUDE})
+    target_include_directories(${PROJECT_NAME}_vst3 PRIVATE ${PLUGIN_INCLUDE})
+    target_compile_options(${PROJECT_NAME}_auv2 PRIVATE ${PLUGIN_OPTIONS})
+    target_compile_options(${PROJECT_NAME}_clap PRIVATE ${PLUGIN_OPTIONS})
+    target_compile_options(${PROJECT_NAME}_vst3 PRIVATE ${PLUGIN_OPTIONS})
+    target_precompile_headers(${PROJECT_NAME}_auv2 PRIVATE src/common.h)
+    target_precompile_headers(${PROJECT_NAME}_clap PRIVATE src/common.h)
+    target_precompile_headers(${PROJECT_NAME}_vst3 PRIVATE src/common.h)
 
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap" "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap" "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.component"
-
-        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap to ~/Library/Audio/Plug-Ins/CLAP/"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap" "~/Library/Audio/Plug-Ins/CLAP/${PROJECT_NAME}.clap"
-
-        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3 to ~/Library/Audio/Plug-Ins/VST3/"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3" "~/Library/Audio/Plug-Ins/VST3/${PROJECT_NAME}.vst3"
-
+    add_custom_command(TARGET ${PROJECT_NAME}_auv2 POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.component to ~/Library/Audio/Plug-Ins/Components/"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.component" "~/Library/Audio/Plug-Ins/Components/${PROJECT_NAME}.component"
+    )
+    add_custom_command(TARGET ${PROJECT_NAME}_clap POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap to ~/Library/Audio/Plug-Ins/CLAP/"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.clap" "~/Library/Audio/Plug-Ins/CLAP/${PROJECT_NAME}.clap"
+    )
+    add_custom_command(TARGET ${PROJECT_NAME}_vst3 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3 to ~/Library/Audio/Plug-Ins/VST3/"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.vst3" "~/Library/Audio/Plug-Ins/VST3/${PROJECT_NAME}.vst3"
     )
 elseif(WIN32)
     add_library(${PROJECT_NAME}_plugin MODULE
@@ -288,14 +307,13 @@ elseif(WIN32)
         COMMAND ${CMAKE_COMMAND} -E echo "Installing ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.dll to %LOCALAPPDATA%\\Programs\\Common\\CLAP\\${PROJECT_NAME}.clap"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}_plugin.dll" "%LOCALAPPDATA%\\Programs\\Common\\CLAP\\${PROJECT_NAME}.clap"
         )
+    target_link_libraries(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_LIBRARIES})
+    target_include_directories(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_INCLUDE})
+    target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_VST3 CPLUG_BUILD_CLAP CPLUG_BUILD_AUV2)
+    target_compile_options(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_OPTIONS})
+    target_precompile_headers(${PROJECT_NAME}_plugin PRIVATE src/common.h)
 endif()
 
-target_link_libraries(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_LIBRARIES})
-target_include_directories(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_INCLUDE})
-target_compile_definitions(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_DEFINITIONS} CPLUG_BUILD_VST3 CPLUG_BUILD_CLAP CPLUG_BUILD_AUV2)
-target_compile_options(${PROJECT_NAME}_plugin PRIVATE ${PLUGIN_OPTIONS})
-target_precompile_headers(${PROJECT_NAME}_plugin PRIVATE src/common.h)
-# add_dependencies(${PROJECT_NAME}_plugin shader_header)
 
 # ███████╗████████╗ █████╗ ███╗   ██╗██████╗  █████╗ ██╗      ██████╗ ███╗   ██╗███████╗
 # ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔══██╗██╔══██╗██║     ██╔═══██╗████╗  ██║██╔════╝

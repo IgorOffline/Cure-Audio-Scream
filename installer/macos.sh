@@ -51,8 +51,9 @@ fi
 # fi
 
 echo "Backing up binaries with debug symbols"
-#if we had vst3, audio units and clap all compiling as seperate plugins, we would have to do this for each plugin type!
-xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.clap/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_plugin.dSYM"
+xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.component/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_auv2.dSYM"
+xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.clap/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_clap.dSYM"
+xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.vst3/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_vst3.dSYM"
 
 # If this wasn't open source, I would strip the symbols here
 # echo "Stripping symbols"

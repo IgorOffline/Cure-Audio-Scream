@@ -1286,15 +1286,15 @@ void pw_tick(void* _gui)
         gui->lfo_toggle_button = lfo_btn;
 
         // Framebuffer
-        int fb_width  = gui->plugin->width * gui->xvg.backingScaleFactor;
-        int fb_height = gui->plugin->width * gui->xvg.backingScaleFactor;
+        int fb_width  = lm->width * gui->xvg.backingScaleFactor;
+        int fb_height = lm->height * gui->xvg.backingScaleFactor;
         if (fb_width != gui->bg_framebuffer.width || fb_height != gui->bg_framebuffer.height)
         {
             sg_destroy_view(gui->bg_framebuffer.img_texview);
             sg_destroy_view(gui->bg_framebuffer.img_colview);
             sg_destroy_image(gui->bg_framebuffer.img);
-            gui->bg_framebuffer.width  = gui->plugin->width * gui->xvg.backingScaleFactor;
-            gui->bg_framebuffer.height = gui->plugin->height * gui->xvg.backingScaleFactor;
+            gui->bg_framebuffer.width  = fb_width;
+            gui->bg_framebuffer.height = fb_height;
             gui->bg_framebuffer.img    = sg_make_image(&(sg_image_desc){
                    .usage.color_attachment = true,
                    .width                  = gui->bg_framebuffer.width,
@@ -1308,10 +1308,8 @@ void pw_tick(void* _gui)
             xassert(gui->bg_framebuffer.width);
             xassert(gui->bg_framebuffer.height);
             xassert(gui->bg_framebuffer.img_texview.id);
-            gui->_xvg_bg0->frame.num_shapes = 0; // This will force the BG to redraw
-            gui->_xvg_bg0->frame.num_text   = 0;
-            gui->_xvg_bg1->frame.num_shapes = 0;
-            gui->_xvg_bg1->frame.num_text   = 0;
+            memset(&gui->_xvg_bg0->frame, 0, sizeof(gui->_xvg_bg0->frame)); // This will force the BG to redraw
+            memset(&gui->_xvg_bg1->frame, 0, sizeof(gui->_xvg_bg1->frame));
         }
 
         // Remake icons ?
@@ -1380,7 +1378,8 @@ void pw_tick(void* _gui)
     // NOTE: this is the heaviest draw call in the entire GUI, likely due to the high pixel coverage
     // Currently its 50% of all consumed GPU usage by the GUI
     // We use a custom shader to draw all gradients in one pass. It costs half as much GPU%
-    bool draw_bg = true;
+    // bool draw_bg = true;
+    bool draw_bg = false;
     if (draw_bg == false)
     {
         xvg_command_custom(bg, gui, do_background_shader, XVG_LABEL("BG Shader"));
@@ -2525,9 +2524,9 @@ void pw_tick(void* _gui)
     bool bg_match = do_bg_command_lists_match(gui);
     if (!bg_match) // redraw the background
     {
-        xvg_command_list_end_frame(bg, gui->plugin->width, gui->plugin->height);
+        xvg_command_list_end_frame(bg, lm->width, lm->height);
     }
-    xvg_command_list_end_frame(xvg, gui->plugin->width, gui->plugin->height);
+    xvg_command_list_end_frame(xvg, lm->width, lm->height);
 
     sg_commit();
     resources_end_frame(&gui->resource_manager, &gui->xvg);
@@ -2539,10 +2538,6 @@ void pw_tick(void* _gui)
     gui->frame_end_time = xtime_now_ns();
 #endif
 
-    // TODO: d3d->present() happens after this tick() function exits, so this hyperlink stuff is still blocking call.
-    //       PW either needs a pw_preset() function added to its API, or I need to finally add retained mode click
-    //       callbacks to my IMGUI lib. The latter is probably the best option, since I need this for native file
-    //       browser stuff and file drag stuff anyway
     if (click_curelogo)
         open_hyperlink("https://cure.audio");
     if (click_exaclogo)
