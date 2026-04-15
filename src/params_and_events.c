@@ -432,12 +432,12 @@ int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double val
 
 //=====================================================================================
 
-uint32_t cplug_getNumParameters(void*) { return PARAM_COUNT; }
+uint32_t cplug_getNumParameters(void* p) { return PARAM_COUNT; }
 uint32_t cplug_getParameterID(void* p, uint32_t paramIndex) { return paramIndex; }
 uint32_t cplug_getParameterFlags(void* p, uint32_t paramId) { return CPLUG_FLAG_PARAMETER_IS_AUTOMATABLE; }
 
 // NOTE: AUv2 supports a max length of 52 bytes, VST3 128, CLAP 256
-void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
+void cplug_getParameterName(void* p, uint32_t paramId, char* buf, size_t buflen)
 {
     const char* str = "";
     // clang-format off
@@ -467,7 +467,7 @@ void cplug_getParameterName(void*, uint32_t paramId, char* buf, size_t buflen)
     xtr_fmt(buf, buflen, 0, "%s", str);
 }
 
-void cplug_getParameterRange(void*, uint32_t paramId, double* min, double* max)
+void cplug_getParameterRange(void* p, uint32_t paramId, double* min, double* max)
 {
     xassert(min != max);
     *min = 0;
@@ -575,14 +575,14 @@ void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
     }
 }
 // VST3 only
-double cplug_denormaliseParameterValue(void*, uint32_t paramId, double value)
+double cplug_denormaliseParameterValue(void* p, uint32_t paramId, double value)
 {
     if (paramId == PARAM_SYNC_RATE_LFO_1 || paramId == PARAM_SYNC_RATE_LFO_2)
         value *= LFO_RATE_COUNT - 1;
 
     return value;
 }
-double cplug_normaliseParameterValue(void*, uint32_t paramId, double value)
+double cplug_normaliseParameterValue(void* p, uint32_t paramId, double value)
 {
     if (paramId == PARAM_SYNC_RATE_LFO_1 || paramId == PARAM_SYNC_RATE_LFO_2)
         value /= LFO_RATE_COUNT - 1;
@@ -590,7 +590,7 @@ double cplug_normaliseParameterValue(void*, uint32_t paramId, double value)
     return value;
 }
 
-double cplug_parameterStringToValue(void*, uint32_t paramId, const char* str)
+double cplug_parameterStringToValue(void* p, uint32_t paramId, const char* str)
 {
     double val = 0;
     param_string_to_value(paramId, str, &val);

@@ -1083,95 +1083,131 @@ void draw_lfo_section(GUI* gui)
             switch (sync_type)
             {
             case LFO_RATE_4_BARS:
+            {
                 static const char* labels_4_bars[] = {"0", "1", "2", "3", "4 bars"};
                 labels_arr                         = labels_4_bars;
                 num_labels                         = ARRLEN(labels_4_bars);
                 break;
+            }
             case LFO_RATE_2_BARS:
+            {
                 static const char* labels_2_bars[] = {"0", "1 / 2", "1", "1 1/ 2", "2 bars"};
                 labels_arr                         = labels_2_bars;
                 num_labels                         = ARRLEN(labels_2_bars);
                 break;
+            }
             case LFO_RATE_1_BAR:
+            {
                 static const char* labels_1_bar[] = {"0", "1 / 4", "1 / 2", "3 / 4", "1 bar"};
                 labels_arr                        = labels_1_bar;
                 num_labels                        = ARRLEN(labels_1_bar);
                 break;
+            }
             case LFO_RATE_3_4:
+            {
                 static const char* labels_3_4[] = {"0", "1 / 4", "1 / 2", "3 / 4"};
                 labels_arr                      = labels_3_4;
                 num_labels                      = ARRLEN(labels_3_4);
                 break;
+            }
             case LFO_RATE_2_3:
+            {
                 static const char* labels_2_3[] = {"0", "1 / 6", "1 / 3", "1 / 2", "2 / 3"};
                 labels_arr                      = labels_2_3;
                 num_labels                      = ARRLEN(labels_2_3);
                 break;
+            }
             case LFO_RATE_1_2:
+            {
                 static const char* labels_1_2[] = {"0", "1 / 8", "1 / 4", "3 / 8", "1 / 2"};
                 labels_arr                      = labels_1_2;
                 num_labels                      = ARRLEN(labels_1_2);
                 break;
+            }
             case LFO_RATE_3_8:
+            {
                 static const char* labels_3_8[] = {"0", "1 / 8", "1 / 4", "3 / 8"};
                 labels_arr                      = labels_3_8;
                 num_labels                      = ARRLEN(labels_3_8);
                 break;
+            }
             case LFO_RATE_1_3:
+            {
                 static const char* labels_1_3[] = {"0", "1 / 12", "1 / 6", "1 / 3"};
                 labels_arr                      = labels_1_3;
                 num_labels                      = ARRLEN(labels_1_3);
                 break;
+            }
             case LFO_RATE_1_4:
+            {
                 static const char* labels_1_4[] = {"0", "1 / 16", "1 / 8", "3 / 16", "1 / 4"};
                 labels_arr                      = labels_1_4;
                 num_labels                      = ARRLEN(labels_1_4);
                 break;
+            }
             case LFO_RATE_3_16:
+            {
                 static const char* labels_3_16[] = {"0", "1 / 16", "1 / 8", "3 / 16"};
                 labels_arr                       = labels_3_16;
                 num_labels                       = ARRLEN(labels_3_16);
                 break;
+            }
             case LFO_RATE_1_6:
+            {
                 static const char* labels_1_6[] = {"0", "1 / 24", "1 / 12", "1 / 8", "1 / 6"};
                 labels_arr                      = labels_1_6;
                 num_labels                      = ARRLEN(labels_1_6);
                 break;
+            }
             case LFO_RATE_1_8:
+            {
                 static const char* labels_1_8[] = {"0", "1 / 32", "1 / 16", "3 / 32", "1 / 8"};
                 labels_arr                      = labels_1_8;
                 num_labels                      = ARRLEN(labels_1_8);
                 break;
+            }
             case LFO_RATE_1_12:
+            {
                 static const char* labels_1_12[] = {"0", "1 / 48", "1 / 24", "3 / 48", "1 / 12"};
                 labels_arr                       = labels_1_12;
                 num_labels                       = ARRLEN(labels_1_12);
                 break;
+            }
             case LFO_RATE_1_16:
+            {
                 static const char* labels_1_16[] = {"0", "1 / 64", "1 / 32", "3 / 64", "1 / 16"};
                 labels_arr                       = labels_1_16;
                 num_labels                       = ARRLEN(labels_1_16);
                 break;
+            }
             case LFO_RATE_1_24:
+            {
                 static const char* labels_1_24[] = {"0", "1 / 96", "1 / 48", "3 / 96", "1 / 24"};
                 labels_arr                       = labels_1_24;
                 num_labels                       = ARRLEN(labels_1_24);
                 break;
+            }
             case LFO_RATE_1_32:
+            {
                 static const char* labels_1_32[] = {"0", "1 / 128", "1 / 64", "3 / 128", "1 / 32"};
                 labels_arr                       = labels_1_32;
                 num_labels                       = ARRLEN(labels_1_32);
                 break;
+            }
             case LFO_RATE_1_48:
+            {
                 static const char* labels_1_48[] = {"0", "1 / 192", "1 / 96", "3 / 192", "1 / 48"};
                 labels_arr                       = labels_1_48;
                 num_labels                       = ARRLEN(labels_1_48);
                 break;
+            }
             case LFO_RATE_1_64:
+            {
                 static const char* labels_1_64[] = {"0", "1 / 256", "1 / 128", "3 / 256", "1 / 64"};
                 labels_arr                       = labels_1_64;
                 num_labels                       = ARRLEN(labels_1_64);
                 break;
+            }
             case LFO_RATE_COUNT:
                 break;
             }

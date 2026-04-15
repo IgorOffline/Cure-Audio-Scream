@@ -8,7 +8,7 @@
 
 #ifdef __APPLE__
 #define HAVE_FCNTL_H
-#define HAVE_UNISTD_H
+#define HAVE_UNISTD_H 1
 #endif
 
 #define FT2BUILD_H_

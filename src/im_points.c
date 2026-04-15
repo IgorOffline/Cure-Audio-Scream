@@ -3,6 +3,7 @@
 #include <cplug_extensions/window.h>
 #include <imgui.h>
 #include <sort.h>
+#include <xhl/alloc.h>
 #include <xhl/debug.h>
 #include <xhl/maths.h>
 #include <xvg.h>
