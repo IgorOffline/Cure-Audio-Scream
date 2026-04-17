@@ -79,9 +79,9 @@ void do_lfo_shaders(void* uptr)
         gui->lfo_playhead_trail[idx] = y;
     }
 
-    sg_pipeline   pip;
+    sg_pipeline pip;
     imgui_rect* grid_area          = &gui->imp.area;
-    bool          have_all_resources = true;
+    bool        have_all_resources = true;
     have_all_resources &= resource_get_pipeline(&gui->resource_manager, &pip, lfo_vertical_grad_shader_desc, 0);
     // imgui_rect* grid_area          = NULL;
     // have_all_resources &=
@@ -301,7 +301,7 @@ void draw_lfo_section(GUI* gui)
         if (data.mouse_down_idx != -1)
         {
             xassert(events & IMGUI_EVENT_MOUSE_LEFT_DOWN);
-            p->selected_lfo_idx                          = data.mouse_down_idx;
+            p->selected_lfo_idx = data.mouse_down_idx;
             imp_reload(&gui->imp);
             fstate.should_update_main_points_with_points = true;
             should_clear_lfo_trail                       = true;
@@ -534,21 +534,21 @@ void draw_lfo_section(GUI* gui)
         static const char* DESCRIPTIONS[] = {
             "Loop mode\n"
             "\n"
-            "Causes the LFO playhead to return to 0\% after it reaches 100%.",
+            "Causes the LFO playhead to return to 0% after it reaches 100%.",
 
             "Retrig mode\n"
             "\n"
             "Uses clever audio peak detection to reset the LFO phase to 0%. Send MIDI to the plugin while MIDI "
             "keytracking is on for the most accurate results.\n"
             "\n"
-            "The LFO playhead will return to 0\% after it reaches 100%.",
+            "The LFO playhead will return to 0% after it reaches 100%.",
 
             "One shot mode\n"
             "\n"
             "Uses clever audio peak detection to reset the LFO phase to 0%. Send MIDI to the plugin while MIDI "
             "keytracking is on for the most accurate results.\n"
             "\n"
-            "When the LFO playhead reaches 100\% it will hang there until audio or MIDI causes it to reset to 0%."};
+            "When the LFO playhead reaches 100% it will hang there until audio or MIDI causes it to reset to 0%."};
         static_assert(ARRLEN(DESCRIPTIONS) == NUM_LOOP_TYPES, "");
 
         float height = btn_loop_type.b - btn_loop_type.y;
@@ -951,9 +951,9 @@ void draw_lfo_section(GUI* gui)
             gui->lfo_playhead_trail[i] = LFO_PLAYHEAD_TRAIL_MAX_OPACITY;
     }
 
-    bool should_update_y_values = fstate.did_reload;
-    should_update_y_values |= fstate.should_update_audio_points_with_main_points;
-    should_update_y_values |= has_resized;
+    bool should_update_y_values  = fstate.did_reload;
+    should_update_y_values      |= fstate.should_update_audio_points_with_main_points;
+    should_update_y_values      |= has_resized;
     if (should_update_y_values)
     {
         size_t len = xarr_len(gui->lfo_ybuffer);

@@ -273,9 +273,9 @@ bool ted_handle_paste(TextEditor* ted, void* pw)
         void* arr_end        = (void*)(ted->codepoints + num_current_codepoints);
 
         size_t cpy_mem_size  = num_new_codepoints * sizeof(int);
-        size_t move_mem_size = arr_end - arr_insert_pos;
+        size_t move_mem_size = (char*)arr_end - (char*)arr_insert_pos;
         if (move_mem_size)
-            memmove(arr_insert_pos + cpy_mem_size, arr_insert_pos, move_mem_size);
+            memmove((char*)arr_insert_pos + cpy_mem_size, arr_insert_pos, move_mem_size);
         memcpy(arr_insert_pos, new_codepoints, cpy_mem_size);
 
         linked_arena_release(ted->undo_arena, new_codepoints);

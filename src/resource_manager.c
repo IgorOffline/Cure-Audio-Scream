@@ -13,8 +13,8 @@ ResourceHeader* resource_find(ResourceManager* rm, ResourceID id)
         if (idx >= list->num_items)
             idx -= list->num_items;
         xassert(idx >= 0 && idx < list->num_items);
-        ResourceHeader* res       = list->items[idx];
-        ResourceHeader(*view)[32] = (void*)list->items;
+        ResourceHeader* res = list->items[idx];
+        // ResourceHeader(*view)[32] = (void*)list->items;
         if (res->id.u64 == id.u64)
         {
             head = res;

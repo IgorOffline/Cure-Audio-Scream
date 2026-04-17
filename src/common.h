@@ -50,12 +50,7 @@ void println(const char* const fmt, ...);
 #define XALIGN(a) __attribute__((aligned(a)))
 #endif
 
-#ifndef NDEBUG
-#define XFILES_ASSERT          xassert
-#define CPLUG_LOG_ASSERT(cond) xassert((cond));
-#else // !NDEBUG
-#define XFILES_ASSERT(cond) CPLUG_LOG_ASSERT((cond))
-#endif // NDEBUG
+#define XFILES_ASSERT(cond) CPLUG_LOG_ASSERT(cond)
 
 #define LOG_MALLOC(sz)    (println("malloc(%s) (%llu) - %s:%d", #sz, (sz), __FILE__, __LINE__), xmalloc(sz))
 #define LOG_CALLOC(n, sz) (println("calloc(%s, %s) (%llu) - %s:%d", #n, #sz, (sz), __FILE__, __LINE__), xcalloc(n, sz))

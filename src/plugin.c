@@ -15,7 +15,7 @@
 #include <xhl/string.h>
 #include <xhl/vector.h>
 
-#if defined(_WIN32) && defined(__x86_64__)
+#if defined(_WIN32) && (defined(__x86_64__) || defined(_M_X64))
 // https://softwareengineering.stackexchange.com/a/337251
 #include <immintrin.h>
 #define DISABLE_DENORMALS                                                                                              \
@@ -202,7 +202,10 @@ uint32_t cplug_getInputBusChannelCount(void* p, uint32_t bus_idx) { return 2; }
 uint32_t cplug_getOutputBusChannelCount(void* p, uint32_t bus_idx) { return 2; }
 
 void cplug_getInputBusName(void* p, uint32_t idx, char* buf, size_t buflen) { xtr_fmt(buf, buflen, 0, "Audio Input"); }
-void cplug_getOutputBusName(void* p, uint32_t idx, char* buf, size_t buflen) { xtr_fmt(buf, buflen, 0, "Audio Output"); }
+void cplug_getOutputBusName(void* p, uint32_t idx, char* buf, size_t buflen)
+{
+    xtr_fmt(buf, buflen, 0, "Audio Output");
+}
 
 uint32_t cplug_getLatencyInSamples(void* p) { return 0; }
 uint32_t cplug_getTailInSamples(void* p) { return 0; }
