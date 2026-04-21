@@ -430,6 +430,8 @@ int param_value_to_string(ParamID paramId, char* buf, size_t bufsize, double val
     return n;
 }
 
+bool param_id_is_valid(uint32_t paramId) { return paramId < PARAM_COUNT; }
+
 //=====================================================================================
 
 uint32_t cplug_getNumParameters(void* p) { return PARAM_COUNT; }
@@ -460,7 +462,7 @@ void cplug_getParameterName(void* p, uint32_t paramId, char* buf, size_t buflen)
     };
     // clang-format on
     _Static_assert(ARRLEN(NAMES) == PARAM_COUNT);
-    if (paramId < PARAM_COUNT)
+    if (param_id_is_valid(paramId))
     {
         str = NAMES[paramId];
     }
@@ -528,7 +530,12 @@ double cplug_getParameterValue(void* _p, uint32_t paramId)
 {
     Plugin* p = _p;
     double  value;
-    if (is_main_thread())
+    if (!param_id_is_valid(paramId)) // invalid paramId!
+    {
+        xassert(false);
+        value = 0;
+    }
+    else if (is_main_thread())
     {
         value = p->main_params[paramId];
         // println("[main] %s %s %f", __FUNCTION__, PARAM_STR[paramId], value);
@@ -545,10 +552,16 @@ double cplug_getParameterValue(void* _p, uint32_t paramId)
 void cplug_setParameterValue(void* _p, uint32_t paramId, double value)
 {
     Plugin* p = _p;
-    if (value < 0)
-        value = 0;
-    if (value > 1)
-        value = 1;
+
+    if (!param_id_is_valid(paramId)) // invalid paramId!
+    {
+        xassert(false);
+        return;
+    }
+
+    double pmin, pmax;
+    cplug_getParameterRange(_p, paramId, &pmin, &pmax);
+    value = xm_clampd(value, pmin, pmax);
 
     const bool is_main = is_main_thread();
     if (is_main)
@@ -593,11 +606,13 @@ double cplug_normaliseParameterValue(void* p, uint32_t paramId, double value)
 double cplug_parameterStringToValue(void* p, uint32_t paramId, const char* str)
 {
     double val = 0;
-    param_string_to_value(paramId, str, &val);
+    if (param_id_is_valid(paramId))
+        param_string_to_value(paramId, str, &val);
     return val;
 }
 
 void cplug_parameterValueToString(void* ptr, uint32_t paramId, char* buf, size_t bufsize, double value)
 {
-    param_value_to_string(paramId, buf, bufsize, value);
+    if (param_id_is_valid(paramId))
+        param_value_to_string(paramId, buf, bufsize, value);
 }
