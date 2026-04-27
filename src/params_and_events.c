@@ -31,7 +31,7 @@ void dequeue_global_events()
 {
     if (!is_main_thread())
     {
-        println("[WARNING] Called dequeue_global_events off of the main thread");
+        log_error("[WARNING] Called dequeue_global_events off of the main thread");
     }
     CPLUG_LOG_ASSERT(is_main_thread());
     unsigned head = xt_atomic_load_u32(&g_event_queue.head);
@@ -50,7 +50,8 @@ void dequeue_global_events()
                 main_dequeue_events((Plugin*)ptr);
                 break;
             default:
-                println("[WARNING] Unhanled global event: %u", type);
+                xassert(false);
+                log_error("[WARNING] Unhanled global event: %u", type);
                 break;
             }
         }
@@ -244,7 +245,8 @@ void main_dequeue_events(Plugin* p)
             break;
 
         default:
-            println("[MAIN] Unhandled event in main queue: %u", event->type);
+            xassert(false);
+            log_error("[MAIN] Unhandled event in main queue: %u", event->type);
             break;
         }
 

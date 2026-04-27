@@ -74,7 +74,8 @@ static void my_sg_logger(
     CPLUG_LOG_ASSERT(log_level > 1 && log_level < ARRLEN(LOG_LEVEL));
     if (!message_or_null)
         message_or_null = "";
-    println("[%s] %s %u:%s", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);
+    log_error("[%s] %s %u:%s", LOG_LEVEL[log_level], message_or_null, line_nr, filename_or_null);
+    xassert(false);
 }
 
 void* my_sg_allocator_alloc(size_t size, void* user_data)
@@ -439,7 +440,7 @@ void* pw_create_gui(void* _plugin, void* _pw)
             font = xvg_add_font_from_path(&gui->xvg, font_paths[font_idx]);
             if (font.id == 0)
             {
-                println("[CRITICAL] Failed to open fallback font at path %s", path);
+                log_error("[CRITICAL] Failed to open fallback font at path %s", path);
             }
             font_idx++;
         }
@@ -2505,7 +2506,8 @@ void pw_tick(void* _gui)
         // }
         // nvgText(nvg, 8, 8, text, text + len);
 
-        xvg_draw_text_ex(xvg, 8, 8, text, text + len, 14, XVG_ALIGN_TL, 0xff007fff, 0, 1.5);
+        // xvg_draw_text_ex(xvg, 8, 8, text, text + len, 14, XVG_ALIGN_TL, 0, 0xff007fff, 0, 1.5);
+        xvg_draw_text_ex(xvg, 8, 8, text, text + len, 14, XVG_ALIGN_TL, 0, 0x007f00ff, 0, 1.5);
     }
 #endif // SHOW_FPS
 

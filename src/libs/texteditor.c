@@ -56,7 +56,7 @@ void ted_push_state(TextEditor* ted)
             xassert(!is_duplicate);
             if (is_duplicate)
             {
-                println("[Warning] Trying to push duplicate state to Undo arena. Aborting!");
+                log_error("[Warning] Trying to push duplicate state to Undo arena. Aborting!");
                 linked_arena_release(ted->undo_arena, state);
                 return;
             }

@@ -129,6 +129,7 @@ set(PLUGIN_SOURCES
     src/im_points.c
     src/resource_manager.c
     src/icons.c
+    src/logger.c
 
     src/libs/freetype_scu.c
     src/libs/nanosvgrast3.c

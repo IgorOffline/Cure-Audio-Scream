@@ -222,7 +222,7 @@ void cplug_loadState(void* _p, const void* stateCtx, cplug_readProc readProc)
 
     if (ret != 0 && ret != sizeof(header))
     {
-        println("Error: Unexpected state version. Ret %lld", ret);
+        log_error("Error: Unexpected state version. Ret %lld", ret);
     }
     else
     {

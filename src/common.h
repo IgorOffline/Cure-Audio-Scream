@@ -44,6 +44,8 @@ void println(const char* const fmt, ...);
 #define println(...)
 #endif
 
+void log_error(const char* fmt, ...);
+
 #if defined(_MSC_VER)
 #define XALIGN(a) __declspec(align(a))
 #else
