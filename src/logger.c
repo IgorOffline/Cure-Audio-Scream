@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <xhl/files.h>
 #include <xhl/string.h>
 #include <xhl/system.h>
@@ -25,7 +26,7 @@ FILE* my_freopen(const char* path, const char* mode, FILE* stream)
     int            ret1          = MultiByteToWideChar(65001, 0x00000008, path, -1, TempPath, 260);
     int            ret2          = MultiByteToWideChar(65001, 0x00000008, mode, -1, TempMode, 8);
     FILE*          f             = NULL;
-    if (ret1 > 0 && ret2 > 0) // for some reason, this
+    if (ret1 > 0 && ret2 > 0)
         f = _wfreopen(TempPath, TempMode, stdout);
     return f;
 #else
@@ -39,32 +40,33 @@ void println(const char* const fmt, ...)
     char    buf[256] = {0};
     va_list args;
     va_start(args, fmt);
-    int n = xtr_fmt_va(buf, sizeof(buf), fmt, args);
+    int n = xtr_fmt_va(buf, sizeof(buf) - 1, fmt, args);
     va_end(args);
+    if (!n)
+        return;
 
-    if (n > 0)
-    {
-        if (n < sizeof(buf) && buf[n - 1] != '\n')
-        {
-            buf[n] = '\n';
-            n++;
-        }
+    buf[n++] = '\n';
+    buf[n]   = '\0';
 
-#ifdef CPLUG_BUILD_STANDALONE
-        OutputDebugStringA(buf);
-        // fwrite(buf, 1, n, stderr);
+#ifdef _WIN32
+#define DBGPRINT(str, len) OutputDebugStringA(str)
 #else
-        // static char path[1024] = {0};
-        // if (strlen(path) == 0)
-        // {
-        //     bool ok = xfiles_get_user_directory(path, sizeof(path), XFILES_USER_DIRECTORY_DESKTOP);
-        //     xassert(ok);
-        //     strcat(path, "\\log.txt");
-        // }
-        // bool ok = xfiles_append(path, buf, n);
-        // xassert(ok);
+#define DBGPRINT(str, len) fwrite(str, 1, len, stderr);
 #endif
+    DBGPRINT(buf, n);
+
+    // Log to file
+#if 0
+    static char path[1024] = {0};
+    if (strlen(path) == 0)
+    {
+        bool ok = xfiles_get_user_directory(path, sizeof(path), XFILES_USER_DIRECTORY_DESKTOP);
+        xassert(ok);
+        strcat(path, XFILES_DIR_STR "scream_log.txt");
     }
+    bool ok = xfiles_append(path, buf, n);
+    // xassert(ok);
+#endif
 }
 #endif // NDEBUG
 

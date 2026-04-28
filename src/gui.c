@@ -374,9 +374,9 @@ void* pw_create_gui(void* _plugin, void* _pw)
     env.defaults.sample_count = 1;
     env.defaults.color_format = SG_PIXELFORMAT_RGBA8;
     env.defaults.depth_format = SG_PIXELFORMAT_NONE;
-#if __APPLE__
+#if PW_METAL
     env.metal.device = pw_get_metal_device(gui->pw);
-#elif _WIN32
+#elif PW_DX11
     env.d3d11.device         = pw_get_dx11_device(gui->pw);
     env.d3d11.device_context = pw_get_dx11_device_context(gui->pw);
 #endif
@@ -1326,10 +1326,10 @@ void pw_tick(void* _gui)
         .color_format = SG_PIXELFORMAT_RGBA8,
         .depth_format = SG_PIXELFORMAT_NONE,
 
-#if __APPLE__
+#if PW_METAL
         .metal.current_drawable = pw_get_metal_drawable(gui->pw),
 #endif
-#if _WIN32
+#if PW_DX11
         .d3d11.render_view = pw_get_dx11_render_target_view(gui->pw),
 #endif
     };
