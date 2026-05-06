@@ -200,6 +200,7 @@ elseif(APPLE)
     list(APPEND PLUGIN_LIBRARIES
         "-framework Quartz"
         "-framework Cocoa"
+        "-framework Security"
         "-framework AudioToolbox"
         "-framework Metal"
         "-framework MetalKit")
