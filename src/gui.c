@@ -1412,6 +1412,7 @@ void pw_tick(void* _gui)
         xvg_draw_text_layout(bg, layout, cx, cy, XVG_ALIGN_CC, 0, C_BG_LIGHT);
 
         // Show evil red dot?
+        // "Notification badge"
         if (UPDATE_STATUS == UPDATE_STATUS_AVAILABLE && UPDATE_URL[0] != 0)
         {
             const XVGTextLayoutRow* rows        = xvg_layout_get_rows(layout);
@@ -1437,7 +1438,7 @@ void pw_tick(void* _gui)
             xvg_command_batch_draw(bg, "Evil red dot");
             // Now we begin a new layer
 
-            xvg_draw_circle(bg, title_area.r, title_area.y, 6, 0, 0xe32012ff);
+            xvg_draw_circle(bg, title_area.r, title_area.y, 6, 0, 0xDE3030FF);
             if (events & IMGUI_EVENT_MOUSE_ENTER)
                 pw_set_mouse_cursor(gui->pw, PW_CURSOR_HAND_POINT);
             if (events & IMGUI_EVENT_MOUSE_LEFT_DOWN)
