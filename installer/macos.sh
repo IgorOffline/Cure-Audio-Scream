@@ -5,9 +5,10 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 VERSION=$(cat "${SCRIPT_DIR}/../CMakeLists.txt" | grep VERSION | sed -n 2p | sed -e 's/VERSION//' -e 's/ //g')
 
-PKG_DIR="${SCRIPT_DIR}/../dist"
+PLUGIN_NAME=Scream
+DIST_DIR="${SCRIPT_DIR}/../dist"
 
-INSTALLER_PATH="${PKG_DIR}/Scream_v${VERSION}.pkg"
+INSTALLER_PATH="${DIST_DIR}/Scream_v${VERSION}.pkg"
 
 # if [ -f $INSTALLER_PATH ]; then
 #     echo "Error: ${INSTALLER_PATH} already exists! Please bump the version number or delete it the old file."
@@ -20,7 +21,7 @@ echo "Removing old build folder"
 rm -rf "${SCRIPT_DIR}/../build"
 echo "Creating new build folder"
 mkdir -p "${SCRIPT_DIR}/../build"
-mkdir -p $PKG_DIR
+mkdir -p $DIST_DIR
 
 echo "Configuring CMake"
 cmake --no-warn-unused-cli \
@@ -51,28 +52,28 @@ fi
 # fi
 
 echo "Backing up binaries with debug symbols"
-xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.component/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_auv2.dSYM"
-xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.clap/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_clap.dSYM"
-xcrun dsymutil "${SCRIPT_DIR}/../build/Release/Scream.vst3/Contents/MacOS/Scream" -o "${PKG_DIR}/Scream_v${VERSION}_vst3.dSYM"
+xcrun dsymutil "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.component/Contents/MacOS/${PLUGIN_NAME}" -o "${DIST_DIR}/Scream_v${VERSION}_auv2.dSYM"
+xcrun dsymutil "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.clap/Contents/MacOS/${PLUGIN_NAME}" -o "${DIST_DIR}/Scream_v${VERSION}_clap.dSYM"
+xcrun dsymutil "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.vst3/Contents/MacOS/${PLUGIN_NAME}" -o "${DIST_DIR}/Scream_v${VERSION}_vst3.dSYM"
 
 # If this wasn't open source, I would strip the symbols here
 # echo "Stripping symbols"
-# strip -x "${SCRIPT_DIR}/../build/Release/Scream.clap/Contents/MacOS/Scream"
-# strip -x "${SCRIPT_DIR}/../build/Release/Scream.component/Contents/MacOS/Scream"
-# strip -x "${SCRIPT_DIR}/../build/Release/Scream.vst3/Contents/MacOS/Scream"
+# strip -x "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.clap/Contents/MacOS/${PLUGIN_NAME}"
+# strip -x "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.component/Contents/MacOS/${PLUGIN_NAME}"
+# strip -x "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.vst3/Contents/MacOS/${PLUGIN_NAME}"
 
 #======================================
 
 echo "Signing"
 
 if [ -n "$DEVELOPER_ID_APPLICATION" ]; then
-    codesign --force -s "${DEVELOPER_ID_APPLICATION}" -v "${SCRIPT_DIR}/../build/Release/Scream.clap"      --strict --options=runtime --timestamp
-    codesign --force -s "${DEVELOPER_ID_APPLICATION}" -v "${SCRIPT_DIR}/../build/Release/Scream.component" --strict --options=runtime --timestamp
-    codesign --force -s "${DEVELOPER_ID_APPLICATION}" -v "${SCRIPT_DIR}/../build/Release/Scream.vst3"      --strict --options=runtime --timestamp
+    codesign --force -s "${DEVELOPER_ID_APPLICATION}" -v "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.clap"      --strict --options=runtime --timestamp
+    codesign --force -s "${DEVELOPER_ID_APPLICATION}" -v "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.component" --strict --options=runtime --timestamp
+    codesign --force -s "${DEVELOPER_ID_APPLICATION}" -v "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.vst3"      --strict --options=runtime --timestamp
 
-    codesign -dv --verbose=4 "${SCRIPT_DIR}/../build/Release/Scream.clap"
-    codesign -dv --verbose=4 "${SCRIPT_DIR}/../build/Release/Scream.component"
-    codesign -dv --verbose=4 "${SCRIPT_DIR}/../build/Release/Scream.vst3"
+    codesign -dv --verbose=4 "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.clap"
+    codesign -dv --verbose=4 "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.component"
+    codesign -dv --verbose=4 "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.vst3"
 else
     echo "WARNING: environment variable \"DEVELOPER_ID_APPLICATION\" not found. Skipping code signing packages..."
 fi
@@ -95,29 +96,29 @@ cp "${SCRIPT_DIR}/../assets/Tomorrow-SemiBold.ttf" "${SCRIPT_DIR}/../build/insta
 cp "${SCRIPT_DIR}/../assets/OFL.txt"               "${SCRIPT_DIR}/../build/installer_assets/"
 
 pkgbuild --root "${SCRIPT_DIR}/../build/installer_assets/" \
-         --identifier "com.CureAudio.Scream.pkg.assets" \
+         --identifier "com.CureAudio.${PLUGIN_NAME}.pkg.assets" \
          --version $VERSION \
-         --install-location "/tmp/Scream-installer/Scream" \
+         --install-location "/tmp/${PLUGIN_NAME}-installer/${PLUGIN_NAME}" \
          --scripts ${SCRIPT_DIR}/scripts \
-         ${PKG_DIR}/Scream_assets.pkg
+         ${DIST_DIR}/Scream_assets.pkg
 
-pkgbuild --root "${SCRIPT_DIR}/../build/Release/Scream.component" \
-         --identifier com.CureAudio.Scream.pkg.au \
+pkgbuild --root "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.component" \
+         --identifier com.CureAudio.${PLUGIN_NAME}.pkg.au \
          --version $VERSION \
-         --install-location "/Library/Audio/Plug-Ins/Components/Scream.component" \
-         ${PKG_DIR}/Scream_au.pkg
+         --install-location "/Library/Audio/Plug-Ins/Components/${PLUGIN_NAME}.component" \
+         ${DIST_DIR}/Scream_au.pkg
 
-pkgbuild --root "${SCRIPT_DIR}/../build/Release/Scream.clap" \
-         --identifier com.CureAudio.Scream.pkg.clap \
+pkgbuild --root "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.clap" \
+         --identifier com.CureAudio.${PLUGIN_NAME}.pkg.clap \
          --version $VERSION \
-         --install-location "/Library/Audio/Plug-Ins/CLAP/Scream.clap" \
-         ${PKG_DIR}/Scream_clap.pkg
+         --install-location "/Library/Audio/Plug-Ins/CLAP/${PLUGIN_NAME}.clap" \
+         ${DIST_DIR}/Scream_clap.pkg
 
-pkgbuild --root "${SCRIPT_DIR}/../build/Release/Scream.vst3" \
-         --identifier com.CureAudio.Scream.pkg.vst3 \
+pkgbuild --root "${SCRIPT_DIR}/../build/Release/${PLUGIN_NAME}.vst3" \
+         --identifier com.CureAudio.${PLUGIN_NAME}.pkg.vst3 \
          --version $VERSION \
-         --install-location "/Library/Audio/Plug-Ins/VST3/Scream.vst3" \
-         ${PKG_DIR}/Scream_vst3.pkg
+         --install-location "/Library/Audio/Plug-Ins/VST3/${PLUGIN_NAME}.vst3" \
+         ${DIST_DIR}/Scream_vst3.pkg
 
 # https://developer.apple.com/library/archive/documentation/DeveloperTools/Reference/DistributionDefinitionRef/Chapters/Distribution_XML_Ref.html
 # https://forum.juce.com/t/vst-installer/16654/15
@@ -129,54 +130,54 @@ pkgbuild --root "${SCRIPT_DIR}/../build/Release/Scream.vst3" \
 
 cp "${SCRIPT_DIR}/../LICENSE" "${SCRIPT_DIR}"
 
-cat > ${PKG_DIR}/distribution.xml << XMLEND
+cat > ${DIST_DIR}/distribution.xml << XMLEND
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
-    <title>Scream ${VERSION}</title>
+    <title>${PLUGIN_NAME} ${VERSION}</title>
     <license file="LICENSE"/>
     <background file="_macOS_installer_background.png" mime-type="image/png" scaling="proportional" />
-    <pkg-ref id="com.CureAudio.Scream.pkg.assets"/>
-    <pkg-ref id="com.CureAudio.Scream.pkg.au"/>
-    <pkg-ref id="com.CureAudio.Scream.pkg.clap"/>
-    <pkg-ref id="com.CureAudio.Scream.pkg.vst3"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.assets"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.au"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.clap"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.vst3"/>
     <options require-scripts="false" customize="always" />
     <choices-outline>
-        <line choice="com.CureAudio.Scream.pkg.assets"/>
-        <line choice="com.CureAudio.Scream.pkg.au"/>
-        <line choice="com.CureAudio.Scream.pkg.clap"/>
-        <line choice="com.CureAudio.Scream.pkg.vst3"/>
+        <line choice="com.CureAudio.${PLUGIN_NAME}.pkg.assets"/>
+        <line choice="com.CureAudio.${PLUGIN_NAME}.pkg.au"/>
+        <line choice="com.CureAudio.${PLUGIN_NAME}.pkg.clap"/>
+        <line choice="com.CureAudio.${PLUGIN_NAME}.pkg.vst3"/>
     </choices-outline>
-    <choice id="com.CureAudio.Scream.pkg.assets" visible="true" start_selected="true" title="Required assets" enabled="false">
-        <pkg-ref id="com.CureAudio.Scream.pkg.assets"/>
+    <choice id="com.CureAudio.${PLUGIN_NAME}.pkg.assets" visible="true" start_selected="true" title="Required assets" enabled="false">
+        <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.assets"/>
     </choice>
-    <pkg-ref id="com.CureAudio.Scream.pkg.assets" version="${VERSION}">Scream_assets.pkg</pkg-ref>
-    <choice id="com.CureAudio.Scream.pkg.au" visible="true" start_selected="true" title="Audio Unit (v2)">
-        <pkg-ref id="com.CureAudio.Scream.pkg.au"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.assets" version="${VERSION}">Scream_assets.pkg</pkg-ref>
+    <choice id="com.CureAudio.${PLUGIN_NAME}.pkg.au" visible="true" start_selected="true" title="Audio Unit (v2)">
+        <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.au"/>
     </choice>
-    <pkg-ref id="com.CureAudio.Scream.pkg.au" version="${VERSION}">Scream_au.pkg</pkg-ref>
-    <choice id="com.CureAudio.Scream.pkg.clap" visible="true" start_selected="true" title="CLAP">
-        <pkg-ref id="com.CureAudio.Scream.pkg.clap"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.au" version="${VERSION}">Scream_au.pkg</pkg-ref>
+    <choice id="com.CureAudio.${PLUGIN_NAME}.pkg.clap" visible="true" start_selected="true" title="CLAP">
+        <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.clap"/>
     </choice>
-    <pkg-ref id="com.CureAudio.Scream.pkg.clap" version="${VERSION}">Scream_clap.pkg</pkg-ref>
-    <choice id="com.CureAudio.Scream.pkg.vst3" visible="true" start_selected="true" title="VST3">
-        <pkg-ref id="com.CureAudio.Scream.pkg.vst3"/>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.clap" version="${VERSION}">Scream_clap.pkg</pkg-ref>
+    <choice id="com.CureAudio.${PLUGIN_NAME}.pkg.vst3" visible="true" start_selected="true" title="VST3">
+        <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.vst3"/>
     </choice>
-    <pkg-ref id="com.CureAudio.Scream.pkg.vst3" version="${VERSION}">Scream_vst3.pkg</pkg-ref>
+    <pkg-ref id="com.CureAudio.${PLUGIN_NAME}.pkg.vst3" version="${VERSION}">Scream_vst3.pkg</pkg-ref>
 </installer-gui-script>
 XMLEND
 
 echo "Running productbuild..."
 
 if [ -n "$DEVELOPER_ID_INSTALLER" ]; then
-    productbuild --distribution ${PKG_DIR}/distribution.xml \
-                 --package-path ${PKG_DIR} \
+    productbuild --distribution ${DIST_DIR}/distribution.xml \
+                 --package-path ${DIST_DIR} \
                  --resources ${SCRIPT_DIR} \
                  --sign "${DEVELOPER_ID_INSTALLER}" \
                  "${INSTALLER_PATH}"
 else
     echo "WARNING: environment variable \"DEVELOPER_ID_INSTALLER\" not found. Building installer without signature..."
-    productbuild --distribution ${PKG_DIR}/distribution.xml \
-                 --package-path ${PKG_DIR} \
+    productbuild --distribution ${DIST_DIR}/distribution.xml \
+                 --package-path ${DIST_DIR} \
                  --resources ${SCRIPT_DIR} \
                  "${INSTALLER_PATH}"
 fi
