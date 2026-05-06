@@ -122,7 +122,7 @@ set(PLUGIN_DEFINITIONS
 set(PLUGIN_SOURCES
     src/plugin.c
     src/state.c
-    
+
     src/gui.c
 
     src/gui_lfo.c
@@ -130,7 +130,6 @@ set(PLUGIN_SOURCES
     src/resource_manager.c
     src/icons.c
     src/logger.c
-    src/updates.c
     src/updates.c
 
     src/libs/freetype_scu.c
@@ -143,15 +142,11 @@ set(PLUGIN_SOURCES
     src/libs/picohttpparser.c
     src/libs/yyjson.c
     src/libs/https.c
-    src/libs/picohttpparser.c
-    src/libs/yyjson.c
-    src/libs/https.c
-    
+
     # modules/wip_libs/src/nanovg2.c
     modules/xvg/xvg.c
     modules/wip_libs/src/imgui.c
     modules/wip_libs/src/linked_arena.c
-    modules/wip_libs/src/xrequest.c
     modules/wip_libs/src/xrequest.c
     )
 
