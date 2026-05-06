@@ -16,6 +16,19 @@ DefaultGroupName={#MyAppName}
 LicenseFile="..\LICENSE"
 OutputDir="..\dist"
 OutputBaseFilename={#MyAppName}_v{#MyVersion}
+SetupIconFile=_windows_favicon.ico
+; Useful dark mode examples https://jrsoftware.org/ishelp/index.php?topic=setup_wizardimagefile
+; We force dark because its the only way to get white text, which is more legible against our custom background
+WizardStyle=dark
+; Setup Completed page image
+WizardImageFile=.\_windows_WizardImageFile.png
+WizardImageFileDynamicDark=.\_windows_WizardImageFile.png
+; Logo in top right corner
+WizardBackImageFile=.\_windows_WizardBackImageFile.png
+WizardBackImageFileDynamicDark=.\_windows_WizardBackImageFile.png
+; Logo in top right corner
+WizardSmallImageFile=.\_windows_WizardSmallImageFile_DynamicDark.png
+WizardSmallImageFileDynamicDark=.\_windows_WizardSmallImageFile_DynamicDark.png
 
 [Components]
 ; Note: This is a list of selectable "Components" for a user to install

@@ -1,5 +1,7 @@
 @ECHO OFF
 
+SET PLUGIN_NAME=Scream
+
 IF NOT EXIST %0\..\..\dist (
     CALL mkdir %0\..\..\dist
 )
@@ -58,19 +60,19 @@ IF %ERRORLEVEL% NEQ 0 (
 @REM )
 
 ECHO Backing up .pdb files
-IF NOT EXIST %0\..\..\build\Release\Scream_plugin.pdb (
-    ECHO Missing Scream_plugin.pdb
+IF NOT EXIST %0\..\..\build\Release\%PLUGIN_NAME%_plugin.pdb (
+    ECHO Missing %PLUGIN_NAME%_plugin.pdb
     EXIT /B
 )
 @REM Windows will prompt to ask you whether the destination is a directory or file
 @REM Echo is used to pipe the answer to the prompt
-ECHO F | XCOPY %0\..\..\build\Release\Scream_plugin.pdb %0\..\..\dist\Scream_v%VERSION%_plugin.pdb /Y
+ECHO F | XCOPY %0\..\..\build\Release\%PLUGIN_NAME%_plugin.pdb %0\..\..\dist\%PLUGIN_NAME%_v%VERSION%_plugin.pdb /Y
 
 @REM To my knowledge, call strip here does nothing when building with clang.
 @REM Maybe older versions of clang on windows needed symbol stripping,
 @REM but Clang 16 seems to follow MSVC conventions of keeping all the symbols in a .pdb file
 @REM Since this is an open source plugin, none of this matters...
-@REM CALL llvm-strip -x %0\..\..\build\Release\Scream.vst3\Contents\x86_64-win\Scream.vst3
+@REM CALL llvm-strip -x %0\..\..\build\Release\%PLUGIN_NAME%.vst3\Contents\x86_64-win\%PLUGIN_NAME%.vst3
 
 ECHO Building installer
 CALL ISCC.exe /DMyVersion=%VERSION% %0\..\_windows.iss
@@ -79,3 +81,13 @@ IF %ERRORLEVEL% NEQ 0 (
     ECHO Inno Setup failed to build installer with exit code %ERRORLEVEL%
     EXIT /B
 )
+
+ECHO Zipping installer
+CALL 7z a %0\..\..\dist\%PLUGIN_NAME%_win.zip %0\..\..\dist\%PLUGIN_NAME%_v%VERSION%.exe
+
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO 7z failed to zip installer with exit code %ERRORLEVEL%
+    EXIT /B
+)
+
+ECHO Build completed successfully
