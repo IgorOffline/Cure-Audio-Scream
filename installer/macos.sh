@@ -216,6 +216,10 @@ else
 fi
 
 echo "Zipping PKG"
-zip $PKG_DIR/Scream_mac.zip $INSTALLER_PATH
+# Empty archive
+zip -d $DIST_DIR/${PLUGIN_NAME}_mac.zip "*"
+# Use flat folder structure
+zip -rj $DIST_DIR/${PLUGIN_NAME}_mac.zip $INSTALLER_PATH
+
 
 echo "Done!"
