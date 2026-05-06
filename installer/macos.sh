@@ -214,4 +214,7 @@ else
     echo "WARNING: environment variable \"APPLE_ID\" and/or \"TEAM_ID\" not found. Skipping notorisation..."
 fi
 
+echo "Zipping PKG"
+zip $PKG_DIR/Scream_mac.zip $INSTALLER_PATH
+
 echo "Done!"
