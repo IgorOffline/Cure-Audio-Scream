@@ -1,9 +1,10 @@
 @ECHO OFF
 
 SET PLUGIN_NAME=Scream
+SET DIST_DIR=%0\..\..\dist
 
-IF NOT EXIST %0\..\..\dist (
-    CALL mkdir %0\..\..\dist
+IF NOT EXIST %DIST_DIR% (
+    CALL mkdir %DIST_DIR%
 )
 
 ECHO Finding version
@@ -66,7 +67,7 @@ IF NOT EXIST %0\..\..\build\Release\%PLUGIN_NAME%_plugin.pdb (
 )
 @REM Windows will prompt to ask you whether the destination is a directory or file
 @REM Echo is used to pipe the answer to the prompt
-ECHO F | XCOPY %0\..\..\build\Release\%PLUGIN_NAME%_plugin.pdb %0\..\..\dist\%PLUGIN_NAME%_v%VERSION%_plugin.pdb /Y
+ECHO F | XCOPY %0\..\..\build\Release\%PLUGIN_NAME%_plugin.pdb %DIST_DIR%\%PLUGIN_NAME%_v%VERSION%_plugin.pdb /Y
 
 @REM To my knowledge, call strip here does nothing when building with clang.
 @REM Maybe older versions of clang on windows needed symbol stripping,
@@ -83,7 +84,10 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 ECHO Zipping installer
-CALL 7z a %0\..\..\dist\%PLUGIN_NAME%_win.zip %0\..\..\dist\%PLUGIN_NAME%_v%VERSION%.exe
+@REM Clear everything from the archive. A new archive will be created if it doesn't exist
+CALL 7z d %DIST_DIR%\%PLUGIN_NAME%_win.zip * -r
+@REM Add new installer to archive
+CALL 7z a %DIST_DIR%\%PLUGIN_NAME%_win.zip %DIST_DIR%\%PLUGIN_NAME%_v%VERSION%.exe
 
 IF %ERRORLEVEL% NEQ 0 (
     ECHO 7z failed to zip installer with exit code %ERRORLEVEL%
